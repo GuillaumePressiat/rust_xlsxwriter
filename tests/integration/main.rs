@@ -488,6 +488,7 @@ mod format20;
 mod format21;
 mod format22;
 mod format23;
+mod format24;
 mod header_image01;
 mod header_image02;
 mod header_image03;
@@ -705,6 +706,20 @@ mod serde16;
 mod serde17;
 #[cfg(feature = "serde")]
 mod serde18;
+#[cfg(feature = "serde")]
+mod serde19;
+#[cfg(feature = "serde")]
+mod serde20;
+#[cfg(feature = "serde")]
+mod serde21;
+#[cfg(feature = "serde")]
+mod serde22;
+#[cfg(feature = "serde")]
+mod serde23;
+#[cfg(feature = "serde")]
+mod serde24;
+#[cfg(feature = "serde")]
+mod serde25;
 mod set_row01;
 mod set_row02;
 mod set_row03;

@@ -16,10 +16,7 @@ fn main() -> Result<(), XlsxError> {
 
     // Create a serializable struct.
     #[derive(XlsxSerialize, Serialize)]
-    #[xlsx(header_format = Format::new()
-        .set_bold()
-        .set_border(FormatBorder::Thin)
-        .set_background_color("C6EFCE"))]
+    #[xlsx(table = Table::new())]
     #[serde(rename_all = "PascalCase")]
     struct Produce {
         fruit: &'static str,

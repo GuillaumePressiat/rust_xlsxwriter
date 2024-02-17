@@ -5,9 +5,49 @@ All notable changes to rust_xlsxwriter will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.61.1] - 2023-01-20
+## [0.63.0] - 2023-XX-XX
 
-- Migration to polars 0.36.2
+### Added
+
+- Added [`utility::check_sheet_name()`] function to allow checking for valid
+  worksheet names according to Excel's naming rules. This functionality was
+  previously `pub(crate)` private.
+
+  [Feature Request #83].
+
+  [Feature Request #83]: https://github.com/jmcnamara/rust_xlsxwriter/pull/83
+
+  [`utility::check_sheet_name()`]: https://docs.rs/rust_xlsxwriter/latest/rust_xlsxwriter/utility/fn.check_sheet_name.html
+
+
+## [0.62.0] - 2023-01-24
+
+### Added
+
+- Added support for adding a worksheet [`Table`] as a serialization format. See [`SerializeFieldOptions::set_table()`].
+
+- Added [`Worksheet::get_serialize_dimensions()`] and
+  [`Worksheet::get_serialize_column_dimensions()`] methods to get dimensions
+  from a serialized range.
+
+- Updated polars dependency to 0.36.2 to pick up Polars `AnyData` changes for
+  [`polars_excel_writer`].
+
+
+[`Worksheet::get_serialize_dimensions()`]: https://docs.rs/rust_xlsxwriter/latest/rust_xlsxwriter/struct.Worksheet.html#method.get_serialize_dimensions
+
+[`Worksheet::get_serialize_column_dimensions()`]: https://docs.rs/rust_xlsxwriter/latest/rust_xlsxwriter/struct.Worksheet.html#method.get_serialize_column_dimensions
+
+
+[`SerializeFieldOptions::set_table()`]: https://docs.rs/rust_xlsxwriter/latest/rust_xlsxwriter/serializer/struct.SerializeFieldOptions.html#method.set_table
+
+
+### Changed
+
+- Changed APIs for [`Table`] to return `Table` instead of `&Table` to allow
+  methods to be chained. This makes worksheet Table usage easier during
+  serialization. Note that this is a backward incompatible change.
+
 
 ## [0.61.0] - 2023-01-13
 

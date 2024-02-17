@@ -25,8 +25,8 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "serde")]
 use crate::{
-    deserialize_headers, serializer::SerializerState, CustomSerializeField, HeaderConfig,
-    SerializeFieldOptions, SerializerHeader, XlsxSerialize,
+    deserialize_headers, serializer::SerializerState, CustomSerializeField,
+    SerializationHeaderConfig, SerializeFieldOptions, SerializerHeader, TableData, XlsxSerialize,
 };
 
 use crate::drawing::{Drawing, DrawingCoordinates, DrawingInfo, DrawingObject};
@@ -4912,8 +4912,6 @@ impl Worksheet {
     ///     }
     ///
     ///     // Create a new table and configure it.
-    ///     let mut table = Table::new();
-    ///
     ///     let columns = vec![
     ///         TableColumn::new()
     ///             .set_header("Product")
@@ -4936,8 +4934,7 @@ impl Worksheet {
     ///             .set_formula("SUM(Table1[@[Quarter 1]:[Quarter 4]])"),
     ///     ];
     ///
-    ///     table.set_columns(&columns);
-    ///     table.set_total_row(true);
+    ///     let table = Table::new().set_columns(&columns).set_total_row(true);
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 7, 6, &table)?;
@@ -6532,7 +6529,6 @@ impl Worksheet {
         };
 
         data_structure.serialize(&mut headers)?;
-
         self.store_serialization_headers_with_options(row, col, &headers, header_options)
     }
 
@@ -6987,17 +6983,244 @@ impl Worksheet {
         self.store_custom_serialization_headers(row, col, &header_options)
     }
 
-    /// TODO
+    /// Get the row/column dimensions of a serialized area.
+    ///
+    /// When serializing data it generally isn't necessary to track the row and
+    /// column range of the cells that are written since `rust_xlsxwriter` does
+    /// it automatically. However, it is sometimes useful to know the range of
+    /// the serialization after the data is written in order to refer to it in
+    /// another function such as a conditional format or a chart.
+    ///
+    /// The `get_serialize_dimensions()` function returns the row/column
+    /// dimensions of a serialized area for use cases where you need to know the
+    /// range of the data that was written. The dimensions are returned as a
+    /// `(min_row, min_col, max_row, max_col)` tuple in a `Result<>`.
+    ///
+    /// # Parameters
+    ///
+    /// * `struct_name` - The name/type of the target struct as a string.
     ///
     /// # Errors
     ///
+    /// * [`XlsxError::ParameterError`] - Unknown or unserialized struct name.
+    ///
+    /// # Examples
+    ///
+    /// Example of getting the dimensions of some serialized data. In this
+    /// example we use the dimensions to set a conditional format range.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_serialize_dimensions1.rs
+    /// #
+    /// # use rust_xlsxwriter::{
+    /// #     ConditionalFormatCell, ConditionalFormatCellRule, Format, Workbook, XlsxError,
+    /// # };
+    /// # use serde::Serialize;
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a serializable struct.
+    ///     #[derive(Serialize)]
+    ///     #[serde(rename_all = "PascalCase")]
+    ///     struct MyStruct {
+    ///         col1: u8,
+    ///         col2: u8,
+    ///         col3: u8,
+    ///         col4: u8,
+    ///     }
+    ///
+    ///     // Create some sample data.
+    /// #     #[rustfmt::skip]
+    ///     let data = [
+    ///         MyStruct {col1: 34,  col2: 73, col3: 39, col4: 32},
+    ///         MyStruct {col1: 5,   col2: 24, col3: 1,  col4: 84},
+    ///         MyStruct {col1: 28,  col2: 79, col3: 97, col4: 13},
+    ///         MyStruct {col1: 27,  col2: 71, col3: 40, col4: 17},
+    ///         MyStruct {col1: 88,  col2: 25, col3: 33, col4: 23},
+    ///         MyStruct {col1: 23,  col2: 99, col3: 20, col4: 88},
+    ///         MyStruct {col1: 7,   col2: 57, col3: 88, col4: 28},
+    ///         MyStruct {col1: 53,  col2: 78, col3: 1,  col4: 96},
+    ///         MyStruct {col1: 60,  col2: 54, col3: 81, col4: 66},
+    ///         MyStruct {col1: 70,  col2: 5,  col3: 46, col4: 14},
+    ///     ];
+    ///
+    ///     // Set the serialization location and headers.
+    ///     worksheet.serialize_headers(0, 0, &data[1])?;
+    ///
+    ///     // Serialize the data.
+    ///     worksheet.serialize(&data)?;
+    ///
+    ///     // Add a format. Green fill with dark green text.
+    ///     let format = Format::new()
+    ///         .set_font_color("006100")
+    ///         .set_background_color("C6EFCE");
+    ///
+    ///     // Create a conditional format.
+    ///     let conditional_format = ConditionalFormatCell::new()
+    ///         .set_rule(ConditionalFormatCellRule::GreaterThanOrEqualTo(50))
+    ///         .set_format(format);
+    ///
+    ///     // Get the range that the serialization applies to.
+    ///     let (min_row, min_col, max_row, max_col) =
+    ///         worksheet.get_serialize_dimensions("MyStruct")?;
+    ///
+    ///     // Write the conditional format to the serialization area. Note, we add 1 to
+    ///     // the minimum row number to skip the headers.
+    ///     worksheet.add_conditional_format(
+    ///         min_row + 1,
+    ///         min_col,
+    ///         max_row,
+    ///         max_col,
+    ///         &conditional_format,
+    ///     )?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("serialize.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_serialize_dimensions1.png">
+    ///
     #[cfg(feature = "serde")]
     #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
-    pub fn serialize_dimensions(
+    pub fn get_serialize_dimensions(
         &mut self,
-        name: &str,
+        struct_name: &str,
     ) -> Result<(RowNum, ColNum, RowNum, ColNum), XlsxError> {
-        self.serializer_state.get_dimensions(name)
+        self.serializer_state.get_dimensions(struct_name)
+    }
+
+    /// Get the row/column dimensions of a column in a serialized area.
+    ///
+    /// When serializing data it generally isn't necessary to track the row and
+    /// column range of the cells that are written since `rust_xlsxwriter` does
+    /// it automatically. However, it is sometimes useful to know the range of
+    /// the serialization after the data is written in order to refer to it in
+    /// another function such as a conditional format or a chart.
+    ///
+    /// The `get_serialize_column_dimensions()` function returns the row/column
+    /// dimensions of a field in a serialized area for use cases where you need to
+    /// know the range of the data that was written. The dimensions are returned
+    /// as a `(min_row, col, max_row, col)` tuple in a `Result<>`.
+    ///
+    /// # Parameters
+    ///
+    /// * `struct_name` - The name/type of the target struct, as a string.
+    /// * `struct_name` - The name of the field in the target struct, as a
+    ///   string.
+    ///
+    /// # Errors
+    ///
+    /// * [`XlsxError::ParameterError`] - Unknown or unserialized struct name or
+    ///   field.
+    ///
+    ///
+    /// # Examples
+    ///
+    /// Example of getting the field/column dimensions of some serialized data. In
+    /// this example we use the dimensions to set a conditional format range.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_serialize_dimensions2.rs
+    /// #
+    /// # use rust_xlsxwriter::{
+    /// #     ConditionalFormatCell, ConditionalFormatCellRule, Format, Workbook, XlsxError,
+    /// # };
+    /// # use serde::Serialize;
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a serializable struct.
+    ///     #[derive(Serialize)]
+    ///     #[serde(rename_all = "PascalCase")]
+    ///     struct MyStruct {
+    ///         col1: u8,
+    ///         col2: u8,
+    ///         col3: u8,
+    ///         col4: u8,
+    ///     }
+    ///
+    ///     // Create some sample data.
+    /// #     #[rustfmt::skip]
+    ///     let data = [
+    ///         MyStruct {col1: 34,  col2: 73, col3: 39, col4: 32},
+    ///         MyStruct {col1: 5,   col2: 24, col3: 1,  col4: 84},
+    ///         MyStruct {col1: 28,  col2: 79, col3: 97, col4: 13},
+    ///         MyStruct {col1: 27,  col2: 71, col3: 40, col4: 17},
+    ///         MyStruct {col1: 88,  col2: 25, col3: 33, col4: 23},
+    ///         MyStruct {col1: 23,  col2: 99, col3: 20, col4: 88},
+    ///         MyStruct {col1: 7,   col2: 57, col3: 88, col4: 28},
+    ///         MyStruct {col1: 53,  col2: 78, col3: 1,  col4: 96},
+    ///         MyStruct {col1: 60,  col2: 54, col3: 81, col4: 66},
+    ///         MyStruct {col1: 70,  col2: 5,  col3: 46, col4: 14},
+    ///     ];
+    ///
+    ///     // Set the serialization location and headers.
+    ///     worksheet.serialize_headers(0, 0, &data[1])?;
+    ///
+    ///     // Serialize the data.
+    ///     worksheet.serialize(&data)?;
+    ///
+    ///     // Add a format. Green fill with dark green text.
+    ///     let format = Format::new()
+    ///         .set_font_color("006100")
+    ///         .set_background_color("C6EFCE");
+    ///
+    ///     // Create a conditional format.
+    ///     let conditional_format = ConditionalFormatCell::new()
+    ///         .set_rule(ConditionalFormatCellRule::GreaterThanOrEqualTo(50))
+    ///         .set_format(format);
+    ///
+    ///     // Get the range that the serialization field applies to. Note that we must
+    ///     // match the Serde field name which has been renamed in PascalCase to Col3
+    ///     // (not col3). Also note that min_col and max_col are the same in this case
+    ///     // but we give them separate names for the sake of the example.
+    ///     let (min_row, min_col, max_row, max_col) =
+    ///         worksheet.get_serialize_column_dimensions("MyStruct", "Col3")?;
+    ///
+    ///     // Write the conditional format to the serialization area. Note, we add 1 to
+    ///     // the minimum row number to skip the headers.
+    ///     worksheet.add_conditional_format(
+    ///         min_row + 1,
+    ///         min_col,
+    ///         max_row,
+    ///         max_col,
+    ///         &conditional_format,
+    ///     )?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("serialize.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_serialize_dimensions2.png">
+    ///
+    #[cfg(feature = "serde")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+    pub fn get_serialize_column_dimensions(
+        &mut self,
+        struct_name: &str,
+        field_name: &str,
+    ) -> Result<(RowNum, ColNum, RowNum, ColNum), XlsxError> {
+        self.serializer_state
+            .get_column_dimensions(struct_name, field_name)
     }
 
     // Store serialization headers and options.
@@ -7014,8 +7237,8 @@ impl Worksheet {
         for custom_header in &header_options.custom_headers {
             if !field_names.contains(&custom_header.field_name) {
                 return Err(XlsxError::ParameterError(format!(
-                    "No custom field name '{}' found for struct '{}.'",
-                    custom_header.field_name, header_options.struct_name
+                    "No custom field name '{}' found for struct '{}'",
+                    custom_header.field_name, headers.struct_name
                 )));
             }
         }
@@ -7105,7 +7328,7 @@ impl Worksheet {
         // Check for empty struct members.
         if header_options.custom_headers.is_empty() {
             return Err(XlsxError::ParameterError(format!(
-                "No members found/specified for struct '{}.'",
+                "No members found/specified for struct '{}'",
                 header_options.struct_name
             )));
         }
@@ -7159,20 +7382,45 @@ impl Worksheet {
             fields.insert(custom_header.field_name.clone(), custom_header);
         }
 
-        // If we wrote headers then start the data serialization one row down.
+        // Start the data serialization one row down if headers were written.
         if write_headers {
             max_row += 1;
         }
 
+        // If a previous serialization was carried out with the same struct name
+        // then write the previous table formatting.
+        if let Some(header_config) = self
+            .serializer_state
+            .structs
+            .get_mut(&header_options.struct_name)
+        {
+            if let Some(table_data) = header_config.get_table() {
+                self.write_serialized_table(&table_data)?;
+            }
+        }
+
+        // Clone the new user defined table format, if present.
+        let table = match &header_options.table {
+            Some(table) => {
+                let mut table = table.clone();
+                if !header_options.has_headers {
+                    table.show_header_row = false;
+                }
+                Some(table)
+            }
+            None => None,
+        };
+
         // Store meta data for the struct/headers.
         self.serializer_state.structs.insert(
             header_options.struct_name.clone(),
-            HeaderConfig {
+            SerializationHeaderConfig {
                 fields,
                 min_row,
                 min_col,
                 max_row,
                 max_col,
+                table,
             },
         );
 
@@ -7207,6 +7455,37 @@ impl Worksheet {
             }
             Err(()) => Ok(()),
         }
+    }
+
+    // Add any tables that were added as part of serialization formatting.
+    #[cfg(feature = "serde")]
+    pub(crate) fn store_serialized_tables(&mut self) -> Result<&mut Worksheet, XlsxError> {
+        let tables = self.serializer_state.get_tables();
+
+        for table_data in tables {
+            self.write_serialized_table(&table_data)?;
+        }
+
+        Ok(self)
+    }
+
+    // Write a table that is part of serialization formatting.
+    #[cfg(feature = "serde")]
+    pub(crate) fn write_serialized_table(
+        &mut self,
+        table_data: &TableData,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        let min_col = table_data.1;
+        let max_col = table_data.3;
+        let min_row = table_data.0;
+        let mut max_row = table_data.2;
+        let table = &table_data.4;
+
+        if table.show_total_row {
+            max_row += 1;
+        }
+
+        self.add_table(min_row, min_col, max_row, max_col, table)
     }
 
     // -----------------------------------------------------------------------

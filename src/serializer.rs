@@ -46,7 +46,7 @@
 //!
 //! ## How serialization works in `rust_xlsxwriter`
 //!
-//! Serialization with `rust_xlsxwriter` needs to take into consideration that
+//! Serialization with `rust_xlsxwriter` needs to take into consideration
 //! that the target output is a 2D grid of cells into which the data can be
 //! serialized. As such the focus is on serializing data types that map to this
 //! 2D grid such as structs or compound collections of structs such as vectors
@@ -1528,7 +1528,6 @@
 //!   src="https://rustxlsxwriter.github.io/images/xlsxserialize_header_format.png">
 //!
 //!
-//!
 //! - `#[xlsx(hide_headers)`
 //!
 //!   The `hide_headers` container attribute hides the serialization headers:
@@ -1551,6 +1550,78 @@
 //!   src="https://rustxlsxwriter.github.io/images/xlsxserialize_hide_headers.png">
 //!
 //!
+//! - `#[xlsx(table_default)`
+//!
+//!   The `table_default` container attribute adds a worksheet [`Table`]
+//!   structure with default formatting to the serialized area:
+//!
+//!   ```
+//!   # use rust_xlsxwriter::XlsxSerialize;
+//!   # use serde::Serialize;
+//!   #
+//!   # fn main() {
+//!         #[derive(XlsxSerialize, Serialize)]
+//!         #[xlsx(table_default)]
+//!         struct Produce {
+//!             fruit: &'static str,
+//!             cost: f64,
+//!         }
+//!   # }
+//!   ```
+//!
+//!   <img
+//!   src="https://rustxlsxwriter.github.io/images/xlsxserialize_table_default.png">
+//!
+//!
+//! - `#[xlsx(table_style)`
+//!
+//!   The `table_style` container attribute adds a worksheet [`Table`]
+//!   structure with a user specified [`TableStyle`] to the serialized area:
+//!
+//!   ```
+//!   # use rust_xlsxwriter::XlsxSerialize;
+//!   # use serde::Serialize;
+//!   #
+//!   # fn main() {
+//!         #[derive(XlsxSerialize, Serialize)]
+//!         #[xlsx(table_style = TableStyle::Medium10)]
+//!         struct Produce {
+//!             fruit: &'static str,
+//!             cost: f64,
+//!         }
+//!   # }
+//!   ```
+//!
+//!   <img
+//!   src="https://rustxlsxwriter.github.io/images/xlsxserialize_table_style.png">
+//!
+//!
+//! - `#[xlsx(table = Table)`
+//!
+//!   The `table` container attribute adds a user defined worksheet [`Table`]
+//!   structure to the serialized area:
+//!
+//!   ```
+//!   # use rust_xlsxwriter::XlsxSerialize;
+//!   # use serde::Serialize;
+//!   #
+//!   # fn main() {
+//!         #[derive(XlsxSerialize, Serialize)]
+//!         #[xlsx(table = Table::new())]
+//!         struct Produce {
+//!             fruit: &'static str,
+//!             cost: f64,
+//!         }
+//!   # }
+//!   ```
+//!
+//!   <img
+//!   src="https://rustxlsxwriter.github.io/images/xlsxserialize_table_default.png">
+//!
+//!   See the [Working with attribute
+//!   Formats](#working-with-attribute-formats) section below for information on
+//!   how to wrap complex objects like [`Format`] or [`Table`] in a function so
+//!   it can be used as an attribute parameter.
 //!
 //!
 //! ### Field `xlsx` attributes
@@ -1886,9 +1957,18 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::{ColNum, Format, RowNum, Worksheet, XlsxError};
+use crate::{ColNum, Format, RowNum, Table, TableStyle, Worksheet, XlsxError};
 use serde::de::Visitor;
 use serde::{ser, Deserialize, Deserializer, Serialize};
+
+// Convenience tuple struct Table data used for serialization formatting.
+pub(crate) struct TableData(
+    pub(crate) RowNum,
+    pub(crate) ColNum,
+    pub(crate) RowNum,
+    pub(crate) ColNum,
+    pub(crate) Table,
+);
 
 // -----------------------------------------------------------------------
 // SerializerState, a struct to maintain row/column state and other metadata
@@ -1896,7 +1976,7 @@ use serde::{ser, Deserialize, Deserializer, Serialize};
 // information in the serializer.
 // -----------------------------------------------------------------------
 pub(crate) struct SerializerState {
-    pub(crate) structs: HashMap<String, HeaderConfig>,
+    pub(crate) structs: HashMap<String, SerializationHeaderConfig>,
     pub(crate) current_struct: String,
     pub(crate) current_field: String,
 }
@@ -1943,15 +2023,16 @@ impl SerializerState {
         header_config.max_row += 1;
     }
 
-    // TODO
+    // Get dimensions of a serialization area. This is the internal function for
+    // worksheet.get_serialize_dimensions().
     pub(crate) fn get_dimensions(
         &mut self,
         name: &str,
     ) -> Result<(RowNum, ColNum, RowNum, ColNum), XlsxError> {
-        let Some(header_config) = self.structs.get_mut(name) else {
-            return Err(XlsxError::ParameterError(
-                "Unknown serialized struct: '{name}'".to_string(),
-            ));
+        let Some(header_config) = self.structs.get(name) else {
+            return Err(XlsxError::ParameterError(format!(
+                "Unknown serialized struct '{name}'"
+            )));
         };
 
         Ok((
@@ -1961,18 +2042,77 @@ impl SerializerState {
             header_config.max_col,
         ))
     }
+
+    // Get dimensions of a column in a serialization area. This is the internal
+    // function for worksheet.get_serialize_column_dimensions().
+    pub(crate) fn get_column_dimensions(
+        &mut self,
+        struct_name: &str,
+        field_name: &str,
+    ) -> Result<(RowNum, ColNum, RowNum, ColNum), XlsxError> {
+        let Some(header_config) = self.structs.get(struct_name) else {
+            return Err(XlsxError::ParameterError(format!(
+                "Unknown serialized struct '{struct_name}'"
+            )));
+        };
+
+        let Some(field) = header_config.fields.get(field_name) else {
+            return Err(XlsxError::ParameterError(format!(
+                "Unknown serialized field '{field_name}'"
+            )));
+        };
+
+        Ok((
+            header_config.min_row,
+            field.col,
+            header_config.max_row - 1,
+            field.col,
+        ))
+    }
+
+    // Get all/any tables defined for serialization areas.
+    pub(crate) fn get_tables(&mut self) -> Vec<TableData> {
+        let mut tables = vec![];
+
+        for header_config in self.structs.values_mut() {
+            if let Some(table) = header_config.get_table() {
+                tables.push(table);
+            }
+        }
+
+        tables
+    }
 }
 
 // -----------------------------------------------------------------------
 // HeaderConfig, a struct to capture the metadata for fields associated
 // with a struct.
 // -----------------------------------------------------------------------
-pub(crate) struct HeaderConfig {
+pub(crate) struct SerializationHeaderConfig {
     pub(crate) fields: HashMap<String, CustomSerializeField>,
     pub(crate) min_row: RowNum,
     pub(crate) min_col: ColNum,
     pub(crate) max_row: RowNum,
     pub(crate) max_col: ColNum,
+    pub(crate) table: Option<Table>,
+}
+
+impl SerializationHeaderConfig {
+    // Get table object and dimensions for the a serialization area.
+    pub(crate) fn get_table(&mut self) -> Option<TableData> {
+        let table = self.table.take();
+
+        match table {
+            Some(table) => Some(TableData(
+                self.min_row,
+                self.min_col,
+                self.max_row - 1,
+                self.max_col,
+                table,
+            )),
+            None => None,
+        }
+    }
 }
 
 // -----------------------------------------------------------------------
@@ -2082,6 +2222,7 @@ pub struct SerializeFieldOptions {
     pub(crate) has_headers: bool,
     pub(crate) custom_headers: Vec<CustomSerializeField>,
     pub(crate) use_custom_headers_only: bool,
+    pub(crate) table: Option<Table>,
 }
 
 impl Default for SerializeFieldOptions {
@@ -2108,6 +2249,7 @@ impl SerializeFieldOptions {
             has_headers: true,
             custom_headers: vec![],
             use_custom_headers_only: false,
+            table: None,
         }
     }
 
@@ -2375,6 +2517,249 @@ impl SerializeFieldOptions {
         custom_headers: &[CustomSerializeField],
     ) -> SerializeFieldOptions {
         self.custom_headers = custom_headers.to_vec();
+        self
+    }
+
+    /// Add a default table structure to the serialized fields.
+    ///
+    /// This method can be used to add a default worksheet [`Table`] structure
+    /// to a serialized area.
+    ///
+    /// See [`Table`] for more details on worksheet tables.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates serializing instances of a Serde
+    /// derived data structure to a worksheet and a default worksheet table
+    /// structure.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_serialize_table1.rs
+    /// #
+    /// # use rust_xlsxwriter::{SerializeFieldOptions, Workbook, XlsxError};
+    /// # use serde::{Deserialize, Serialize};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a serializable struct.
+    ///     #[derive(Deserialize, Serialize)]
+    ///     struct Produce {
+    ///         fruit: &'static str,
+    ///         cost: f64,
+    ///     }
+    ///
+    ///     // Create some data instances.
+    ///     let item1 = Produce {
+    ///         fruit: "Peach",
+    ///         cost: 1.05,
+    ///     };
+    ///
+    ///     let item2 = Produce {
+    ///         fruit: "Plum",
+    ///         cost: 0.15,
+    ///     };
+    ///
+    ///     let item3 = Produce {
+    ///         fruit: "Pear",
+    ///         cost: 0.75,
+    ///     };
+    ///
+    ///     // Set the header options.
+    ///     let header_options = SerializeFieldOptions::new().set_table_default();
+    ///
+    ///     // Set the serialization location and custom headers.
+    ///     worksheet.deserialize_headers_with_options::<Produce>(0, 0, &header_options)?;
+    ///
+    ///     // Serialize the data.
+    ///     worksheet.serialize(&item1)?;
+    ///     worksheet.serialize(&item2)?;
+    ///     worksheet.serialize(&item3)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("serialize.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_serialize_table1.png">
+    ///
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+    pub fn set_table_default(mut self) -> SerializeFieldOptions {
+        self.table = Some(Table::new());
+        self
+    }
+
+    /// Add a table structure to the serialized fields with a user defined style.
+    ///
+    /// This method can be used to add a  worksheet [`Table`] structure
+    /// to a serialized area with a user defined [`TableStyle`].
+    ///
+    /// See [`Table`] for more details on worksheet tables.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates serializing instances of a Serde derived
+    /// data structure to a worksheet with a worksheet table and a user defined
+    /// style.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_serialize_table2.rs
+    /// #
+    /// # use rust_xlsxwriter::{SerializeFieldOptions, Workbook, XlsxError};
+    /// # use serde::{Deserialize, Serialize};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a serializable struct.
+    ///     #[derive(Deserialize, Serialize)]
+    ///     struct Produce {
+    ///         fruit: &'static str,
+    ///         cost: f64,
+    ///     }
+    ///
+    ///     // Create some data instances.
+    ///     let item1 = Produce {
+    ///         fruit: "Peach",
+    ///         cost: 1.05,
+    ///     };
+    ///
+    ///     let item2 = Produce {
+    ///         fruit: "Plum",
+    ///         cost: 0.15,
+    ///     };
+    ///
+    ///     let item3 = Produce {
+    ///         fruit: "Pear",
+    ///         cost: 0.75,
+    ///     };
+    ///
+    ///     // Set the header options.
+    ///     let header_options =
+    ///         SerializeFieldOptions::new().set_table_style(rust_xlsxwriter::TableStyle::Medium10);
+    ///
+    ///     // Set the serialization location and custom headers.
+    ///     worksheet.deserialize_headers_with_options::<Produce>(0, 0, &header_options)?;
+    ///
+    ///     // Serialize the data.
+    ///     worksheet.serialize(&item1)?;
+    ///     worksheet.serialize(&item2)?;
+    ///     worksheet.serialize(&item3)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("serialize.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_serialize_table2.png">
+    ///
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+    pub fn set_table_style(mut self, style: TableStyle) -> SerializeFieldOptions {
+        self.table = Some(Table::new().set_style(style));
+        self
+    }
+
+    /// Add a user defined table structure to the serialized fields.
+    ///
+    /// This method can be used to add a user defined worksheet [`Table`]
+    /// structure to a serialized area.
+    ///
+    /// See [`Table`] for more details on worksheet tables.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates serializing instances of a Serde
+    /// derived data structure to a worksheet with a user defined worksheet
+    /// table.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_serialize_table3.rs
+    /// #
+    /// # use rust_xlsxwriter::{
+    /// #     SerializeFieldOptions, Table, TableColumn, TableFunction, Workbook, XlsxError,
+    /// # };
+    /// # use serde::{Deserialize, Serialize};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a serializable struct.
+    ///     #[derive(Deserialize, Serialize)]
+    ///     #[serde(rename_all = "PascalCase")]
+    ///     struct Produce {
+    ///         fruit: &'static str,
+    ///         cost: f64,
+    ///     }
+    ///
+    ///     // Create some data instances.
+    ///     let item1 = Produce {
+    ///         fruit: "Peach",
+    ///         cost: 1.05,
+    ///     };
+    ///
+    ///     let item2 = Produce {
+    ///         fruit: "Plum",
+    ///         cost: 0.15,
+    ///     };
+    ///
+    ///     let item3 = Produce {
+    ///         fruit: "Pear",
+    ///         cost: 0.75,
+    ///     };
+    ///
+    ///     // Set the caption and subtotal in the total row.
+    ///     let columns = vec![
+    ///         TableColumn::new().set_total_label("Total"),
+    ///         TableColumn::new().set_total_function(TableFunction::Sum),
+    ///     ];
+    ///
+    ///     // Create a new table and configure the total row.
+    ///     let table = Table::new().set_total_row(true).set_columns(&columns);
+    ///
+    ///     // Set the header options.
+    ///     let header_options = SerializeFieldOptions::new().set_table(table);
+    ///
+    ///     // Set the serialization location and custom headers.
+    ///     worksheet.deserialize_headers_with_options::<Produce>(0, 0, &header_options)?;
+    ///
+    ///     // Serialize the data.
+    ///     worksheet.serialize(&item1)?;
+    ///     worksheet.serialize(&item2)?;
+    ///     worksheet.serialize(&item3)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("serialize.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_serialize_table3.png">
+    ///
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+    pub fn set_table(mut self, table: impl Into<Table>) -> SerializeFieldOptions {
+        self.table = Some(table.into());
         self
     }
 
