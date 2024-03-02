@@ -7,12 +7,12 @@ repository = "https://github.com/jmcnamara/rust_xlsxwriter"
 keywords = ["excel", "xlsx"]
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-version = "0.63.0"
+version = "0.64.0"
 edition = "2021"
 
 [dependencies]
 chrono = {version = "0.4.31", default-features = false, features = ["clock", "wasmbind", "serde"], optional = true}
-zip = {version = "0.6.4 ", default-features = false, features = ["deflate"]}
+zip = {version = "0.6.4", default-features = false, features = ["deflate"]}
 regex = "1.7.3"
 lazy_static = "1.4.0"
 polars= {version = "0.38.1", default-features = false, features = [], optional = true, git = "https://github.com/pola-rs/polars"}
