@@ -146,23 +146,162 @@ mod utility_tests {
     }
 
     #[test]
+    // The following unquoted and quoted sheet names were extracted from
+    // Excel files.
     fn test_quote_sheetname() {
         let tests = vec![
+            // A sheetname that is already quoted.
+            ("'Sheet 1'", "'Sheet 1'"),
+            // ----------------------------------------------------------------
+            // Rule 1.
+            // ----------------------------------------------------------------
+            // Some simple variants on standard sheet names.
             ("Sheet1", "Sheet1"),
-            ("Sheet.2", "Sheet.2"),
-            ("Sheet_3", "Sheet_3"),
-            ("'Sheet4'", "'Sheet4'"),
-            ("'Sheet 5'", "Sheet 5"),
-            ("'Sheet!6'", "Sheet!6"),
-            ("'Sheet''7'", "Sheet'7"),
+            ("Sheet.1", "Sheet.1"),
+            ("Sheet_1", "Sheet_1"),
+            ("Sheet-1", "'Sheet-1'"),
+            ("Sheet 1", "'Sheet 1'"),
+            ("Sheet#1", "'Sheet#1'"),
+            // Sheetnames with single quotes.
+            ("Sheet'1", "'Sheet''1'"),
+            ("Sheet''1", "'Sheet''''1'"),
+            // Single special chars that are unquoted in sheetnames. These are
+            // variants of the first char rule.
+            ("_", "_"),
+            (".", "'.'"),
+            // White space only.
+            (" ", "' '"),
+            ("    ", "'    '"),
+            // Sheetnames with unicode or emojis.
+            ("été", "été"),
+            ("mangé", "mangé"),
+            ("Sheet©", "'Sheet©'"),
+            ("Sheet😀", "Sheet😀"),
+            ("Sheet🤌1", "Sheet🤌1"),
+            ("Sheet⟦1", "'Sheet⟦1'"), // Unicode punctuation.
+            ("Sheet᠅1", "'Sheet᠅1'"), // Unicode punctuation.
+            // ----------------------------------------------------------------
+            // Rule 2.
+            // ----------------------------------------------------------------
+            // Sheetnames starting with non-word characters.
+            ("_Sheet1", "_Sheet1"),
+            (".Sheet1", "'.Sheet1'"),
+            ("1Sheet1", "'1Sheet1'"),
+            ("-Sheet1", "'-Sheet1'"),
+            ("#Sheet1", "'#Sheet1'"),
+            ("©Sheet", "'©Sheet'"),
+            ("😀Sheet", "'😀Sheet'"),
+            ("🤌Sheet", "'🤌Sheet'"),
+            // Sheetnames that are digits only also start with a non word char.
+            ("1", "'1'"),
+            ("2", "'2'"),
+            ("1234", "'1234'"),
+            ("12345678", "'12345678'"),
+            // ----------------------------------------------------------------
+            // Rule 3.
+            // ----------------------------------------------------------------
+            // Worksheet names that look like A1 style references (with the
+            // row/column number in the Excel allowable range). These are case
+            // insensitive.
+            ("A0", "A0"),
+            ("A1", "'A1'"),
+            ("a1", "'a1'"),
+            ("XFD", "XFD"),
+            ("xfd", "xfd"),
+            ("XFE1", "XFE1"),
+            ("ZZZ1", "ZZZ1"),
+            ("XFD1", "'XFD1'"),
+            ("xfd1", "'xfd1'"),
+            ("B1048577", "B1048577"),
+            ("A1048577", "A1048577"),
+            ("A1048576", "'A1048576'"),
+            ("B1048576", "'B1048576'"),
+            ("B1048576a", "B1048576a"),
+            ("XFD048576", "'XFD048576'"),
+            ("XFD1048576", "'XFD1048576'"),
+            ("XFD01048577", "XFD01048577"),
+            ("XFD01048576", "'XFD01048576'"),
+            ("A123456789012345678901", "A123456789012345678901"), // Exceeds u64.
+            // ----------------------------------------------------------------
+            // Rule 4.
+            // ----------------------------------------------------------------
+            // Sheet names that *start* with RC style references (with the
+            // row/column number in the Excel allowable range). These are case
+            // insensitive.
+            ("A", "A"),
+            ("B", "B"),
+            ("D", "D"),
+            ("Q", "Q"),
+            ("S", "S"),
+            ("c", "'c'"),
+            ("C", "'C'"),
+            ("CR", "CR"),
+            ("CZ", "CZ"),
+            ("r", "'r'"),
+            ("R", "'R'"),
+            ("C8", "'C8'"),
+            ("rc", "'rc'"),
+            ("RC", "'RC'"),
+            ("RCZ", "RCZ"),
+            ("RRC", "RRC"),
+            ("R0C0", "R0C0"),
+            ("R4C", "'R4C'"),
+            ("R5C", "'R5C'"),
+            ("rc2", "'rc2'"),
+            ("RC2", "'RC2'"),
+            ("RC8", "'RC8'"),
+            ("bR1C1", "bR1C1"),
+            ("R1C1", "'R1C1'"),
+            ("r1c2", "'r1c2'"),
+            ("rc2z", "'rc2z'"),
+            ("bR1C1b", "bR1C1b"),
+            ("R1C1b", "'R1C1b'"),
+            ("R1C1R", "'R1C1R'"),
+            ("C16384", "'C16384'"),
+            ("C16385", "'C16385'"),
+            ("C16385Z", "C16385Z"),
+            ("C16386", "'C16386'"),
+            ("C16384Z", "'C16384Z'"),
+            ("PC16384Z", "PC16384Z"),
+            ("RC16383", "'RC16383'"),
+            ("RC16385Z", "RC16385Z"),
+            ("R1048576", "'R1048576'"),
+            ("R1048577C", "R1048577C"),
+            ("R1C16384", "'R1C16384'"),
+            ("R1C16385", "'R1C16385'"),
+            ("RC16384Z", "'RC16384Z'"),
+            ("R1048576C", "'R1048576C'"),
+            ("R1048577C1", "R1048577C1"),
+            ("R1C16384Z", "'R1C16384Z'"),
+            ("R1048575C1", "'R1048575C1'"),
+            ("R1048576C1", "'R1048576C1'"),
+            ("R1048577C16384", "R1048577C16384"),
+            ("R1048576C16384", "'R1048576C16384'"),
+            ("R1048576C16385", "'R1048576C16385'"),
+            ("ZR1048576C16384", "ZR1048576C16384"),
+            ("C123456789012345678901Z", "C123456789012345678901Z"), // Exceeds u64.
+            ("R123456789012345678901Z", "R123456789012345678901Z"), // Exceeds u64.
+        ];
+
+        for (sheetname, exp) in tests {
+            assert_eq!(exp, utility::quote_sheetname(sheetname));
+        }
+    }
+
+    #[test]
+    fn test_unquote_sheetname() {
+        let tests = vec![
+            ("Sheet1", "Sheet1"),
+            ("'Sheet2'", "Sheet2"),
+            ("'Sheet''3'", "Sheet'3"),
+            ("'Sheet''''4'", "Sheet''4"),
             (
                 "'a''''''''''''''''''''''''''''''''''''''''''''''''''''''''''b'",
                 "a'''''''''''''''''''''''''''''b",
             ),
         ];
-
-        for (exp, sheetname) in tests {
-            assert_eq!(exp, utility::quote_sheetname(sheetname));
+        for (sheetname, exp) in tests {
+            assert_eq!(exp, utility::unquote_sheetname(sheetname));
         }
     }
 
@@ -347,5 +486,44 @@ mod utility_tests {
             result,
             Err(XlsxError::SheetnameStartsOrEndsWithApostrophe(_))
         ));
+    }
+
+    #[test]
+    fn check_invalid_vba_names() {
+        let result = utility::validate_vba_name("ValidName");
+        assert!(matches!(result, Ok(())));
+
+        let result = utility::validate_vba_name("Alphanumeric_characters_123");
+        assert!(matches!(result, Ok(())));
+
+        let result = utility::validate_vba_name("");
+        assert!(matches!(result, Err(XlsxError::VbaNameError(_))));
+
+        let name = "name_that_is_longer_than_thirty_one_characters";
+        let result = utility::validate_vba_name(name);
+        assert!(matches!(result, Err(XlsxError::VbaNameError(_))));
+
+        let name = "name_with_non_word_character_*";
+        let result = utility::validate_vba_name(name);
+        assert!(matches!(result, Err(XlsxError::VbaNameError(_))));
+
+        let name = "1name_starts_with_non_letter_char";
+        let result = utility::validate_vba_name(name);
+        assert!(matches!(result, Err(XlsxError::VbaNameError(_))));
+
+        let name = "_name_starts_with_non_letter_char";
+        let result = utility::validate_vba_name(name);
+        assert!(matches!(result, Err(XlsxError::VbaNameError(_))));
+    }
+
+    #[test]
+    fn check_is_valid_range() {
+        assert_eq!(true, utility::is_valid_range("A1"));
+        assert_eq!(true, utility::is_valid_range("A1:B3"));
+
+        assert_eq!(false, utility::is_valid_range(""));
+        assert_eq!(false, utility::is_valid_range("1A"));
+        assert_eq!(false, utility::is_valid_range("a1"));
+        assert_eq!(false, utility::is_valid_range("1:3"));
     }
 }

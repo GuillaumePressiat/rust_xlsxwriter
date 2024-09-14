@@ -27,10 +27,10 @@ use crate::{
 /// <img src="https://rustxlsxwriter.github.io/images/table_intro.png">
 ///
 /// A table is added to a worksheet via the
-/// [`worksheet.add_table()`](crate::Worksheet::add_table) method. The headers
+/// [`Worksheet::add_table()`](crate::Worksheet::add_table) method. The headers
 /// and total row of a table should be configured via a `Table` struct but the
 /// table data can be added via standard
-/// [`worksheet.write()`](crate::Worksheet::write) methods:
+/// [`Worksheet::write()`](crate::Worksheet::write) methods:
 ///
 /// ```
 /// # // This code is available in examples/doc_table_set_columns.rs
@@ -58,9 +58,7 @@ use crate::{
 ///     worksheet.write_row_matrix(3, 2, data)?;
 ///
 ///     // Set the column widths for clarity.
-///     for col_num in 1..=6u16 {
-///         worksheet.set_column_width(col_num, 12)?;
-///     }
+///     worksheet.set_column_range_width(1, 6, 12)?;
 ///
 ///     // Create a new table and configure it.
 ///     let columns = vec![
@@ -171,9 +169,7 @@ impl Table {
     ///     worksheet.write_row_matrix(3, 2, data)?;
     ///
     ///     // Set the column widths for clarity.
-    ///     for col_num in 1..=6u16 {
-    ///         worksheet.set_column_width(col_num, 12)?;
-    ///     }
+    ///     worksheet.set_column_range_width(1, 6, 12)?;
     ///
     ///     // Create a new table.
     ///     let table = Table::new();
@@ -223,14 +219,14 @@ impl Table {
     ///
     /// The header row will display default captions such as `Column 1`, `Column
     /// 2`, etc. These captions can be overridden using the
-    /// [`set_columns()`](Table::set_columns) method, see the examples below.
-    /// They shouldn't be written, or overwritten using standard
+    /// [`Table::set_columns()`] method, see the examples below. They shouldn't
+    /// be written, or overwritten using standard
     /// [`Worksheet::write()`](crate::Worksheet::write) methods since that will
     /// cause a warning when the file is loaded in Excel.
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     /// # Examples
     ///
@@ -262,9 +258,7 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table.
     ///     let table = Table::new();
@@ -315,16 +309,14 @@ impl Table {
     /// #     worksheet.write_row_matrix(2, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and configure the header.
     ///     let table = Table::new().set_header_row(false);
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 5, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -365,9 +357,7 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Set the captions for the header row.
     ///     let columns = vec![
@@ -383,7 +373,7 @@ impl Table {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -420,7 +410,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     ///
     /// # Examples
@@ -455,16 +445,14 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and configure the total row.
     ///     let table = Table::new().set_total_row(true);
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 7, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -506,9 +494,7 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Set the caption and subtotal in the total row.
     ///     let columns = vec![
@@ -526,7 +512,7 @@ impl Table {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 7, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -556,11 +542,11 @@ impl Table {
     /// see the example below.
     ///
     /// Note, you can also select a table style without banded rows using the
-    /// [`table.set_style`](Table::set_style) method.
+    /// [`Table::set_style()`] method.
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     /// # Examples
     ///
     /// Example of turning off the banded rows property in a worksheet table.
@@ -591,16 +577,14 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and configure the banded rows.
     ///     let table = Table::new().set_banded_rows(false);
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -626,7 +610,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -659,9 +643,7 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and configure the banded columns (but turn off banded
     ///     // rows for clarity).
@@ -669,7 +651,7 @@ impl Table {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -694,7 +676,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -727,16 +709,14 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and configure the first column highlighting.
     ///     let table = Table::new().set_first_column(true);
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -762,7 +742,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -795,9 +775,7 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Add a structured reference formula to the last column and set the header
     ///     // caption. The last column in `add_table()` should be extended to account
@@ -818,7 +796,7 @@ impl Table {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 6, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -843,7 +821,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     /// # Examples
     ///
@@ -875,16 +853,14 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and configure the autofilter.
     ///     let table = Table::new().set_autofilter(false);
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -915,7 +891,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `columns` - An array reference of [`TableColumn`] structs. Use
+    /// - `columns`: An array reference of [`TableColumn`] structs. Use
     ///   `TableColumn::default()` to get default values.
     ///
     ///
@@ -949,9 +925,7 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and configure it.
     ///     let columns = vec![
@@ -980,7 +954,7 @@ impl Table {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 7, 6, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -1012,7 +986,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `name` - The name of the table. It must be unique across the workbook.
+    /// - `name`: The name of the table. It must be unique across the workbook.
     ///
     /// # Examples
     ///
@@ -1044,16 +1018,14 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and set the name.
     ///     let table = Table::new().set_name("ProduceSales");
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -1082,7 +1054,7 @@ impl Table {
     ///
     /// # Parameters
     ///
-    /// * `style` - a [`TableStyle`] enum value.
+    /// - `style`: a [`TableStyle`] enum value.
     ///
     /// # Examples
     ///
@@ -1114,16 +1086,14 @@ impl Table {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a new table and set the style.
     ///     let table = Table::new().set_style(TableStyle::Medium10);
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -1174,7 +1144,7 @@ impl Table {
         // Set the column header names,
         for (index, column) in self.columns.iter_mut().enumerate() {
             if column.name.is_empty() {
-                column.name = default_headers[index].clone();
+                column.name.clone_from(&default_headers[index]);
             }
 
             if seen_column_names.contains(&column.name.to_lowercase()) {
@@ -1312,12 +1282,12 @@ impl Table {
 
             if let Some(formula) = &column.formula {
                 // Write the calculatedColumnFormula element.
-                self.write_calculated_column_formula(&formula.expand_formula(true));
+                self.write_calculated_column_formula(&formula.formula_string);
             }
 
             if let TableFunction::Custom(formula) = &column.total_function {
                 // Write the totalsRowFormula element.
-                self.write_totals_row_formula(&formula.expand_formula(true));
+                self.write_totals_row_formula(&formula.formula_string);
             }
 
             self.writer.xml_end_tag("tableColumn");
@@ -1367,8 +1337,7 @@ impl Table {
 /// - The total row subtotal function.
 /// - A formula for the column.
 ///
-/// This struct is used in conjunction with the
-/// [`table.set_columns()`](Table::set_columns) method.
+/// This struct is used in conjunction with the [`Table::set_columns()`] method.
 ///
 /// # Examples
 ///
@@ -1400,9 +1369,7 @@ impl Table {
 ///     worksheet.write_row_matrix(3, 2, data)?;
 ///
 ///     // Set the column widths for clarity.
-///     for col_num in 1..=6u16 {
-///         worksheet.set_column_width(col_num, 12)?;
-///     }
+///     worksheet.set_column_range_width(1, 6, 12)?;
 ///
 ///     // Create a new table and configure it.
 ///     let columns = vec![
@@ -1475,11 +1442,11 @@ impl TableColumn {
     ///
     /// The column header names in a table must be different from each other.
     /// Non-unique names will raise a validation error when using
-    /// [`worksheet.add_table()`](crate::Worksheet::add_table).
+    /// [`Worksheet::add_table()`](crate::Worksheet::add_table).
     ///
     /// # Parameters
     ///
-    /// * `caption` - The caption/name of the column header. It must be unique
+    /// - `caption`: The caption/name of the column header. It must be unique
     ///   for the table.
     ///
     /// # Examples
@@ -1512,9 +1479,7 @@ impl TableColumn {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Set the captions for the header row.
     ///     let columns = vec![
@@ -1530,7 +1495,7 @@ impl TableColumn {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -1571,7 +1536,7 @@ impl TableColumn {
     ///
     /// # Parameters
     ///
-    /// * `function` - A [`TableFunction`] enum value equivalent to one of the
+    /// - `function`: A [`TableFunction`] enum value equivalent to one of the
     ///   available Excel `SUBTOTAL()` options.
     ///
     /// # Examples
@@ -1605,9 +1570,7 @@ impl TableColumn {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Set the caption and subtotal in the total row.
     ///     let columns = vec![
@@ -1625,7 +1588,7 @@ impl TableColumn {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 7, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -1655,7 +1618,7 @@ impl TableColumn {
     ///
     /// # Parameters
     ///
-    /// * `label` - The label/caption of the total row of the column.
+    /// - `label`: The label/caption of the total row of the column.
     ///
     pub fn set_total_label(mut self, label: impl Into<String>) -> TableColumn {
         self.total_label = label.into();
@@ -1676,7 +1639,7 @@ impl TableColumn {
     ///
     /// # Parameters
     ///
-    /// * `formula` - The formula to be applied to the column as a string or
+    /// - `formula`: The formula to be applied to the column as a string or
     ///   [`Formula`].
     ///
     /// # Examples
@@ -1709,9 +1672,7 @@ impl TableColumn {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Add a structured reference formula to the last column and set the header
     ///     // caption.
@@ -1731,7 +1692,7 @@ impl TableColumn {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 6, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -1746,7 +1707,7 @@ impl TableColumn {
     ///
     pub fn set_formula(mut self, formula: impl Into<Formula>) -> TableColumn {
         let mut formula = formula.into();
-        formula = formula.clone().use_table_functions().use_future_functions();
+        formula = formula.clone().escape_table_functions();
         self.formula = Some(formula);
         self
     }
@@ -1755,7 +1716,7 @@ impl TableColumn {
     ///
     /// It is sometimes required to format the data in the columns of a table.
     /// This can be done using the standard
-    /// [`worksheet.write_with_format()`](crate::Worksheet::write_with_format)) method
+    /// [`Worksheet::write_with_format()`](crate::Worksheet::write_with_format)) method
     /// but format can also be applied separately using
     /// `TableColumn.set_format()`.
     ///
@@ -1764,7 +1725,7 @@ impl TableColumn {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the data cells in the column.
+    /// - `format`: The [`Format`] property for the data cells in the column.
     ///
     /// # Examples
     ///
@@ -1796,9 +1757,7 @@ impl TableColumn {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     ///     // Create a number format for number columns in the table.
     ///     let format = Format::new().set_num_format("$#,##0.00");
@@ -1817,7 +1776,7 @@ impl TableColumn {
     ///
     ///     // Add the table to the worksheet.
     ///     worksheet.add_table(2, 1, 6, 5, &table)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("tables.xlsx")?;
     /// #
@@ -1841,7 +1800,7 @@ impl TableColumn {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the column header.
+    /// - `format`: The [`Format`] property for the column header.
     ///
     /// # Examples
     ///
@@ -1873,9 +1832,7 @@ impl TableColumn {
     /// #     worksheet.write_row_matrix(3, 2, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=6u16 {
-    /// #         worksheet.set_column_width(col_num, 12)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 6, 12)?;
     /// #
     /// #     // Create formats for the columns headers.
     ///     let format1 = Format::new().set_font_color("#FF0000");
@@ -1941,7 +1898,7 @@ impl TableColumn {
             TableFunction::StdDev => Formula::new(format!("SUBTOTAL(107,[{column_name}])")),
             TableFunction::Average => Formula::new(format!("SUBTOTAL(101,[{column_name}])")),
             TableFunction::CountNumbers => Formula::new(format!("SUBTOTAL(102,[{column_name}])")),
-            TableFunction::Custom(formula) => formula.clone().use_future_functions(),
+            TableFunction::Custom(formula) => formula.clone(),
         }
     }
 }
@@ -1989,9 +1946,7 @@ impl Default for TableColumn {
 /// #     worksheet.write_row_matrix(3, 2, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=6u16 {
-/// #         worksheet.set_column_width(col_num, 12)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 6, 12)?;
 /// #
 ///     // Set the caption and subtotal in the total row.
 ///     let columns = vec![
@@ -2079,8 +2034,8 @@ impl fmt::Display for TableFunction {
 ///
 /// <img src="https://rustxlsxwriter.github.io/images/table_styles.png">
 ///
-/// The style is set via the [`table.set_style`](Table::set_style) method. The
-/// default table style in Excel is equivalent to [`TableStyle::Medium9`].
+/// The style is set via the [`Table::set_style()`] method. The default table
+/// style in Excel is equivalent to [`TableStyle::Medium9`].
 ///
 /// # Examples
 ///
@@ -2112,9 +2067,7 @@ impl fmt::Display for TableFunction {
 /// #     worksheet.write_row_matrix(3, 2, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=6u16 {
-/// #         worksheet.set_column_width(col_num, 12)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 6, 12)?;
 /// #
 ///     // Create a new table and set the style.
 ///     let table = Table::new().set_style(TableStyle::Medium10);

@@ -29,6 +29,8 @@ mod tests;
 
 #[cfg(feature = "serde")]
 use crate::IntoExcelDateTime;
+use crate::COL_MAX;
+use crate::ROW_MAX;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 
@@ -93,8 +95,11 @@ pub fn column_number_to_name(col_num: ColNum) -> String {
 /// ```
 ///
 pub fn column_name_to_number(column: &str) -> ColNum {
-    let mut col_num = 0;
+    if column.is_empty() {
+        return 0;
+    }
 
+    let mut col_num = 0;
     for char in column.chars() {
         col_num = (col_num * 26) + (char as u16 - 'A' as u16 + 1);
     }
@@ -256,7 +261,7 @@ pub fn cell_range_absolute(
 ///
 /// # Errors
 ///
-/// * [`XlsxError::SerdeError`] - A wrapped serialization error.
+/// - [`XlsxError::SerdeError`] - A wrapped serialization error.
 ///
 /// # Examples
 ///
@@ -326,7 +331,7 @@ where
 ///
 /// # Errors
 ///
-/// * [`XlsxError::SerdeError`] - A wrapped serialization error.
+/// - [`XlsxError::SerdeError`] - A wrapped serialization error.
 ///
 /// # Examples
 ///
@@ -368,8 +373,28 @@ where
     }
 }
 
-// Convert zero indexed row and col cell references to a chart absolute
-// Sheet1!$A$1:$B$1 style range string.
+// Convert zero indexed row and col cell references to a non-absolute chart
+// "Sheet1!A1:B1" style range string.
+pub(crate) fn chart_range(
+    sheet_name: &str,
+    first_row: RowNum,
+    first_col: ColNum,
+    last_row: RowNum,
+    last_col: ColNum,
+) -> String {
+    let sheet_name = quote_sheetname(sheet_name);
+    let range1 = row_col_to_cell(first_row, first_col);
+    let range2 = row_col_to_cell(last_row, last_col);
+
+    if range1 == range2 {
+        format!("{sheet_name}!{range1}")
+    } else {
+        format!("{sheet_name}!{range1}:{range2}")
+    }
+}
+
+// Convert zero indexed row and col cell references to an absolute chart
+// "Sheet1!$A$1:$B$1" style range string.
 pub(crate) fn chart_range_abs(
     sheet_name: &str,
     first_row: RowNum,
@@ -388,24 +413,236 @@ pub(crate) fn chart_range_abs(
     }
 }
 
-// Create a quoted version of a worksheet name. Excel single quotes worksheet
-// names that contain spaces and some other characters.
+// Convert zero indexed row and col cell references to a range and tuple string
+// suitable for an error message.
+pub(crate) fn chart_error_range(
+    sheet_name: &str,
+    first_row: RowNum,
+    first_col: ColNum,
+    last_row: RowNum,
+    last_col: ColNum,
+) -> String {
+    let sheet_name = quote_sheetname(sheet_name);
+    let range1 = row_col_to_cell(first_row, first_col);
+    let range2 = row_col_to_cell(last_row, last_col);
+
+    if range1 == range2 {
+        format!("{sheet_name}!{range1}/({first_row}, {first_col})")
+    } else {
+        format!("{sheet_name}!{range1}:{range2}/({first_row}, {first_col}, {last_row}, {last_col})")
+    }
+}
+
+// Sheetnames used in references should be quoted if they contain any spaces,
+// special characters or if they look like a A1 or RC cell reference. The rules
+// are shown inline below.
+#[allow(clippy::if_same_then_else)]
 pub(crate) fn quote_sheetname(sheetname: &str) -> String {
     let mut sheetname = sheetname.to_string();
+    let uppercase_sheetname = sheetname.to_uppercase();
+    let mut requires_quoting = false;
+    let col_max = u64::from(COL_MAX);
+    let row_max = u64::from(ROW_MAX);
+
+    // Split sheetnames that look like A1 and R1C1 style cell references into a
+    // leading string and a trailing number.
+    let (string_part, number_part) = split_cell_reference(&sheetname);
+
+    // The number part of the sheet name can have trailing non-digit characters
+    // and still be a valid R1C1 match. However, to test the R1C1 row/col part
+    // we need to extract just the number part.
+    let mut number_parts = number_part.split(|c: char| !c.is_ascii_digit());
+    let rc_number_part = number_parts.next().unwrap_or_default();
 
     // Ignore strings that are already quoted.
     if !sheetname.starts_with('\'') {
-        // double quote and other single quotes.
-        sheetname = sheetname.replace('\'', "''");
+        // --------------------------------------------------------------------
+        // Rule 1. Sheet names that contain anything other than \w and "."
+        // characters must be quoted.
+        // --------------------------------------------------------------------
 
-        // Single quote the worksheet name if it contains any of the characters
-        // that Excel quotes when using the name in a formula.
-        if sheetname.contains(' ') || sheetname.contains('!') || sheetname.contains('\'') {
-            sheetname = format!("'{sheetname}'");
+        if !sheetname
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '.' || is_emoji(c))
+        {
+            requires_quoting = true;
+        }
+        // --------------------------------------------------------------------
+        // Rule 2. Sheet names that start with a digit or "." must be quoted.
+        // --------------------------------------------------------------------
+        else if sheetname.starts_with(|c: char| c.is_ascii_digit() || c == '.' || is_emoji(c)) {
+            requires_quoting = true;
+        }
+        // --------------------------------------------------------------------
+        // Rule 3. Sheet names must not be a valid A1 style cell reference.
+        // Valid means that the row and column range values must also be within
+        // Excel row and column limits.
+        // --------------------------------------------------------------------
+        else if (1..=3).contains(&string_part.len())
+            && number_part.chars().all(|c| c.is_ascii_digit())
+        {
+            let col = column_name_to_number(&string_part);
+            let col = u64::from(col + 1);
+
+            let row = number_part.parse::<u64>().unwrap_or_default();
+
+            if row > 0 && row <= row_max && col <= col_max {
+                requires_quoting = true;
+            }
+        }
+        // --------------------------------------------------------------------
+        // Rule 4. Sheet names must not *start* with a valid RC style cell
+        // reference. Other characters after the valid RC reference are ignored
+        // by Excel. Valid means that the row and column range values must also
+        // be within Excel row and column limits.
+        //
+        // Note: references without trailing characters like R12345 or C12345
+        // are caught by Rule 3. Negative references like R-12345 are caught by
+        // Rule 1 due to dash.
+        // --------------------------------------------------------------------
+
+        // Rule 4a. Check for sheet names that start with R1 style references.
+        else if string_part == "R" {
+            let row = rc_number_part.parse::<u64>().unwrap_or_default();
+
+            if row > 0 && row <= row_max {
+                requires_quoting = true;
+            }
+        }
+        // Rule 4b. Check for sheet names that start with C1 or RC1 style
+        // references.
+        else if string_part == "RC" || string_part == "C" {
+            let col = rc_number_part.parse::<u64>().unwrap_or_default();
+
+            if col > 0 && col <= col_max {
+                requires_quoting = true;
+            }
+        }
+        // Rule 4c. Check for some single R/C references.
+        else if uppercase_sheetname == "R"
+            || uppercase_sheetname == "C"
+            || uppercase_sheetname == "RC"
+        {
+            requires_quoting = true;
         }
     }
 
+    if requires_quoting {
+        // Double up any single quotes.
+        sheetname = sheetname.replace('\'', "''");
+
+        // Single quote the sheet name.
+        sheetname = format!("'{sheetname}'");
+    }
+
     sheetname
+}
+
+// Unquote an Excel single quoted string.
+pub(crate) fn unquote_sheetname(sheetname: &str) -> String {
+    if sheetname.starts_with('\'') && sheetname.ends_with('\'') {
+        let sheetname = sheetname[1..sheetname.len() - 1].to_string();
+        sheetname.replace("''", "'")
+    } else {
+        sheetname.to_string()
+    }
+}
+
+// Match emoji characters when quoting sheetnames. The following were generated from:
+// https://util.unicode.org/UnicodeJsps/list-unicodeset.jsp?a=%5B%3AEmoji%3DYes%3A%5D&abb=on&esc=on&g=&i=
+//
+pub(crate) fn is_emoji(c: char) -> bool {
+    if c < '\u{203C}' {
+        // Shortcut for most chars in the lower range. We ignore chars '#', '*',
+        // '0-9', '©️' and '®️' which are in the range and which are, strictly
+        // speaking, emoji symbols, but they are not treated so by Excel in the
+        // context of this check.
+        return false;
+    }
+
+    if c < '\u{01F004}' {
+        return matches!(c,
+            '\u{203C}' | '\u{2049}' | '\u{2122}' | '\u{2139}' | '\u{2194}'..='\u{2199}' |
+            '\u{21A9}' | '\u{21AA}' | '\u{231A}' | '\u{231B}' | '\u{2328}' | '\u{23CF}' |
+            '\u{23E9}'..='\u{23F3}' | '\u{23F8}'..='\u{23FA}' | '\u{24C2}' | '\u{25AA}' |
+            '\u{25AB}' | '\u{25B6}' | '\u{25C0}' | '\u{25FB}'..='\u{25FE}' |
+            '\u{2600}'..='\u{2604}' | '\u{260E}' | '\u{2611}' | '\u{2614}' | '\u{2615}' |
+            '\u{2618}' | '\u{261D}' | '\u{2620}' | '\u{2622}' | '\u{2623}' | '\u{2626}' |
+            '\u{262A}' | '\u{262E}' | '\u{262F}' | '\u{2638}'..='\u{263A}' | '\u{2640}' |
+            '\u{2642}' | '\u{2648}'..='\u{2653}' | '\u{265F}' | '\u{2660}' | '\u{2663}' |
+            '\u{2665}' | '\u{2666}' | '\u{2668}' | '\u{267B}' | '\u{267E}' | '\u{267F}' |
+            '\u{2692}'..='\u{2697}' | '\u{2699}' | '\u{269B}' | '\u{269C}' | '\u{26A0}' |
+            '\u{26A1}' | '\u{26A7}' | '\u{26AA}' | '\u{26AB}' | '\u{26B0}' | '\u{26B1}' |
+            '\u{26BD}' | '\u{26BE}' | '\u{26C4}' | '\u{26C5}' | '\u{26C8}' | '\u{26CE}' |
+            '\u{26CF}' | '\u{26D1}' | '\u{26D3}' | '\u{26D4}' | '\u{26E9}' | '\u{26EA}' |
+            '\u{26F0}'..='\u{26F5}' | '\u{26F7}'..='\u{26FA}' | '\u{26FD}' | '\u{2702}' |
+            '\u{2705}' | '\u{2708}'..='\u{270D}' | '\u{270F}' | '\u{2712}' | '\u{2714}' |
+            '\u{2716}' | '\u{271D}' | '\u{2721}' | '\u{2728}' | '\u{2733}' | '\u{2734}' |
+            '\u{2744}' | '\u{2747}' | '\u{274C}' | '\u{274E}' | '\u{2753}'..='\u{2755}' |
+            '\u{2757}' | '\u{2763}' | '\u{2764}' | '\u{2795}'..='\u{2797}' | '\u{27A1}' |
+            '\u{27B0}' | '\u{27BF}' | '\u{2934}' | '\u{2935}' | '\u{2B05}'..='\u{2B07}' |
+            '\u{2B1B}' | '\u{2B1C}' | '\u{2B50}' | '\u{2B55}' | '\u{3030}' | '\u{303D}' |
+            '\u{3297}' | '\u{3299}'
+        );
+    }
+
+    matches!(c,
+        '\u{01F004}' | '\u{01F0CF}' | '\u{01F170}' | '\u{01F171}' | '\u{01F17E}' | '\u{01F17F}' |
+        '\u{01F18E}' | '\u{01F191}'..='\u{01F19A}' | '\u{01F1E6}'..='\u{01F1FF}' | '\u{01F201}' |
+        '\u{01F202}' | '\u{01F21A}' | '\u{01F22F}' | '\u{01F232}'..='\u{01F23A}' | '\u{01F250}' |
+        '\u{01F251}' | '\u{01F300}'..='\u{01F321}' | '\u{01F324}'..='\u{01F393}' | '\u{01F396}' |
+        '\u{01F397}' | '\u{01F399}'..='\u{01F39B}' | '\u{01F39E}'..='\u{01F3F0}' |
+        '\u{01F3F3}'..='\u{01F3F5}' | '\u{01F3F7}'..='\u{01F4FD}' | '\u{01F4FF}'..='\u{01F53D}' |
+        '\u{01F549}'..='\u{01F54E}' | '\u{01F550}'..='\u{01F567}' | '\u{01F56F}' | '\u{01F570}' |
+        '\u{01F573}'..='\u{01F57A}' | '\u{01F587}' | '\u{01F58A}'..='\u{01F58D}' | '\u{01F590}' |
+        '\u{01F595}' | '\u{01F596}' | '\u{01F5A4}' | '\u{01F5A5}' | '\u{01F5A8}' | '\u{01F5B1}' |
+        '\u{01F5B2}' | '\u{01F5BC}' | '\u{01F5C2}'..='\u{01F5C4}' | '\u{01F5D1}'..='\u{01F5D3}' |
+        '\u{01F5DC}'..='\u{01F5DE}' | '\u{01F5E1}' | '\u{01F5E3}' | '\u{01F5E8}' | '\u{01F5EF}' |
+        '\u{01F5F3}' | '\u{01F5FA}'..='\u{01F64F}' | '\u{01F680}'..='\u{01F6C5}' |
+        '\u{01F6CB}'..='\u{01F6D2}' | '\u{01F6D5}'..='\u{01F6D7}' | '\u{01F6DC}'..='\u{01F6E5}' |
+        '\u{01F6E9}' | '\u{01F6EB}' | '\u{01F6EC}' | '\u{01F6F0}' | '\u{01F6F3}'..='\u{01F6FC}' |
+        '\u{01F7E0}'..='\u{01F7EB}' | '\u{01F7F0}' | '\u{01F90C}'..='\u{01F93A}' |
+        '\u{01F93C}'..='\u{01F945}' | '\u{01F947}'..='\u{01F9FF}' | '\u{01FA70}'..='\u{01FA7C}' |
+        '\u{01FA80}'..='\u{01FA88}' | '\u{01FA90}'..='\u{01FABD}' | '\u{01FABF}'..='\u{01FAC5}' |
+        '\u{01FACE}'..='\u{01FADB}' | '\u{01FAE0}'..='\u{01FAE8}' | '\u{01FAF0}'..='\u{01FAF8}'
+    )
+}
+
+// Split sheetnames that look like A1 and R1C1 style cell references into a
+// leading string and a trailing number.
+pub(crate) fn split_cell_reference(sheetname: &str) -> (String, String) {
+    match sheetname.find(|c: char| c.is_ascii_digit()) {
+        Some(position) => (
+            (sheetname[..position]).to_uppercase(),
+            (sheetname[position..]).to_uppercase(),
+        ),
+        None => (String::new(), String::new()),
+    }
+}
+
+// Check that a range string like "A1" or "A1:B3" are valid. This function
+// assumes that the '$' absolute anchor has already been stripped.
+pub(crate) fn is_valid_range(range: &str) -> bool {
+    if range.is_empty() {
+        return false;
+    }
+
+    // The range should start with a letter and end in a number.
+    if !range.starts_with(|c: char| c.is_ascii_uppercase())
+        || !range.ends_with(|c: char| c.is_ascii_digit())
+    {
+        return false;
+    }
+
+    // The range should only include the characters 'A-Z', '0-9' and ':'
+    if !range
+        .chars()
+        .all(|c: char| c.is_ascii_uppercase() || c.is_ascii_digit() || c == ':')
+    {
+        return false;
+    }
+
+    true
 }
 
 /// Check that a worksheet name is valid in Excel.
@@ -413,10 +650,10 @@ pub(crate) fn quote_sheetname(sheetname: &str) -> String {
 /// This function checks if an worksheet name is valid according to the Excel
 /// rules:
 ///
-/// * The name is less than 32 characters.
-/// * The name isn't blank.
-/// * The name doesn't contain any of the characters: `[ ] : * ? / \`.
-/// * The name doesn't start or end with an apostrophe.
+/// - The name is less than 32 characters.
+/// - The name isn't blank.
+/// - The name doesn't contain any of the characters: `[ ] : * ? / \`.
+/// - The name doesn't start or end with an apostrophe.
 ///
 /// The worksheet name "History" isn't allowed in English versions of Excel
 /// since it is a reserved name. However it is allowed in some other language
@@ -431,23 +668,23 @@ pub(crate) fn quote_sheetname(sheetname: &str) -> String {
 ///
 /// # Parameters
 ///
-/// * `name` - The worksheet name. It must follow the Excel rules, shown above.
+/// - `name`: The worksheet name. It must follow the Excel rules, shown above.
 ///
 /// # Errors
 ///
-/// * [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name cannot be blank.
-/// * [`XlsxError::SheetnameLengthExceeded`] - Worksheet name exceeds Excel's
+/// - [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name cannot be blank.
+/// - [`XlsxError::SheetnameLengthExceeded`] - Worksheet name exceeds Excel's
 ///   limit of 31 characters.
-/// * [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name cannot
+/// - [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name cannot
 ///   contain invalid characters: `[ ] : * ? / \`
-/// * [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name cannot
+/// - [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name cannot
 ///   start or end with an apostrophe.
 ///
 /// # Examples
 ///
 /// The following example demonstrates testing for a valid worksheet name.
 ///
-/// ```
+/// ```fail
 /// # // This code is available in examples/doc_utility_check_sheet_name.rs
 /// #
 /// # use rust_xlsxwriter::{utility, XlsxError};
@@ -490,6 +727,39 @@ pub(crate) fn validate_sheetname(name: &str, message: &str) -> Result<(), XlsxEr
     if name.starts_with('\'') || name.ends_with('\'') {
         return Err(XlsxError::SheetnameStartsOrEndsWithApostrophe(
             message.to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+// Internal function to validate VBA code names.
+pub(crate) fn validate_vba_name(name: &str) -> Result<(), XlsxError> {
+    // Check that the  name isn't blank.
+    if name.is_empty() {
+        return Err(XlsxError::VbaNameError(
+            "VBA name cannot be blank".to_string(),
+        ));
+    }
+
+    // Check that name is <= 31, an Excel limit.
+    if name.chars().count() > 31 {
+        return Err(XlsxError::VbaNameError(
+            "VBA name exceeds Excel limit of 31 characters: {name}".to_string(),
+        ));
+    }
+
+    // Check for anything other than letters, numbers, and underscores.
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return Err(XlsxError::VbaNameError(
+            "VBA name contains non-word character: {name}".to_string(),
+        ));
+    }
+
+    // Check that the name starts with a letter.
+    if !name.chars().next().unwrap().is_alphabetic() {
+        return Err(XlsxError::VbaNameError(
+            "VBA name must start with letter character: {name}".to_string(),
         ));
     }
 

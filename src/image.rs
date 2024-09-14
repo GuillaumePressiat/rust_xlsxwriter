@@ -17,7 +17,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::drawing::{DrawingObject, DrawingType};
-use crate::XlsxError;
+use crate::vml::VmlInfo;
+use crate::{Url, XlsxError};
 
 #[derive(Clone, Debug)]
 /// The `Image` struct is used to create an object to represent an image that
@@ -70,9 +71,10 @@ pub struct Image {
     pub(crate) object_movement: ObjectMovement,
     pub(crate) is_header: bool,
     pub(crate) decorative: bool,
-    pub(crate) hash: u64,
+    pub(crate) hash: String,
     pub(crate) data: Vec<u8>,
     pub(crate) drawing_type: DrawingType,
+    pub(crate) url: Option<Url>,
 }
 
 impl Image {
@@ -89,7 +91,7 @@ impl Image {
     ///
     /// - PNG
     /// - JPG
-    /// - GIF: The image can be an animated gif in more resent versions of
+    /// - GIF: The image can be an animated gif in more recent versions of
     ///   Excel.
     /// - BMP: BMP images are only supported for backward compatibility. In
     ///   general it is best to avoid BMP images since they are not compressed.
@@ -109,14 +111,14 @@ impl Image {
     ///
     /// # Parameters
     ///
-    /// * `path` - The path of the image file to read e as a `&str` or as a
+    /// - `path`: The path of the image file to read e as a `&str` or as a
     ///   [`std::path`] `Path` or `PathBuf` instance.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::UnknownImageType`] - Unknown image type. The supported
+    /// - [`XlsxError::UnknownImageType`] - Unknown image type. The supported
     ///   image formats are PNG, JPG, GIF and BMP.
-    /// * [`XlsxError::ImageDimensionError`] - Image has 0 width or height, or
+    /// - [`XlsxError::ImageDimensionError`] - Image has 0 width or height, or
     ///   the dimensions couldn't be read.
     ///
     /// # Examples
@@ -173,22 +175,21 @@ impl Image {
         Ok(image)
     }
 
-    ///
     /// Create an Image object from a u8 buffer. The image can then be inserted
     /// into a worksheet.
     ///
-    /// This method is similar to [`new()`](Image::new), see above, except the
-    /// image data can be in a buffer instead of a file path.
+    /// This method is similar to [`Image::new`], see above, except the image
+    /// data can be in a buffer instead of a file path.
     ///
     /// # Parameters
     ///
-    /// * `buffer` - The image data as a u8 array or vector.
+    /// - `buffer`: The image data as a u8 array or vector.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::UnknownImageType`] - Unknown image type. The supported
+    /// - [`XlsxError::UnknownImageType`] - Unknown image type. The supported
     ///   image formats are PNG, JPG, GIF and BMP.
-    /// * [`XlsxError::ImageDimensionError`] - Image has 0 width or height, or
+    /// - [`XlsxError::ImageDimensionError`] - Image has 0 width or height, or
     ///   the dimensions couldn't be read.
     ///
     /// # Examples
@@ -230,7 +231,7 @@ impl Image {
     ///
     ///     // Insert the image.
     ///     worksheet.insert_image(1, 2, &image)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("image.xlsx")?;
     /// #
@@ -262,9 +263,10 @@ impl Image {
             object_movement: ObjectMovement::MoveButDontSizeWithCells,
             is_header: true,
             decorative: false,
-            hash: 0,
+            hash: String::new(),
             data: buffer.to_vec(),
             drawing_type: DrawingType::Image,
+            url: None,
         };
 
         Self::process_image(&mut image)?;
@@ -272,9 +274,92 @@ impl Image {
         Ok(image)
     }
 
+    /// Set the width of the chart.
+    ///
+    /// Set the displayed width of the image in pixels. As with Excel this sets
+    /// a logical size for the image, it doesn't rescale the actual image. This
+    /// allows the user to get back the original unscaled image.
+    ///
+    /// **Note for macOS Excel users**: the width shown on Excel for macOS can
+    /// be different from the width on Windows. This is an Excel issue and not a
+    /// `rust_xlsxwriter` issue.
+    ///
+    /// # Parameters
+    ///
+    /// - `width`: The logical image width in pixels.
+    ///
+    /// # Examples
+    ///
+    /// This example shows how to create an image object and use it to insert
+    /// the image into a worksheet. The image in this case is scaled by setting
+    /// the height and width.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_image_set_width.rs
+    /// #
+    /// # use rust_xlsxwriter::{Image, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a new image object and set the image logical sizes.
+    ///     let image = Image::new("examples/rust_logo.png")?
+    ///         .set_height(80)
+    ///         .set_width(80);
+    ///
+    ///     // Insert the image.
+    ///     worksheet.insert_image(1, 2, &image)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("image.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/image_set_scale_width.png">
+    ///
+    pub fn set_width(mut self, width: u32) -> Image {
+        if width == 0 {
+            return self;
+        }
+
+        // Set the scale width rather than the actual height.
+        self.scale_width = f64::from(width) / self.width;
+        self
+    }
+
+    /// Set the height of the image.
+    ///
+    /// Set the displayed height of the image in pixels. As with Excel this sets
+    /// a logical size for the image, it doesn't rescale the actual image. This
+    /// allows the user to get back the original unscaled image. See the example
+    /// above.
+    ///
+    /// # Parameters
+    ///
+    /// - `height`: The logical image height in pixels.
+    ///
+    pub fn set_height(mut self, height: u32) -> Image {
+        if height == 0 {
+            return self;
+        }
+
+        // Set the scale height rather than the actual height.
+        self.scale_height = f64::from(height) / self.height;
+        self
+    }
+
     /// Set the height scale for the image.
     ///
-    /// Set the height scale for the image relative to 1.0/100%. As with Excel
+    /// Set the height scale for the image relative to 1.0 (i.e. 100%). As with Excel
     /// this sets a logical scale for the image, it doesn't rescale the actual
     /// image. This allows the user to get back the original unscaled image.
     ///
@@ -284,7 +369,7 @@ impl Image {
     ///
     /// # Parameters
     ///
-    /// * `scale` - The scale ratio.
+    /// - `scale`: The scale ratio.
     ///
     /// # Examples
     ///
@@ -303,12 +388,10 @@ impl Image {
     /// #     // Add a worksheet to the workbook.
     /// #     let worksheet = workbook.add_worksheet();
     /// #
-    ///     // Create a new image object.
-    ///     let mut image = Image::new("examples/rust_logo.png")?;
-    ///
-    ///     // Set the image scale.
-    ///     image.set_scale_height(0.75);
-    ///     image.set_scale_width(0.75);
+    ///     // Create a new image object and set the image scale.
+    ///     let image = Image::new("examples/rust_logo.png")?
+    ///         .set_scale_height(0.75)
+    ///         .set_scale_width(0.75);
     ///
     ///     // Insert the image.
     ///     worksheet.insert_image(1, 2, &image)?;
@@ -325,7 +408,7 @@ impl Image {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/image_set_scale_width.png">
     ///
-    pub fn set_scale_height(&mut self, scale: f64) -> &mut Image {
+    pub fn set_scale_height(mut self, scale: f64) -> Image {
         if scale <= 0.0 {
             return self;
         }
@@ -336,14 +419,14 @@ impl Image {
 
     /// Set the width scale for the image.
     ///
-    /// Set the width scale for the image relative to 1.0/100%. See the
-    /// [`set_scale_height()`](Image::set_scale_height) method for details.
+    /// Set the width scale for the image relative to 1.0 (i.e. 100%). See the
+    /// [`Image::set_scale_height()`] method for details.
     ///
     /// # Parameters
     ///
-    /// * `scale` - The scale ratio.
+    /// - `scale`: The scale ratio.
     ///
-    pub fn set_scale_width(&mut self, scale: f64) -> &mut Image {
+    pub fn set_scale_width(mut self, scale: f64) -> Image {
         if scale <= 0.0 {
             return self;
         }
@@ -367,14 +450,14 @@ impl Image {
     /// or vertical sizes. See the example below.
     ///
     /// See also the
-    /// [`worksheet.insert_image_fit_to_cell()`](crate::Worksheet::insert_image_fit_to_cell)
+    /// [`Worksheet::insert_image_fit_to_cell()`](crate::Worksheet::insert_image_fit_to_cell)
     /// method.
     ///
     /// # Parameters
     ///
-    /// * `width` - The target width in pixels to scale the image to.
-    /// * `height` - The target height in pixels to scale the image to.
-    /// * `keep_aspect_ratio` - Boolean value to maintain the aspect ratio of
+    /// - `width`: The target width in pixels to scale the image to.
+    /// - `height`: The target height in pixels to scale the image to.
+    /// - `keep_aspect_ratio`: Boolean value to maintain the aspect ratio of
     ///   the image if `true` or scale independently in the horizontal and
     ///   vertical directions if `false`.
     ///
@@ -418,14 +501,14 @@ impl Image {
     ///     worksheet.insert_image(0, 1, &image)?;
     ///
     ///     // Scale the image to fit the entire cell.
-    ///     image.set_scale_to_size(200, 140, false);
+    ///     image = image.set_scale_to_size(200, 140, false);
     ///     worksheet.write_with_format(2, 0, "Image scaled to fit cell:", &center)?;
     ///     worksheet.insert_image(2, 1, &image)?;
     ///
     ///     // Scale the image to fit the defined size region while maintaining the
     ///     // aspect ratio. In this case it is scaled to the smaller of the width or
     ///     // height scales.
-    ///     image.set_scale_to_size(200, 140, true);
+    ///     image = image.set_scale_to_size(200, 140, true);
     ///     worksheet.write_with_format(4, 0, "Image scaled with a fixed aspect ratio:", &center)?;
     ///     worksheet.insert_image(4, 1, &image)?;
     /// #
@@ -441,12 +524,7 @@ impl Image {
     /// <img src="https://rustxlsxwriter.github.io/images/image_set_scale_to_size.png">
     ///
     ///
-    pub fn set_scale_to_size<T>(
-        &mut self,
-        width: T,
-        height: T,
-        keep_aspect_ratio: bool,
-    ) -> &mut Image
+    pub fn set_scale_to_size<T>(mut self, width: T, height: T, keep_aspect_ratio: bool) -> Image
     where
         T: Into<f64> + Copy,
     {
@@ -465,8 +543,8 @@ impl Image {
             }
         }
 
-        self.set_scale_width(scale_width);
-        self.set_scale_height(scale_height);
+        self = self.set_scale_width(scale_width);
+        self = self.set_scale_height(scale_height);
 
         self
     }
@@ -482,7 +560,7 @@ impl Image {
     ///
     /// # Parameters
     ///
-    /// * `alt_text` - The alt text string to add to the image.
+    /// - `alt_text`: The alt text string to add to the image.
     ///
     /// # Examples
     ///
@@ -503,14 +581,13 @@ impl Image {
     /// #    // Add a worksheet to the workbook.
     /// #    let worksheet = workbook.add_worksheet();
     /// #
-    ///    // Create a new image object.
-    ///     let mut image = Image::new("examples/rust_logo.png")?;
-    ///
-    ///    // Set the alternative text.
-    ///    image.set_alt_text("A circular logo with gear teeth on the outside \
-    ///                        and a large letter R on the inside.\n\n\
-    ///                        The logo of the Rust programming language.");
-    ///
+    ///    // Create a new image object and set the alternative text.
+    ///    let image = Image::new("examples/rust_logo.png")?.set_alt_text(
+    ///        "A circular logo with gear teeth on the outside \
+    ///        and a large letter R on the inside.\n\n\
+    ///        The logo of the Rust programming language.",
+    ///    );
+    /// #
     /// #    // Insert the image.
     /// #    worksheet.insert_image(1, 2, &image)?;
     /// #
@@ -526,8 +603,14 @@ impl Image {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/image_set_alt_text.png">
     ///
-    pub fn set_alt_text(&mut self, alt_text: impl Into<String>) -> &mut Image {
-        self.alt_text = alt_text.into();
+    pub fn set_alt_text(mut self, alt_text: impl Into<String>) -> Image {
+        let alt_text = alt_text.into();
+        if alt_text.chars().count() > 255 {
+            eprintln!("Alternative text is greater than Excel's limit of 255 characters.");
+            return self;
+        }
+
+        self.alt_text = alt_text;
         self
     }
 
@@ -541,7 +624,7 @@ impl Image {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -561,11 +644,9 @@ impl Image {
     /// #    // Add a worksheet to the workbook.
     /// #    let worksheet = workbook.add_worksheet();
     /// #
-    /// #    // Create a new image object.
-    ///    let mut image = Image::new("examples/rust_logo.png")?;
-    ///
-    ///    image.set_decorative(true);
-    ///
+    ///    // Create a new image object.
+    ///    let image = Image::new("examples/rust_logo.png")?.set_decorative(true);
+    /// #
     /// #    // Insert the image.
     /// #    worksheet.insert_image(1, 2, &image)?;
     /// #
@@ -581,7 +662,7 @@ impl Image {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/image_set_decorative.png">
     ///
-    pub fn set_decorative(&mut self, enable: bool) -> &mut Image {
+    pub fn set_decorative(mut self, enable: bool) -> Image {
         self.decorative = enable;
         self
     }
@@ -607,7 +688,7 @@ impl Image {
     ///
     /// # Parameters
     ///
-    /// * `option` - An image/object positioning behavior defined by the
+    /// - `option`: An image/object positioning behavior defined by the
     ///   [`ObjectMovement`] enum.
     ///
     /// # Examples
@@ -627,15 +708,13 @@ impl Image {
     /// #     // Add a worksheet to the workbook.
     /// #     let worksheet = workbook.add_worksheet();
     /// #
-    ///     // Create a new image object.
-    ///     let mut image = Image::new("examples/rust_logo.png")?;
-    ///
-    ///     // Set the object movement/positioning options.
-    ///     image.set_object_movement(ObjectMovement::MoveButDontSizeWithCells);
+    ///     // Create a new image and set the object movement/positioning options.
+    ///     let image = Image::new("examples/rust_logo.png")?
+    ///         .set_object_movement(ObjectMovement::MoveButDontSizeWithCells);
     ///
     ///     // Insert the image.
     ///     worksheet.insert_image(1, 2, &image)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("image.xlsx")?;
     /// #
@@ -648,12 +727,46 @@ impl Image {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/image_set_object_movement.png">
     ///
-    pub fn set_object_movement(&mut self, option: ObjectMovement) -> &mut Image {
+    pub fn set_object_movement(mut self, option: ObjectMovement) -> Image {
         self.object_movement = option;
         self
     }
 
+    /// Set a Url/Hyperlink for an image.
+    ///
+    /// Set a Url/Hyperlink for an image so that when the user clicks on it they
+    /// are redirected to an internal or external location.
+    ///
+    /// See [`Url`] for an explanation of the URIs supported by Excel and for
+    /// other options that can be set.
+    ///
+    /// # Parameters
+    ///
+    /// - `link`: The url/hyperlink associate with the image as a string or
+    ///   [`Url`].
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
+    ///   Excel's limit of 2080 characters.
+    /// - [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
+    ///   [`Worksheet::write_url()`](crate::Worksheet::write_url).
+    /// - [`XlsxError::ParameterError`] - URL mouseover tool tip exceeds Excel's
+    ///   limit of 255 characters.
+    ///
+    pub fn set_url(mut self, link: impl Into<Url>) -> Result<Image, XlsxError> {
+        let mut url = link.into();
+        url.initialize()?;
+
+        self.url = Some(url);
+
+        Ok(self)
+    }
+
     /// Get the width of the image used for the size calculations in Excel.
+    ///
+    /// Note, this gets the actual pixel width of the image and not the
+    /// logical/scaled width set via [`Image::set_width()`].
     ///
     /// # Examples
     ///
@@ -683,6 +796,9 @@ impl Image {
     /// Get the height of the image used for the size calculations in Excel. See
     /// the example above.
     ///
+    /// Note, this gets the actual pixel height of the image and not the
+    /// logical/scaled height set via [`Image::set_height()`].
+    ///
     pub fn height(&self) -> f64 {
         self.height
     }
@@ -707,28 +823,48 @@ impl Image {
         self.height_dpi
     }
 
-    // Get the image width as used by header/footer VML.
-    pub(crate) fn vml_width(&self) -> f64 {
-        // Scale the height/width by the resolution, relative to 72dpi.
-        let mut width = self.width * 72.0 / self.width_dpi * self.scale_width;
+    /// Set an internal name used for header/footer images.
+    ///
+    /// This method sets an internal image name used by header/footer VML. It is
+    /// mainly used for completeness in testing. It isn't useful to the end user.
+    ///
+    /// # Parameters
+    ///
+    /// `name` - The VML object name/description.
+    ///
+    #[doc(hidden)]
+    pub fn set_vml_name(mut self, name: impl Into<String>) -> Image {
+        self.vml_name = name.into();
+        self
+    }
 
-        // Excel uses a rounding based around 72 and 96 dpi.
-        width = width * 96.0 / 72.0 + 0.25;
-        width.floor() * 72.0 / 96.0
+    // Header images are stored in a vmlDrawing file. We create a struct
+    // to store the required image information in that format.
+    pub(crate) fn vml_info(&self) -> VmlInfo {
+        VmlInfo {
+            width: self.vml_width(),
+            height: self.vml_height(),
+            text: self.vml_name(),
+            header_position: self.vml_position(),
+            is_scaled: self.is_scaled(),
+            ..Default::default()
+        }
+    }
+
+    // Get the image width as used by header/footer VML.
+    fn vml_width(&self) -> f64 {
+        // Scale the image dimension relative to 96dpi.
+        self.width * 96.0 / self.width_dpi * self.scale_width
     }
 
     // Get the image height as used by header/footer VML.
-    pub(crate) fn vml_height(&self) -> f64 {
-        // Scale the height/width by the resolution, relative to 72dpi.
-        let mut height = self.height * 72.0 / self.height_dpi * self.scale_height;
-
-        // Excel uses a rounding based around 72 and 96 dpi.
-        height = height * 96.0 / 72.0 + 0.25;
-        height.floor() * 72.0 / 96.0
+    fn vml_height(&self) -> f64 {
+        // Scale the image dimension relative to 96dpi.
+        self.height * 96.0 / self.height_dpi * self.scale_height
     }
 
     // Get the image short name as used by header/footer VML.
-    pub(crate) fn vml_name(&self) -> String {
+    fn vml_name(&self) -> String {
         self.vml_name.clone()
     }
 
@@ -738,7 +874,7 @@ impl Image {
     }
 
     // Get the image position string as used by header/footer VML.
-    pub(crate) fn vml_position(&self) -> String {
+    fn vml_position(&self) -> String {
         if self.is_header {
             match self.header_position {
                 HeaderImagePosition::Left => "LH".to_string(),
@@ -752,21 +888,6 @@ impl Image {
                 HeaderImagePosition::Center => "CF".to_string(),
             }
         }
-    }
-
-    /// Set an internal name used for header/footer images.
-    ///
-    /// This method sets an internal image name used by header/footer VML. It is
-    /// mainly used for completeness in testing. It isn't useful to the end user.
-    ///
-    /// # Parameters
-    ///
-    /// `name` - The VML object name/description.
-    ///
-    #[doc(hidden)]
-    pub fn set_vml_name(&mut self, name: impl Into<String>) -> &mut Image {
-        self.vml_name = name.into();
-        self
     }
 
     // -----------------------------------------------------------------------
@@ -805,7 +926,7 @@ impl Image {
         // Set a hash for the image to allow removal of duplicates.
         let mut hasher = DefaultHasher::new();
         data.hash(&mut hasher);
-        self.hash = hasher.finish();
+        self.hash = hasher.finish().to_string();
 
         Ok(())
     }
@@ -998,13 +1119,14 @@ impl DrawingObject for Image {
 /// The `ObjectMovement` enum defines the movement of worksheet objects such as
 /// images and charts.
 ///
-/// This enum defines the way control a worksheet object, such a an images or
-/// charts, moves when the cells underneath it are moved, resized or deleted.
-/// This equates to the following Excel options:
+/// This enum defines the way control a worksheet object such as [Image],
+/// [`Chart`](crate::Chart), [`Note`](crate::Note), [`Shape`](crate::Shape) or
+/// [`Button`](crate::Button) moves when the cells underneath it are moved,
+/// resized or deleted. This equates to the following Excel options:
 ///
 /// <img src="https://rustxlsxwriter.github.io/images/object_movement.png">
 ///
-/// Used with [`image.set_object_movement`](Image::set_object_movement).
+/// Used with [`Image::set_object_movement()`].
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum ObjectMovement {
@@ -1019,16 +1141,16 @@ pub enum ObjectMovement {
     DontMoveOrSizeWithCells,
 
     /// Same as `MoveAndSizeWithCells` except hidden cells are applied after the
-    /// object is inserted. This allows the insertion of objects in hidden rows
-    /// or columns.
+    /// object is inserted. This allows the insertion of objects into hidden
+    /// rows or columns.
     MoveAndSizeWithCellsAfter,
 }
 
 /// The `HeaderImagePosition` enum defines the image position in a header or footer.
 ///
 /// Used with the
-/// [`worksheet.set_header_image()`](crate::Worksheet::set_header_image) and
-/// [`worksheet.set_footer_image()`](crate::Worksheet::set_footer_image)
+/// [`Worksheet::set_header_image()`](crate::Worksheet::set_header_image) and
+/// [`Worksheet::set_footer_image()`](crate::Worksheet::set_footer_image)
 /// methods.
 ///
 #[derive(Clone, Debug)]

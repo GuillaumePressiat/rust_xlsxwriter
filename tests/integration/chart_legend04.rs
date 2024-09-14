@@ -33,7 +33,7 @@ fn create_new_xlsx_file(filename: &str) -> Result<(), XlsxError> {
     chart
         .legend()
         .set_position(ChartLegendPosition::TopRight)
-        .set_overlay();
+        .set_overlay(true);
 
     worksheet.insert_chart(8, 4, &chart)?;
 

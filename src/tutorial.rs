@@ -34,7 +34,7 @@ using it to write Excel xlsx files.
 
 # Getting started
 
-In order to use the `rust_xlsxwriter` in a application or in another library you
+To use the `rust_xlsxwriter` in an application or in another library you
 will need add it as a dependency to the `Cargo.toml` file of your project.
 
 To demonstrate the steps required we will start with a small sample application.
@@ -116,7 +116,7 @@ slightly more realistic tutorial example.
 
 # Tutorial
 
-In order to look at some of the basic but more useful features of the
+To look at some of the basic but more useful features of the
 `rust_xlsxwriter` library we will create an application to summarize some
 monthly expenses into a spreadsheet.
 
@@ -195,18 +195,18 @@ let mut workbook = Workbook::new();
 existing files.
 
 The workbook object is then used to add a new worksheet via the
-[`workbook.add_worksheet()`](crate::Workbook::add_worksheet) method:
+[`Workbook::add_worksheet()`](crate::Workbook::add_worksheet) method:
 
 ```text
 let worksheet = workbook.add_worksheet();
 ```
 The worksheet will have a standard Excel name, in this case "Sheet1". You can
 specify the worksheet name using the
-[`worksheet.set_name()`](crate::Worksheet::set_name) method.
+[`Worksheet::set_name()`](crate::Worksheet::set_name) method.
 
 
 We then iterate over the data and use the
-[`worksheet.write()`](crate::Worksheet::write) method which converts common Rust
+[`Worksheet::write()`](crate::Worksheet::write) method which converts common Rust
 types to the equivalent Excel types and writes them to the specified `row, col`
 location in the worksheet:
 
@@ -221,20 +221,21 @@ location in the worksheet:
 > **Reading ahead**:
 >
 > There are other type specific write methods such as
-> [`worksheet.write_string()`](crate::Worksheet::write_string) and
-> [`worksheet.write_number()`](crate::Worksheet::write_number). However, these
+> [`Worksheet::write_string()`](crate::Worksheet::write_string) and
+> [`Worksheet::write_number()`](crate::Worksheet::write_number). However, these
 > aren't generally required and thanks to Rust's monomorphization the
 > performance of the generic `write()` method is just as fast.
 >
 > There are also worksheet methods for writing arrays of data or arrays of
-> arrays of data that can be useful in cases where you don't need to add
-> specific formatting:
+> arrays of data that can be useful in cases where the data to be added is in
+> a vector format:
 >
-> - [`worksheet.write_row()`](crate::Worksheet::write_row)
-> - [`worksheet.write_column()`](crate::Worksheet::write_column)
-> - [`worksheet.write_row_matrix()`](crate::Worksheet::write_row_matrix)
-> - [`worksheet.write_column_matrix()`](crate::Worksheet::write_column_matrix)
-
+> - [`Worksheet::write_row()`](crate::Worksheet::write_row)
+> - [`Worksheet::write_column()`](crate::Worksheet::write_column)
+> - [`Worksheet::write_row_matrix()`](crate::Worksheet::write_row_matrix)
+> - [`Worksheet::write_column_matrix()`](crate::Worksheet::write_column_matrix)
+> - [`Worksheet::write_row_with_format()`](crate::Worksheet::write_row_with_format)
+> - [`Worksheet::write_column_with_format()`](crate::Worksheet::write_column_with_format)
 
 Throughout `rust_xlsxwriter` rows and columns are zero indexed. So the first
 cell in a worksheet `(0, 0)` is equivalent to the Excel notation of `A1`.
@@ -247,7 +248,7 @@ To calculate the total of the items in the second column we add a
 ```
 
 Finally, we save and close the Excel file via the
-[`workbook.save()`](crate::Workbook::save) method which will generate the
+[`Workbook::save()`](crate::Workbook::save) method which will generate the
 spreadsheet shown in the image above.:
 
 ```text
@@ -256,16 +257,16 @@ spreadsheet shown in the image above.:
 
 > **Reading ahead**:
 >
-> The [`workbook.save()`](crate::Workbook::save) method takes a [`std::path`]
+> The [`Workbook::save()`](crate::Workbook::save) method takes a [`std::path`]
 > argument which can be a `Path`, `PathBuf` or a filename string. It is also
 > possible to save to a byte vector using
-> [`workbook.save_to_buffer()`](crate::Workbook::save_to_buffer).
+> [`Workbook::save_to_buffer()`](crate::Workbook::save_to_buffer).
 
 
 ## Tutorial Part 2: Adding some formatting
 
 The previous example converted the required data into an Excel file but it
-looked a little bare. In order to make the information clearer we can add some
+looked a little bare. To make the information clearer we can add some
 simple formatting, like this:
 
 <img src="https://rustxlsxwriter.github.io/images/tutorial2.png">
@@ -330,7 +331,7 @@ The main difference between this and the previous program is that we have added
 two [`Format`](crate::Format) objects that we can use to format cells in the
 spreadsheet.
 
-`Format` objects represent all of the formatting properties that can be applied
+`Format` objects represent all the formatting properties that can be applied
 to a cell in Excel such as fonts, number formatting, colors and borders. This is
 explained in more detail in the [`Format`](crate::Format) struct documentation.
 
@@ -346,7 +347,7 @@ limited amount of the its functionality to add some simple formatting:
 ```
 
 We can use these formats with the
-[`worksheet.write_with_format()`](crate::Worksheet::write_with_format) method
+[`Worksheet::write_with_format()`](crate::Worksheet::write_with_format) method
 which writes data and formatting together, like these examples from the code:
 
 ```text
@@ -439,15 +440,15 @@ fn main() -> Result<(), XlsxError> {
 ```
 
 Dates and times in Excel are floating point numbers that have a format applied
-to display them in the desired way. In order to handle dates and times with
+to display them in the desired way. To handle dates and times with
 `rust_xlsxwriter` we create them using a [`ExcelDateTime`](crate::ExcelDateTime)
 instance and format them with an Excel number format.
 
 > **Reading ahead**:
 
 > If you enable the `chrono` feature in `rust_xlsxwriter`  you can also use
-  [`chrono::NaiveDateTime`], [`chrono::NaiveDate`] or [`chrono::NaiveTime`]
-  instances.
+> [`chrono::NaiveDateTime`], [`chrono::NaiveDate`] or [`chrono::NaiveTime`]
+> instances.
 
 [`chrono::NaiveDate`]:
     https://docs.rs/chrono/latest/chrono/naive/struct.NaiveDate.html
@@ -467,7 +468,7 @@ correctly in Excel:
 
 Another addition to our program is the make the "Date" column wider for
 clarity using the
-[`worksheet.set_column_width()`](crate::Worksheet.set_column_width) method.
+[`Worksheet::set_column_width()`](crate::Worksheet.set_column_width) method.
 
 
 ```text
@@ -607,7 +608,7 @@ following:
 ```
 
 This allows the range to change dynamically if we add new elements to our `data`
-vector and also ensures that the worksheet name is quoted properly (when
+vector and ensures that the worksheet name is quoted properly (when
 required).
 
 The other section of the code that had a hard-coded string is the formula
@@ -713,7 +714,7 @@ fn main() -> Result<(), XlsxError> {
 }
 ```
 
-This gives the same output to the previous version but it is now future proof
+This gives the same output to the previous version, but it is now future proof
 for any changes to our input data:
 
 <img src="https://rustxlsxwriter.github.io/images/tutorial5.png">
@@ -741,8 +742,8 @@ following resources for more information:
 - [Release Notes].
 - [Roadmap of planned features].
 
+[Release Notes]: crate::changelog
 [User Guide]: https://rustxlsxwriter.github.io/index.html
-[Release Notes]: https://rustxlsxwriter.github.io/changelog.html
 [Roadmap of planned features]:
     https://github.com/jmcnamara/rust_xlsxwriter/issues/1
 

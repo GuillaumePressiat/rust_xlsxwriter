@@ -52,11 +52,6 @@ impl ContentTypes {
                     "/xl/theme/theme1.xml".to_string(),
                     "application/vnd.openxmlformats-officedocument.theme+xml".to_string(),
                 ),
-                (
-                    "/xl/workbook.xml".to_string(),
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
-                        .to_string(),
-                ),
             ],
         }
     }
@@ -68,7 +63,7 @@ impl ContentTypes {
     }
 
     // Add elements to the ContentTypes overrides.
-    fn add_override(&mut self, part_name: &str, content_type: &str) {
+    pub(crate) fn add_override(&mut self, part_name: &str, content_type: &str) {
         self.overrides
             .push((part_name.to_string(), content_type.to_string()));
     }
@@ -106,6 +101,15 @@ impl ContentTypes {
         self.add_override(&part_name, content_type);
     }
 
+    // Add the name of a comment file to the ContentTypes overrides.
+    pub(crate) fn add_comments_name(&mut self, index: u16) {
+        let content_type =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml";
+        let part_name = format!("/xl/comments{index}.xml");
+
+        self.add_override(&part_name, content_type);
+    }
+
     // Add the sharedStrings link to the ContentTypes overrides.
     pub(crate) fn add_share_strings(&mut self) {
         self.add_override(
@@ -119,6 +123,26 @@ impl ContentTypes {
         self.add_override(
             "/xl/metadata.xml",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml",
+        );
+    }
+
+    // Add the rdRichValue* files to the ContentTypes overrides.
+    pub(crate) fn add_rich_value(&mut self) {
+        self.add_override(
+            "/xl/richData/rdRichValueTypes.xml",
+            "application/vnd.ms-excel.rdrichvaluetypes+xml",
+        );
+        self.add_override(
+            "/xl/richData/rdrichvalue.xml",
+            "application/vnd.ms-excel.rdrichvalue+xml",
+        );
+        self.add_override(
+            "/xl/richData/rdrichvaluestructure.xml",
+            "application/vnd.ms-excel.rdrichvaluestructure+xml",
+        );
+        self.add_override(
+            "/xl/richData/richValueRel.xml",
+            "application/vnd.ms-excel.richvaluerel+xml",
         );
     }
 

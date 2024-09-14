@@ -12,8 +12,6 @@ use std::borrow::Cow;
 use std::io::{Cursor, Write};
 use std::str;
 
-use regex::Regex;
-
 pub(crate) const XML_WRITE_ERROR: &str = "Couldn't write to xml file";
 
 #[derive(Clone)]
@@ -205,6 +203,11 @@ fn match_attribute_html_char(ch: char) -> Option<&'static str> {
 // range '\x00' - '\x1F'.
 fn match_xml_char(ch: char) -> Option<&'static str> {
     match ch {
+        // Standard XML escapes.
+        '&' => Some("&amp;"),
+        '<' => Some("&lt;"),
+        '>' => Some("&gt;"),
+
         // Excel escapes control characters and other non-printing characters in
         // the range '\x00' - '\x1F' with _xHHHH_.
         '\x00' => Some("_x0000_"),
@@ -240,10 +243,6 @@ fn match_xml_char(ch: char) -> Option<&'static str> {
         '\x1E' => Some("_x001E_"),
         '\x1F' => Some("_x001F_"),
 
-        // Standard XML escapes.
-        '&' => Some("&amp;"),
-        '<' => Some("&lt;"),
-        '>' => Some("&gt;"),
         _ => None,
     }
 }
@@ -291,14 +290,40 @@ where
     Cow::Borrowed(original)
 }
 
-// Excel escapes control characters with _xHHHH_ and also escapes any literal
-// strings of that type by encoding the leading underscore. So "\0" -> _x0000_
-// and "_x0000_" -> _x005F_x0000_.
-fn escape_xml_escapes(si_string: &str) -> Cow<str> {
-    lazy_static! {
-        static ref XML_ESCAPE: Regex = Regex::new("(_x[0-9a-fA-F]{4}_)").unwrap();
+// Excel escapes control characters with _xHHHH_, see match_xml_char() above. As
+// a result it also escapes any literal strings of that type by encoding the
+// leading underscore. So  "_x0000_" -> _x005F_x0000_.
+fn escape_xml_escapes(original: &str) -> Cow<str> {
+    if !original.contains("_x00") {
+        return Cow::Borrowed(original);
     }
-    XML_ESCAPE.replace_all(si_string, "_x005F$1")
+
+    let string_end = original.len();
+    let escape_length = "_x0000_".len();
+    let mut escaped_string = original.to_string();
+
+    // Match from right so we can escape target string at the same indices.
+    let matches: Vec<_> = original.rmatch_indices("_x00").collect();
+
+    for (index, _) in matches {
+        if index + escape_length > string_end {
+            continue;
+        }
+
+        // Check that the digits in _xABCD_ are a valid hex code.
+        if original[index + 2..index + 6]
+            .chars()
+            .all(|c| c.is_ascii_hexdigit())
+        {
+            escaped_string.replace_range(index..index, "_x005F");
+        }
+    }
+
+    if escaped_string == original {
+        return Cow::Borrowed(original);
+    }
+
+    Cow::Owned(escaped_string)
 }
 
 // Trait to write attribute tuple values to an XML file.

@@ -73,9 +73,9 @@ fn main() -> Result<(), XlsxError> {
 }
 ```
 
-`rust_xlsxwriter` is a port of the [`XlsxWriter`] Python module by the same
-author. Feature porting is a work in progress. The currently supported
-features are:
+`rust_xlsxwriter` is a rewrite of the Python [`XlsxWriter`] library in Rust by
+the same author and with some additional Rust-like features and APIs. The
+currently supported features are:
 
 - Support for writing all basic Excel data types.
 - Full cell formatting support.
@@ -85,12 +85,17 @@ features are:
 - Page/Printing Setup support.
 - Merged ranges.
 - Conditional formatting.
+- Data validation.
+- Cell Notes.
+- Textboxes.
+- Sparklines.
 - Worksheet PNG/JPEG/GIF/BMP images.
 - Rich multi-format strings.
 - Defined names.
 - Autofilters.
 - Worksheet Tables.
 - Serde serialization support.
+- Support for macros.
 
 `rust_xlsxwriter` is under active development and new features will be added
 frequently.
@@ -100,9 +105,8 @@ frequently.
 
 ## Features
 
-- `default`: Includes all the standard functionality. Has dependencies on `zip`,
-  `regex` and `lazy_static`.
-
+- `default`: Includes all the standard functionality. This has a dependency on
+  the `zip` crate only.
 
 - `serde`: Adds supports for Serde serialization. This is off by default.
 
@@ -119,12 +123,18 @@ frequently.
 - `wasm`: Adds a dependency on `js-sys` and `wasm-bindgen` to allow compilation
   for wasm/JavaScript targets.
 
+- `ryu`: Adds a dependency on `ryu`. This speeds up writing numeric
+  worksheet cells for large data files. It gives a performance boost above
+  300,000 numeric cells and can be up to 30% faster than the default number
+  formatting for 5,000,000 numeric cells.
+
 ## Release notes
 
 Recent changes:
 
-- Added support for Serde serialization.
-- Added support for Conditional Formatting.
+- Added support for adding Textbox shapes to worksheets.
+- Removed requirement on `regex` crate.
+- Added support for data validation.
 
 See the full [Release Notes and Changelog].
 
@@ -149,5 +159,5 @@ See the full [Release Notes and Changelog].
 [The rust_xlsxwriter crate]: https://crates.io/crates/rust_xlsxwriter
 [The rust_xlsxwriter API docs at docs.rs]: https://docs.rs/rust_xlsxwriter/latest/rust_xlsxwriter/
 [The rust_xlsxwriter repository]: https://github.com/jmcnamara/rust_xlsxwriter
-[Release Notes and Changelog]: https://rustxlsxwriter.github.io/changelog.html
+[Release Notes and Changelog]: https://docs.rs/rust_xlsxwriter/latest/rust_xlsxwriter/changelog/index.html
 [Roadmap of planned features]: https://github.com/jmcnamara/rust_xlsxwriter/issues/1

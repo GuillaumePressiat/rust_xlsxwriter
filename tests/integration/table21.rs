@@ -14,9 +14,7 @@ fn create_new_xlsx_file_1(filename: &str) -> Result<(), XlsxError> {
 
     let worksheet = workbook.add_worksheet();
 
-    for col_num in 2..=3u16 {
-        worksheet.set_column_width(col_num, 10.288)?;
-    }
+    worksheet.set_column_range_width(2, 3, 10.288)?;
 
     worksheet.write(0, 0, "Column")?;
 
@@ -37,9 +35,7 @@ fn create_new_xlsx_file_2(filename: &str) -> Result<(), XlsxError> {
 
     let worksheet = workbook.add_worksheet();
 
-    for col_num in 2..=3u16 {
-        worksheet.set_column_width(col_num, 10.288)?;
-    }
+    worksheet.set_column_range_width(2, 3, 10.288)?;
 
     worksheet.write(0, 0, "Column")?;
 

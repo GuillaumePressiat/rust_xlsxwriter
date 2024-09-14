@@ -19,44 +19,56 @@ cargo run --example app_demo  # or any other example
 4. [Format colors: Create a palette of the available colors](#format-colors-create-a-palette-of-the-available-colors)
 5. [Merging cells: An example of merging cell ranges](#merging-cells-an-example-of-merging-cell-ranges)
 6. [Autofilters: Add an autofilter to a worksheet](#autofilters-add-an-autofilter-to-a-worksheet)
-7. [Adding worksheet tables](#adding-worksheet-tables)
-8. [Adding Conditional Formatting](#adding-conditional-formatting)
-9. [Rich strings: Add multi-font rich strings to a worksheet](#rich-strings-add-multi-font-rich-strings-to-a-worksheet)
-10. [Right to left display: Set a worksheet into right to left display mode](#right-to-left-display-set-a-worksheet-into-right-to-left-display-mode)
-11. [Autofitting Columns: Example of autofitting column widths](#autofitting-columns-example-of-autofitting-column-widths)
-12. [Insert images: Add images to a worksheet](#insert-images-add-images-to-a-worksheet)
-13. [Insert images: Inserting images to fit cell](#insert-images-inserting-images-to-fit-cell)
-14. [Adding a watermark: Adding a watermark to a worksheet by adding an image to the header](#adding-a-watermark-adding-a-watermark-to-a-worksheet-by-adding-an-image-to-the-header)
-15. [Chart: Simple: Simple getting started chart example](#chart-simple-simple-getting-started-chart-example)
-16. [Chart: Area: Excel Area chart example](#chart-area-excel-area-chart-example)
-17. [Chart: Bar: Excel Bar chart example](#chart-bar-excel-bar-chart-example)
-18. [Chart: Column: Excel Column chart example](#chart-column-excel-column-chart-example)
-19. [Chart: Line: Excel Line chart example](#chart-line-excel-line-chart-example)
-20. [Chart: Scatter: Excel Scatter chart example](#chart-scatter-excel-scatter-chart-example)
-21. [Chart: Pie: Excel Pie chart example](#chart-pie-excel-pie-chart-example)
-22. [Chart: Doughnut: Excel Doughnut chart example](#chart-doughnut-excel-doughnut-chart-example)
-23. [Chart: Radar: Excel Radar chart example](#chart-radar-excel-radar-chart-example)
-24. [Chart: Stock: Excel Stock chart example](#chart-stock-excel-stock-chart-example)
-25. [Chart: Pattern Fill: Example of a chart with Pattern Fill](#chart-pattern-fill-example-of-a-chart-with-pattern-fill)
-26. [Chart: Gradient Fill: Example of a chart with Gradient Fill](#chart-gradient-fill-example-of-a-chart-with-gradient-fill)
-27. [Chart: Styles: Example of setting default chart styles](#chart-styles-example-of-setting-default-chart-styles)
-28. [Chart: Chart data table](#chart-chart-data-table)
-29. [Chart: Chart data tools](#chart-chart-data-tools)
-30. [Extending generic write() to handle user data types](#extending-generic-write-to-handle-user-data-types)
-31. [Defined names: using user defined variable names in worksheets](#defined-names-using-user-defined-variable-names-in-worksheets)
-32. [Setting cell protection in a worksheet](#setting-cell-protection-in-a-worksheet)
-33. [Setting document properties Set the metadata properties for a workbook](#setting-document-properties-set-the-metadata-properties-for-a-workbook)
-34. [Headers and Footers: Shows how to set headers and footers](#headers-and-footers-shows-how-to-set-headers-and-footers)
-35. [Hyperlinks: Add hyperlinks to a worksheet](#hyperlinks-add-hyperlinks-to-a-worksheet)
-36. [Freeze Panes: Example of setting freeze panes in worksheets](#freeze-panes-example-of-setting-freeze-panes-in-worksheets)
-37. [Dynamic array formulas: Examples of dynamic arrays and formulas](#dynamic-array-formulas-examples-of-dynamic-arrays-and-formulas)
-38. [Excel LAMBDA() function: Example of using the Excel 365 LAMBDA() function](#excel-lambda-function-example-of-using-the-excel-365-lambda-function)
+7. [Tables: Adding worksheet tables](#tables-adding-worksheet-tables)
+8. [Conditional Formatting: Adding conditional formatting to worksheets](#conditional-formatting-adding-conditional-formatting-to-worksheets)
+9. [Data Validation: Add cell validation and dropdowns](#data-validation-add-cell-validation-and-dropdowns)
+10. [Notes: Adding notes to worksheet cells](#notes-adding-notes-to-worksheet-cells)
+11. [Rich strings: Add multi-font rich strings to a worksheet](#rich-strings-add-multi-font-rich-strings-to-a-worksheet)
+12. [Right to left display: Set a worksheet into right to left display mode](#right-to-left-display-set-a-worksheet-into-right-to-left-display-mode)
+13. [Autofitting Columns: Example of autofitting column widths](#autofitting-columns-example-of-autofitting-column-widths)
+14. [Insert images: Add images to a worksheet](#insert-images-add-images-to-a-worksheet)
+15. [Insert images: Embedding an image in a cell](#insert-images-embedding-an-image-in-a-cell)
+16. [Insert images: Inserting images to fit a cell](#insert-images-inserting-images-to-fit-a-cell)
+17. [Adding a watermark: Adding a watermark to a worksheet by adding an image to the header](#adding-a-watermark-adding-a-watermark-to-a-worksheet-by-adding-an-image-to-the-header)
+18. [Chart: Simple: Simple getting started chart example](#chart-simple-simple-getting-started-chart-example)
+19. [Chart: Area: Excel Area chart example](#chart-area-excel-area-chart-example)
+20. [Chart: Bar: Excel Bar chart example](#chart-bar-excel-bar-chart-example)
+21. [Chart: Column: Excel Column chart example](#chart-column-excel-column-chart-example)
+22. [Chart: Line: Excel Line chart example](#chart-line-excel-line-chart-example)
+23. [Chart: Scatter: Excel Scatter chart example](#chart-scatter-excel-scatter-chart-example)
+24. [Chart: Pie: Excel Pie chart example](#chart-pie-excel-pie-chart-example)
+25. [Chart: Doughnut: Excel Doughnut chart example](#chart-doughnut-excel-doughnut-chart-example)
+26. [Chart: Radar: Excel Radar chart example](#chart-radar-excel-radar-chart-example)
+27. [Chart: Stock: Excel Stock chart example](#chart-stock-excel-stock-chart-example)
+28. [Chart: Using a secondary axis](#chart-using-a-secondary-axis)
+29. [Chart: Create a combined chart](#chart-create-a-combined-chart)
+30. [Chart: Create a combined pareto chart](#chart-create-a-combined-pareto-chart)
+31. [Chart: Pattern Fill: Example of a chart with Pattern Fill](#chart-pattern-fill-example-of-a-chart-with-pattern-fill)
+32. [Chart: Gradient Fill: Example of a chart with Gradient Fill](#chart-gradient-fill-example-of-a-chart-with-gradient-fill)
+33. [Chart: Styles: Example of setting default chart styles](#chart-styles-example-of-setting-default-chart-styles)
+34. [Chart: Chart data table](#chart-chart-data-table)
+35. [Chart: Chart data tools](#chart-chart-data-tools)
+36. [Chart: Gauge Chart](#chart-gauge-chart)
+37. [Textbox: Inserting Textboxes in worksheets](#textbox-inserting-textboxes-in-worksheets)
+38. [Sparklines: simple example](#sparklines-simple-example)
+39. [Sparklines: advanced example](#sparklines-advanced-example)
+40. [Traits: Extending generic `write()` to handle user data types](#traits-extending-generic-write-to-handle-user-data-types)
+41. [Macros: Adding macros to a workbook](#macros-adding-macros-to-a-workbook)
+42. [Defined names: using user defined variable names in worksheets](#defined-names-using-user-defined-variable-names-in-worksheets)
+43. [Cell Protection: Setting cell protection in a worksheet](#cell-protection-setting-cell-protection-in-a-worksheet)
+44. [Document Properties: Setting document metadata properties for a workbook](#document-properties-setting-document-metadata-properties-for-a-workbook)
+45. [Document Properties: Setting the Sensitivity Label](#document-properties-setting-the-sensitivity-label)
+46. [Headers and Footers: Shows how to set headers and footers](#headers-and-footers-shows-how-to-set-headers-and-footers)
+47. [Hyperlinks: Add hyperlinks to a worksheet](#hyperlinks-add-hyperlinks-to-a-worksheet)
+48. [Freeze Panes: Example of setting freeze panes in worksheets](#freeze-panes-example-of-setting-freeze-panes-in-worksheets)
+49. [Dynamic array formulas: Examples of dynamic arrays and formulas](#dynamic-array-formulas-examples-of-dynamic-arrays-and-formulas)
+50. [Excel `LAMBDA()` function: Example of using the Excel 365 `LAMBDA()` function](#excel-lambda-function-example-of-using-the-excel-365-lambda-function)
 
 
 # Hello World: Simple getting started example
 
 Program to create a simple Hello World style Excel spreadsheet using the
-`rust_xlsxwriter`library.
+`rust_xlsxwriter` library.
 
 **Image of the output file:**
 
@@ -168,7 +180,7 @@ fn main() -> Result<(), XlsxError> {
 # Cell formatting: Demonstrates various formatting options
 
 An example of the various cell formatting options that are available in the
-`rust_xlsxwriter`library. These are laid out on worksheets that correspond to the
+`rust_xlsxwriter` library. These are laid out on worksheets that correspond to the
 sections of the Excel "Format Cells" dialog.
 
 **Image of the output file:**
@@ -572,9 +584,9 @@ fn main() -> Result<(), XlsxError> {
 # Merging cells: An example of merging cell ranges
 
 This is an example of creating merged cells ranges in Excel using
-[`worksheet.merge_range()`].
+[`Worksheet::merge_range()`].
 
-[`worksheet.merge_range()`]: crate::Worksheet::merge_range
+[`Worksheet::merge_range()`]: crate::Worksheet::merge_range
 
 The `merge_range()` method only handles strings but it can be used to merge
 other data types, such as number, as shown below.
@@ -633,7 +645,7 @@ fn main() -> Result<(), XlsxError> {
 
 # Autofilters: Add an autofilter to a worksheet
 
-An example of how to create autofilters with the `rust_xlsxwriter`library..
+An example of how to create autofilters with the `rust_xlsxwriter` library.
 
 An autofilter is a way of adding drop down lists to the headers of a 2D range of
 worksheet data. This allows users to filter the data based on simple criteria so
@@ -894,7 +906,7 @@ pub fn populate_autofilter_data(
 ```
 
 
-# Adding worksheet tables
+# Tables: Adding worksheet tables
 
 Tables in Excel are a way of grouping a range of cells into a single entity
 that has common formatting or that can be referenced from formulas. Tables
@@ -906,13 +918,13 @@ shown in the ribbon bar.
 
 <img src="https://rustxlsxwriter.github.io/images/table_intro.png">
 
-A table is added to a worksheet via the [`worksheet.add_table()`]method. The
+A table is added to a worksheet via the [`Worksheet::add_table()`]method. The
 headers and total row of a table should be configured via a [`Table`] struct but
-the table data can be added via standard [`worksheet.write()`]methods.
+the table data can be added via standard [`Worksheet::write()`]methods.
 
 [`Table`]: crate::Table
-[`worksheet.write()`]: crate::Worksheet::write
-[`worksheet.add_table()`]: crate::Worksheet::add_table
+[`Worksheet::write()`]: crate::Worksheet::write
+[`Worksheet::add_table()`]: crate::Worksheet::add_table
 
 ## Some examples:
 
@@ -931,9 +943,7 @@ Code to generate the above example:
     let caption = "Default table with no data.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -961,9 +971,7 @@ Code to generate the above example:
     let caption = "Default table with data.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -995,9 +1003,7 @@ Code to generate the above example:
     let caption = "Table without default autofilter.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1029,9 +1035,7 @@ Code to generate the above example:
     let caption = "Table without default header row.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1063,9 +1067,7 @@ Code to generate the above example:
     let caption = "Default table with 'First Column' and 'Last Column' options.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1097,9 +1099,7 @@ Code to generate the above example:
     let caption = "Table with banded columns but without default banded rows.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1131,9 +1131,7 @@ Code to generate the above example:
     let caption = "Table with user defined column headers.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1173,9 +1171,7 @@ Code to generate the above example:
     let caption = "Table with user defined column headers, and formulas.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1218,9 +1214,7 @@ Code to generate the above example:
     let caption = "Table with totals row (but no caption or totals).";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1263,9 +1257,7 @@ Code to generate the above example:
     let caption = "Table with totals row with user captions and functions.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1319,9 +1311,7 @@ Code to generate the above example:
     let caption = "Table with alternative Excel style.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1378,9 +1368,7 @@ Code to generate the above example:
     let caption = "Table with Excel style removed.";
 
     // Set the column widths for clarity.
-    for col_num in 1..=6u16 {
-        worksheet.set_column_width(col_num, 12)?;
-    }
+    worksheet.set_column_range_width(1, 6, 12)?;
 
     // Write the caption.
     worksheet.write(0, 1, caption)?;
@@ -1419,13 +1407,10 @@ Code to generate the above example:
 
     // Add the table to the worksheet.
     worksheet.add_table(2, 1, 7, 6, &table)?;
-
-    // Save the file to disk.
-    workbook.save("tables.xlsx")?;
 ```
 
 
-# Adding Conditional Formatting
+# Conditional Formatting: Adding conditional formatting to worksheets
 
 Conditional formatting is a feature of Excel which allows you to apply a format
 to a cell or a range of cells based on user defined rules. For example you might
@@ -1926,6 +1911,302 @@ Code to generate the above example:
 ```
 
 
+# Data Validation: Add cell validation and dropdowns
+
+Example of how to add data validation and dropdown lists using the
+`rust_xlsxwriter` library.
+
+Data validation is a feature of Excel which allows you to restrict the data that
+a user enters in a cell and to display help and warning messages. It also allows
+you to restrict input to values in a drop down list.
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_data_validation.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_data_validation.rs
+
+use rust_xlsxwriter::{
+    DataValidation, DataValidationErrorStyle, DataValidationRule, ExcelDateTime, Format,
+    FormatAlign, FormatBorder, Formula, Workbook, XlsxError,
+};
+
+fn main() -> Result<(), XlsxError> {
+    // Create a new Excel file object.
+    let mut workbook = Workbook::new();
+
+    // Add a worksheet to the workbook.
+    let worksheet = workbook.add_worksheet();
+
+    // Add a format for the header cells.
+    let header_format = Format::new()
+        .set_background_color("C6EFCE")
+        .set_border(FormatBorder::Thin)
+        .set_bold()
+        .set_indent(1)
+        .set_text_wrap()
+        .set_align(FormatAlign::VerticalCenter);
+
+    // Set up layout of the worksheet.
+    worksheet.set_column_width(0, 68)?;
+    worksheet.set_column_width(1, 15)?;
+    worksheet.set_column_width(3, 15)?;
+    worksheet.set_row_height(0, 36)?;
+
+    // Write the header cells and some data that will be used in the examples.
+    let heading1 = "Some examples of data validations";
+    let heading2 = "Enter values in this column";
+    let heading3 = "Sample Data";
+
+    worksheet.write_with_format(0, 0, heading1, &header_format)?;
+    worksheet.write_with_format(0, 1, heading2, &header_format)?;
+    worksheet.write_with_format(0, 3, heading3, &header_format)?;
+
+    worksheet.write(2, 3, "Integers")?;
+    worksheet.write(2, 4, 1)?;
+    worksheet.write(2, 5, 10)?;
+
+    worksheet.write_row(3, 3, ["List data", "open", "high", "close"])?;
+
+    worksheet.write(4, 3, "Formula")?;
+    worksheet.write(4, 4, Formula::new("=AND(F5=50,G5=60)"))?;
+    worksheet.write(4, 5, 50)?;
+    worksheet.write(4, 6, 60)?;
+
+    // -----------------------------------------------------------------------
+    // Example 1. Limiting input to an integer in a fixed range.
+    // -----------------------------------------------------------------------
+    let text = "Enter an integer between 1 and 10";
+    worksheet.write(2, 0, text)?;
+
+    let data_validation =
+        DataValidation::new().allow_whole_number(DataValidationRule::Between(1, 10));
+
+    worksheet.add_data_validation(2, 1, 2, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 2. Limiting input to an integer outside a fixed range.
+    // -----------------------------------------------------------------------
+    let text = "Enter an integer that is not between 1 and 10 (using cell references)";
+    worksheet.write(4, 0, text)?;
+
+    let data_validation = DataValidation::new()
+        .allow_whole_number_formula(DataValidationRule::NotBetween("=E3".into(), "=F3".into()));
+
+    worksheet.add_data_validation(4, 1, 4, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 3. Limiting input to an integer greater than a fixed value.
+    // -----------------------------------------------------------------------
+    let text = "Enter an integer greater than 0";
+    worksheet.write(6, 0, text)?;
+
+    let data_validation =
+        DataValidation::new().allow_whole_number(DataValidationRule::GreaterThan(0));
+
+    worksheet.add_data_validation(6, 1, 6, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 4. Limiting input to an integer less than a fixed value.
+    // -----------------------------------------------------------------------
+    let text = "Enter an integer less than 10";
+    worksheet.write(8, 0, text)?;
+
+    let data_validation =
+        DataValidation::new().allow_whole_number(DataValidationRule::LessThan(10));
+
+    worksheet.add_data_validation(8, 1, 8, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 5. Limiting input to a decimal in a fixed range.
+    // -----------------------------------------------------------------------
+    let text = "Enter a decimal between 0.1 and 0.5";
+    worksheet.write(10, 0, text)?;
+
+    let data_validation =
+        DataValidation::new().allow_decimal_number(DataValidationRule::Between(0.1, 0.5));
+
+    worksheet.add_data_validation(10, 1, 10, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 6. Limiting input to a value in a dropdown list.
+    // -----------------------------------------------------------------------
+    let text = "Select a value from a drop down list";
+    worksheet.write(12, 0, text)?;
+
+    let data_validation = DataValidation::new().allow_list_strings(&["open", "high", "close"])?;
+
+    worksheet.add_data_validation(12, 1, 12, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 7. Limiting input to a value in a dropdown list.
+    // -----------------------------------------------------------------------
+    let text = "Select a value from a drop down list (using a cell range)";
+    worksheet.write(14, 0, text)?;
+
+    let data_validation = DataValidation::new().allow_list_formula("=$E$4:$G$4".into());
+
+    worksheet.add_data_validation(14, 1, 14, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 8. Limiting input to a date in a fixed range.
+    // -----------------------------------------------------------------------
+    let text = "Enter a date between 1/1/2025 and 12/12/2025";
+    worksheet.write(16, 0, text)?;
+
+    let data_validation = DataValidation::new().allow_date(DataValidationRule::Between(
+        ExcelDateTime::parse_from_str("2025-01-01")?,
+        ExcelDateTime::parse_from_str("2025-12-12")?,
+    ));
+
+    worksheet.add_data_validation(16, 1, 16, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 9. Limiting input to a time in a fixed range.
+    // -----------------------------------------------------------------------
+    let text = "Enter a time between 6:00 and 12:00";
+    worksheet.write(18, 0, text)?;
+
+    let data_validation = DataValidation::new().allow_time(DataValidationRule::Between(
+        ExcelDateTime::parse_from_str("6:00")?,
+        ExcelDateTime::parse_from_str("12:00")?,
+    ));
+
+    worksheet.add_data_validation(18, 1, 18, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 10. Limiting input to a string greater than a fixed length.
+    // -----------------------------------------------------------------------
+    let text = "Enter a string longer than 3 characters";
+    worksheet.write(20, 0, text)?;
+
+    let data_validation =
+        DataValidation::new().allow_text_length(DataValidationRule::GreaterThan(3));
+
+    worksheet.add_data_validation(20, 1, 20, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 11. Limiting input based on a formula.
+    // -----------------------------------------------------------------------
+    let text = "Enter a value if the following is true '=AND(F5=50,G5=60)'";
+    worksheet.write(22, 0, text)?;
+
+    let data_validation = DataValidation::new().allow_custom("=AND(F5=50,G5=60)".into());
+
+    worksheet.add_data_validation(22, 1, 22, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 12. Displaying and modifying data validation messages.
+    // -----------------------------------------------------------------------
+    let text = "Displays a message when you select the cell";
+    worksheet.write(24, 0, text)?;
+
+    let data_validation = DataValidation::new()
+        .allow_whole_number(DataValidationRule::Between(1, 100))
+        .set_input_title("Enter an integer:")?
+        .set_input_message("between 1 and 100")?;
+
+    worksheet.add_data_validation(24, 1, 24, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 13. Displaying and modifying data validation messages.
+    // -----------------------------------------------------------------------
+    let text = "Display a custom error message when integer isn't between 1 and 100";
+    worksheet.write(26, 0, text)?;
+
+    let data_validation = DataValidation::new()
+        .allow_whole_number(DataValidationRule::Between(1, 100))
+        .set_input_title("Enter an integer:")?
+        .set_input_message("between 1 and 100")?
+        .set_error_title("Input value is not valid!")?
+        .set_error_message("It should be an integer between 1 and 100")?;
+
+    worksheet.add_data_validation(26, 1, 26, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Example 14. Displaying and modifying data validation messages.
+    // -----------------------------------------------------------------------
+    let text = "Display a custom info message when integer isn't between 1 and 100";
+    worksheet.write(28, 0, text)?;
+
+    let data_validation = DataValidation::new()
+        .allow_whole_number(DataValidationRule::Between(1, 100))
+        .set_input_title("Enter an integer:")?
+        .set_input_message("between 1 and 100")?
+        .set_error_title("Input value is not valid!")?
+        .set_error_message("It should be an integer between 1 and 100")?
+        .set_error_style(DataValidationErrorStyle::Information);
+
+    worksheet.add_data_validation(28, 1, 28, 1, &data_validation)?;
+
+    // -----------------------------------------------------------------------
+    // Save and close the file.
+    // -----------------------------------------------------------------------
+    workbook.save("data_validation.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+# Notes: Adding notes to worksheet cells
+
+An example of writing cell Notes to a worksheet.
+
+A Note is a post-it style message that is revealed when the user mouses
+over a worksheet cell. The presence of a Note is indicated by a small
+red triangle in the upper right-hand corner of the cell.
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_notes.png">
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_notes.rs
+
+use rust_xlsxwriter::{Note, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    // Create a new Excel file object.
+    let mut workbook = Workbook::new();
+
+    // Add a worksheet to the workbook.
+    let worksheet = workbook.add_worksheet();
+
+    // Widen the first column for clarity.
+    worksheet.set_column_width(0, 16)?;
+
+    // Write some data.
+    let party_items = [
+        "Invitations",
+        "Doors",
+        "Flowers",
+        "Champagne",
+        "Menu",
+        "Peter",
+    ];
+    worksheet.write_column(0, 0, party_items)?;
+
+    // Create a new worksheet Note.
+    let note = Note::new("I will get the flowers myself").set_author("Clarissa Dalloway");
+
+    // Add the note to a cell.
+    worksheet.insert_note(2, 0, &note)?;
+
+    // Save the file to disk.
+    workbook.save("notes.xlsx")?;
+
+    Ok(())
+}
+```
+
+
 # Rich strings: Add multi-font rich strings to a worksheet
 
 An example of writing "rich" multi-format strings to worksheet cells.
@@ -2036,9 +2317,9 @@ fn main() -> Result<(), XlsxError> {
     worksheet1.set_column_width(0, 25)?;
 
     // Standard direction:         | A1 | B1 | C1 | ...
-    worksheet1.write_string(0, 0, "نص عربي / English text")?;
-    worksheet1.write_string_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
-    worksheet1.write_string_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
+    worksheet1.write(0, 0, "نص عربي / English text")?;
+    worksheet1.write_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
+    worksheet1.write_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
 
     // Add a worksheet and change it to right to left direction.
     let worksheet2 = workbook.add_worksheet();
@@ -2048,9 +2329,9 @@ fn main() -> Result<(), XlsxError> {
     worksheet2.set_column_width(0, 25)?;
 
     // Right to left direction:    ... | C1 | B1 | A1 |
-    worksheet2.write_string(0, 0, "نص عربي / English text")?;
-    worksheet2.write_string_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
-    worksheet2.write_string_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
+    worksheet2.write(0, 0, "نص عربي / English text")?;
+    worksheet2.write_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
+    worksheet2.write_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
 
     workbook.save("right_to_left.xlsx")?;
 
@@ -2146,7 +2427,7 @@ fn main() -> Result<(), XlsxError> {
 
     // Insert an image with scaling.
     worksheet.write_string(15, 0, "Insert a scaled image:")?;
-    image.set_scale_width(0.75).set_scale_height(0.75);
+    image = image.set_scale_width(0.75).set_scale_height(0.75);
     worksheet.insert_image(15, 1, &image)?;
 
     // Save the file to disk.
@@ -2157,11 +2438,69 @@ fn main() -> Result<(), XlsxError> {
 ```
 
 
-# Insert images: Inserting images to fit cell
+# Insert images: Embedding an image in a cell
+
+An example of embedding images into a worksheet cells using `rust_xlsxwriter`.
+This image scales to size of the cell and moves with it.
+
+This approach can be useful if you are building up a spreadsheet of products
+with a column of images for each product.
+
+This is the equivalent of Excel's menu option to insert an image using the
+option to "Place in Cell" which is only available in Excel 365 versions from
+2023 onwards. For older versions of Excel a `#VALUE!` error is displayed.
+
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/embedded_images.png">
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_embedded_images.rs
+
+use rust_xlsxwriter::{Image, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    // Create a new Excel file object.
+    let mut workbook = Workbook::new();
+
+    // Add a worksheet to the workbook.
+    let worksheet = workbook.add_worksheet();
+
+    // Create a new image object.
+    let image = Image::new("examples/rust_logo.png")?;
+
+    // Widen the first column to make the caption clearer.
+    worksheet.set_column_width(0, 30)?;
+    worksheet.write(0, 0, "Embed images that scale to the cell size")?;
+
+    // Change cell widths/heights to demonstrate the image differences.
+    worksheet.set_column_width(1, 14)?;
+    worksheet.set_row_height(1, 60)?;
+    worksheet.set_row_height(3, 90)?;
+
+    // Embed the images in cells of different widths/heights.
+    worksheet.embed_image(1, 1, &image)?;
+    worksheet.embed_image(3, 1, &image)?;
+
+    // Save the file to disk.
+    workbook.save("embedded_images.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+# Insert images: Inserting images to fit a cell
 
 An example of inserting images into a worksheet using `rust_xlsxwriter`so that
 they are scaled to a cell. This approach can be useful if you are building up a
 spreadsheet of products with a column of images for each product.
+
+See the [Embedding images in cells](#insert-images-embedding-an-image-in-a-cell) example that
+shows a better approach for newer versions of Excel.
 
 **Image of the output file:**
 
@@ -2171,6 +2510,9 @@ spreadsheet of products with a column of images for each product.
 
 ```rust
 // Sample code from examples/app_images_fit_to_cell.rs
+
+//! See also the `app_embedded_image.rs` example that shows a better approach
+//! for newer versions of Excel.
 
 use rust_xlsxwriter::{Format, FormatAlign, Image, Workbook, XlsxError};
 
@@ -3810,6 +4152,382 @@ fn main() -> Result<(), XlsxError> {
 ```
 
 
+# Chart: Using a secondary axis
+
+
+Example of creating an Excel Line chart with a secondary axis by setting the
+[`ChartSeries::set_secondary_axis()`] property for one of more series in the
+chart.
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_chart_secondary_axis.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_chart_secondary_axis.rs
+
+use rust_xlsxwriter::{Chart, ChartType, Format, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    let bold = Format::new().set_bold();
+
+    // Add the worksheet data that the charts will refer to.
+    worksheet.write_with_format(0, 0, "Aliens", &bold)?;
+    worksheet.write_with_format(0, 1, "Humans", &bold)?;
+    worksheet.write_column(1, 0, [2, 3, 4, 5, 6, 7])?;
+    worksheet.write_column(1, 1, [10, 40, 50, 20, 10, 50])?;
+
+    // Create a new line chart.
+    let mut chart = Chart::new(ChartType::Line);
+
+    // Configure a series with a secondary axis.
+    chart
+        .add_series()
+        .set_name("Sheet1!$A$1")
+        .set_values("Sheet1!$A$2:$A$7")
+        .set_secondary_axis(true);
+
+    // Configure another series that defaults to the primary axis.
+    chart
+        .add_series()
+        .set_name("Sheet1!$B$1")
+        .set_values("Sheet1!$B$2:$B$7");
+
+    // Add a chart title and some axis labels.
+    chart.title().set_name("Survey results");
+    chart.x_axis().set_name("Days");
+    chart.y_axis().set_name("Population");
+    chart.y2_axis().set_name("Laser wounds");
+    chart.y_axis().set_major_gridlines(false);
+
+    // Add the chart to the worksheet.
+    worksheet.insert_chart_with_offset(1, 3, &chart, 25, 10)?;
+
+    workbook.save("chart_secondary_axis.xlsx")?;
+
+    Ok(())
+}
+```
+
+[`ChartSeries::set_secondary_axis()`]: crate::ChartSeries::set_secondary_axis
+
+
+In general secondary axes are used for displaying different Y values for the
+same category range. However it is also possible to display a secondary X axis
+for series that use a different category range. See the example below.
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/chart_series_set_secondary_axis2.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/doc_chart_series_set_secondary_axis2.rs
+
+use rust_xlsxwriter::{
+    Chart, ChartAxisCrossing, ChartAxisLabelPosition, ChartLegendPosition, ChartType, Workbook,
+    XlsxError,
+};
+
+fn main() -> Result<(), XlsxError> {
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+
+    // Add the worksheet data that the charts will refer to.
+    worksheet.write_column(0, 0, [1, 2, 3, 4, 5])?;
+    worksheet.write_column(0, 1, [10, 40, 50, 20, 10])?;
+    worksheet.write_column(0, 2, [1, 2, 3, 4, 5, 6, 7])?;
+    worksheet.write_column(0, 3, [30, 10, 20, 40, 30, 10, 20])?;
+
+    // Create a new line chart.
+    let mut chart = Chart::new(ChartType::Line);
+
+    // Configure a series that defaults to the primary axis.
+    chart
+        .add_series()
+        .set_categories(("Sheet1", 0, 0, 4, 0))
+        .set_values(("Sheet1", 0, 1, 4, 1));
+
+    // Configure another series with a secondary axis. Note that the category
+    // range is different to the primary axes series.
+    chart
+        .add_series()
+        .set_categories(("Sheet1", 0, 2, 6, 2))
+        .set_values(("Sheet1", 0, 3, 6, 3))
+        .set_secondary_axis(true);
+
+    // Make the secondary X axis visible (it is hidden by default) and also
+    // position the labels so they are next to the axis and therefore visible.
+    chart
+        .x2_axis()
+        .set_hidden(false)
+        .set_label_position(ChartAxisLabelPosition::NextTo);
+
+    // Set the X2 axis to cross the Y2 axis at the max value so it appears at
+    // the top of the chart.
+    chart.y2_axis().set_crossing(ChartAxisCrossing::Max);
+
+    // Add some axis labels.
+    chart.x_axis().set_name("X axis");
+    chart.y_axis().set_name("Y axis");
+    chart.x2_axis().set_name("X2 axis");
+    chart.y2_axis().set_name("Y2 axis");
+
+    // Move the legend to the bottom for clarity.
+    chart.legend().set_position(ChartLegendPosition::Bottom);
+
+    // Add the chart to the worksheet.
+    worksheet.insert_chart_with_offset(0, 4, &chart, 5, 5)?;
+
+    workbook.save("chart.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+
+
+# Chart: Create a combined chart
+
+Example of creating combined Excel charts from two different chart types.
+
+**Image of the output file:**
+
+In the first example we create a combined column and line chart that share the
+same X and Y axes:
+
+<img src="https://rustxlsxwriter.github.io/images/app_chart_combined1.png">
+
+In the second example we create a similar combined column and line chart except
+that the secondary chart has a secondary Y axis:
+
+<img src="https://rustxlsxwriter.github.io/images/app_chart_combined2.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_chart_combined.rs
+
+use rust_xlsxwriter::{Chart, ChartType, Format, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    let bold = Format::new().set_bold();
+
+    // Add the worksheet data that the charts will refer to.
+    let headings = ["Number", "Sample", "Target"];
+    worksheet.write_row_with_format(0, 0, headings, &bold)?;
+
+    let data = [
+        [2, 3, 4, 5, 6, 7],
+        [10, 40, 50, 20, 10, 50],
+        [30, 60, 70, 50, 40, 30],
+    ];
+    worksheet.write_column_matrix(1, 0, data)?;
+
+    // -----------------------------------------------------------------------
+    // In the first example we will create a combined column and line chart.
+    // The charts will share the same X and Y axes.
+    // -----------------------------------------------------------------------
+    let mut column_chart = Chart::new(ChartType::Column);
+
+    // Configure the data series for the primary chart.
+    column_chart
+        .add_series()
+        .set_name("Sheet1!$B$1")
+        .set_categories("Sheet1!$A$2:$A$7")
+        .set_values("Sheet1!$B$2:$B$7");
+
+    // Create a new line chart. This will use this as the secondary chart.
+    let mut line_chart = Chart::new(ChartType::Line);
+
+    // Configure the data series for the secondary chart.
+    line_chart
+        .add_series()
+        .set_name("Sheet1!$C$1")
+        .set_categories("Sheet1!$A$2:$A$7")
+        .set_values("Sheet1!$C$2:$C$7");
+
+    // Combine the charts.
+    column_chart.combine(&line_chart);
+
+    // Add a chart title and some axis labels. Note, this is done via the
+    // primary chart.
+    column_chart
+        .title()
+        .set_name("Combined chart with same Y axis");
+    column_chart.x_axis().set_name("Test number");
+    column_chart.y_axis().set_name("Sample length (mm)");
+
+    // Add the primary chart to the worksheet.
+    worksheet.insert_chart(1, 4, &column_chart)?;
+
+    // -----------------------------------------------------------------------
+    // In the second example we will create a similar combined column and line
+    // chart except that the secondary chart will have a secondary Y axis.
+    // -----------------------------------------------------------------------
+    let mut column_chart = Chart::new(ChartType::Column);
+
+    // Configure the data series for the primary chart.
+    column_chart
+        .add_series()
+        .set_name("Sheet1!$B$1")
+        .set_categories("Sheet1!$A$2:$A$7")
+        .set_values("Sheet1!$B$2:$B$7");
+
+    // Create a new line chart. This will use this as the secondary chart.
+    let mut line_chart = Chart::new(ChartType::Line);
+
+    // Configure the data series for the secondary chart.
+    line_chart
+        .add_series()
+        .set_name("Sheet1!$C$1")
+        .set_categories("Sheet1!$A$2:$A$7")
+        .set_values("Sheet1!$C$2:$C$7")
+        .set_secondary_axis(true);
+
+    // Combine the charts.
+    column_chart.combine(&line_chart);
+
+    // Configure the data series for the secondary chart. We also set a
+    // secondary Y axis via (y2_axis). This is the only difference between
+    // this and the first example, apart from the axis label below.
+    column_chart
+        .title()
+        .set_name("Combine chart with secondary Y axis");
+    column_chart.x_axis().set_name("Test number");
+    column_chart.y_axis().set_name("Sample length (mm)");
+
+    // Note: the y2 properties are set via the primary chart.
+    column_chart.y2_axis().set_name("Target length (mm)");
+
+    // Add the primary chart to the worksheet.
+    worksheet.insert_chart(17, 4, &column_chart)?;
+
+    // Save the file to disk.
+    workbook.save("chart_combined.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+# Chart: Create a combined pareto chart
+
+Example of creating a Pareto chart with a secondary chart and axis.
+
+A Pareto chart is a type of chart that combines a Column/Histogram chart and a
+Chart. Individual values are represented in descending order by the columns and
+the cumulative total is represented by the line approaching 100% on a second
+axis.
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_chart_pareto.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_chart_pareto.rs
+
+use rust_xlsxwriter::{Chart, ChartType, Format, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+
+    // Formats used in the workbook.
+    let bold = Format::new().set_bold();
+    let percent_format = Format::new().set_num_format("0%");
+
+    // Add the worksheet data that the charts will refer to.
+    let headings = ["Reason", "Number", "Percentage"];
+
+    let reasons = [
+        "Traffic",
+        "Child care",
+        "Public Transport",
+        "Weather",
+        "Overslept",
+        "Emergency",
+    ];
+
+    let numbers = [60, 40, 20, 15, 10, 5];
+    let percents = [0.440, 0.667, 0.800, 0.900, 0.967, 1.00];
+
+    worksheet.write_row_with_format(0, 0, headings, &bold)?;
+    worksheet.write_column(1, 0, reasons)?;
+    worksheet.write_column(1, 1, numbers)?;
+    worksheet.write_column_with_format(1, 2, percents, &percent_format)?;
+
+    // Widen the columns for visibility.
+    worksheet.set_column_width(0, 15)?;
+    worksheet.set_column_width(1, 10)?;
+    worksheet.set_column_width(2, 10)?;
+
+    //
+    // Create a new Column chart. This will be the primary chart.
+    //
+    let mut column_chart = Chart::new(ChartType::Column);
+
+    // Configure a series on the primary axis.
+    column_chart
+        .add_series()
+        .set_categories("Sheet1!$A$2:$A$7")
+        .set_values("Sheet1!$B$2:$B$7");
+
+    // Add a chart title.
+    column_chart.title().set_name("Reasons for lateness");
+
+    // Turn off the chart legend.
+    column_chart.legend().set_hidden();
+
+    // Set the  name and scale of the Y axes. Note, the secondary axis is set
+    // from the primary chart.
+    column_chart
+        .y_axis()
+        .set_name("Respondents (number)")
+        .set_min(0)
+        .set_max(120);
+
+    column_chart.y2_axis().set_max(1);
+
+    //
+    // Create a new Line chart. This will be the secondary chart.
+    //
+    let mut line_chart = Chart::new(ChartType::Line);
+
+    // Add a series on the secondary axis.
+    line_chart
+        .add_series()
+        .set_categories("Sheet1!$A$2:$A$7")
+        .set_values("Sheet1!$C$2:$C$7")
+        .set_secondary_axis(true);
+
+    // Combine the charts.
+    column_chart.combine(&line_chart);
+
+    // Add the chart to the worksheet.
+    worksheet.insert_chart(1, 5, &column_chart)?;
+
+    workbook.save("chart_pareto.xlsx")?;
+
+    Ok(())
+}
+```
+
+
 # Chart: Pattern Fill: Example of a chart with Pattern Fill
 
 A example of creating column charts with fill patterns using the [`ChartFormat`]
@@ -3970,11 +4688,13 @@ fn main() -> Result<(), XlsxError> {
     //
     // Create a gradient profile and add it to chart plot area.
     //
-    chart.set_plot_area_format(ChartGradientFill::new().set_gradient_stops(&[
-        ChartGradientStop::new("#FFEFD1", 0),
-        ChartGradientStop::new("#F0EBD5", 50),
-        ChartGradientStop::new("#B69F66", 100),
-    ]));
+    chart
+        .plot_area()
+        .set_format(ChartGradientFill::new().set_gradient_stops(&[
+            ChartGradientStop::new("#FFEFD1", 0),
+            ChartGradientStop::new("#F0EBD5", 50),
+            ChartGradientStop::new("#B69F66", 100),
+        ]));
 
     // Add some axis labels.
     chart.x_axis().set_name("Test number");
@@ -4412,9 +5132,577 @@ fn main() -> Result<(), XlsxError> {
 ```
 
 
-# Extending generic write() to handle user data types
+# Chart: Gauge Chart
 
-Example of how to extend the the `rust_xlsxwriter`[`worksheet.write()`] method using the
+
+A Gauge Chart isn't a native chart type in Excel. It is constructed by combining
+a doughnut chart and a pie chart and by using some non-filled elements to hide
+parts of the default charts. This example follows the following online example
+of how to create a [Gauge Chart] in Excel.
+
+[Gauge Chart]: https://www.excel-easy.com/examples/gauge-chart.html
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_chart_gauge.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_chart_gauge.rs
+
+use rust_xlsxwriter::{
+    Chart, ChartFormat, ChartPoint, ChartSolidFill, ChartType, Workbook, XlsxError,
+};
+
+fn main() -> Result<(), XlsxError> {
+    let mut workbook = Workbook::new();
+
+    let worksheet = workbook.add_worksheet();
+
+    // Add some data for the Doughnut and Pie charts. This is set up so the
+    // gauge goes from 0-100. It is initially set at 75%.
+    worksheet.write(1, 7, "Donut")?;
+    worksheet.write(1, 8, "Pie")?;
+    worksheet.write_column(2, 7, [25, 50, 25, 100])?;
+    worksheet.write_column(2, 8, [75, 1, 124])?;
+
+    // Configure the doughnut chart as the background for the gauge. We add some
+    // custom colors for the Red-Orange-Green of the dial and one non-filled segment.
+    let mut chart_doughnut = Chart::new(ChartType::Doughnut);
+
+    let points = vec![
+        ChartPoint::new().set_format(
+            ChartFormat::new().set_solid_fill(ChartSolidFill::new().set_color("#FF0000")),
+        ),
+        ChartPoint::new().set_format(
+            ChartFormat::new().set_solid_fill(ChartSolidFill::new().set_color("#FFC000")),
+        ),
+        ChartPoint::new().set_format(
+            ChartFormat::new().set_solid_fill(ChartSolidFill::new().set_color("#00B050")),
+        ),
+        ChartPoint::new().set_format(ChartFormat::new().set_no_fill()),
+    ];
+
+    // Add the chart series.
+    chart_doughnut
+        .add_series()
+        .set_values(("Sheet1", 2, 7, 5, 7))
+        .set_name(("Sheet1", 1, 7))
+        .set_points(&points);
+
+    // Turn off the chart legend.
+    chart_doughnut.legend().set_hidden();
+
+    // Rotate chart so the gauge parts are above the horizontal.
+    chart_doughnut.set_rotation(270);
+
+    // Turn off the chart fill and border.
+    chart_doughnut
+        .chart_area()
+        .set_format(ChartFormat::new().set_no_fill().set_no_border());
+
+    // Configure a pie chart as the needle for the gauge.
+    let mut chart_pie = Chart::new(ChartType::Pie);
+    let points = vec![
+        ChartPoint::new().set_format(ChartFormat::new().set_no_fill()),
+        ChartPoint::new().set_format(
+            ChartFormat::new().set_solid_fill(ChartSolidFill::new().set_color("#FF0000")),
+        ),
+        ChartPoint::new().set_format(ChartFormat::new().set_no_fill()),
+    ];
+
+    // Add the chart series.
+    chart_pie
+        .add_series()
+        .set_values(("Sheet1", 2, 8, 5, 8))
+        .set_name(("Sheet1", 1, 8))
+        .set_points(&points);
+
+    // Rotate the pie chart/needle to align with the doughnut/gauge.
+    chart_pie.set_rotation(270);
+
+    // Combine the pie and doughnut charts.
+    chart_doughnut.combine(&chart_pie);
+
+    // Insert the chart into the worksheet.
+    worksheet.insert_chart(0, 0, &chart_doughnut)?;
+
+    workbook.save("chart_gauge.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+
+# Textbox: Inserting Textboxes in worksheets
+
+Example of inserting a textbox shape into a worksheet.
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_textbox.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_textbox.rs
+
+use rust_xlsxwriter::{Shape, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    // Create a new Excel file object.
+    let mut workbook = Workbook::new();
+
+    // Add a worksheet to the workbook.
+    let worksheet = workbook.add_worksheet();
+
+    // Some text to add to the text box.
+    let text = "This is an example of adding a textbox with some text in it";
+
+    // Create a textbox shape and add the text.
+    let textbox = Shape::textbox().set_text(text);
+
+    // Insert a textbox in a cell.
+    worksheet.insert_shape(1, 1, &textbox)?;
+
+    // Save the file to disk.
+    workbook.save("textbox.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+# Sparklines: simple example
+
+Example of adding sparklines to an Excel spreadsheet using the `rust_xlsxwriter`
+library.
+
+Sparklines are small charts that fit in a single cell and are used to show
+trends in data. This example shows the basic sparkline types.
+
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/sparklines1.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_sparklines1.rs
+
+use rust_xlsxwriter::{Sparkline, SparklineType, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    // Create a new Excel file object.
+    let mut workbook = Workbook::new();
+
+    // Add a worksheet to the workbook.
+    let worksheet = workbook.add_worksheet();
+
+    // Some sample data to plot.
+    let data = [[-2, 2, 3, -1, 0], [30, 20, 33, 20, 15], [1, -1, -1, 1, -1]];
+
+    worksheet.write_row_matrix(0, 0, data)?;
+
+    // Add a line sparkline (the default) with markers.
+    let sparkline1 = Sparkline::new()
+        .set_range(("Sheet1", 0, 0, 0, 4))
+        .show_markers(true);
+
+    worksheet.add_sparkline(0, 5, &sparkline1)?;
+
+    // Add a column sparkline with non-default style.
+    let sparkline2 = Sparkline::new()
+        .set_range(("Sheet1", 1, 0, 1, 4))
+        .set_type(SparklineType::Column)
+        .set_style(12);
+
+    worksheet.add_sparkline(1, 5, &sparkline2)?;
+
+    // Add a win/loss sparkline with negative values highlighted.
+    let sparkline3 = Sparkline::new()
+        .set_range(("Sheet1", 2, 0, 2, 4))
+        .set_type(SparklineType::WinLose)
+        .show_negative_points(true);
+
+    worksheet.add_sparkline(2, 5, &sparkline3)?;
+
+    // Save the file to disk.
+    workbook.save("sparklines1.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+# Sparklines: advanced example
+
+Example of adding sparklines to an Excel spreadsheet using the
+`rust_xlsxwriter` library.
+
+Sparklines are small charts that fit in a single cell and are used to show
+trends in data. This example shows the majority of options that can be applied
+to sparklines.
+
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/sparklines2.png">
+
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_sparklines2.rs
+
+use rust_xlsxwriter::{Format, Sparkline, SparklineType, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    // Create a new Excel file object.
+    let mut workbook = Workbook::new();
+
+    // Add a worksheet to the workbook.
+    let worksheet1 = workbook.add_worksheet();
+    let mut row = 1;
+
+    // Set the columns widths to make the output clearer.
+    worksheet1.set_column_width(0, 14)?;
+    worksheet1.set_column_width(1, 50)?;
+    worksheet1.set_zoom(150);
+
+    // Add some headings.
+    let bold = Format::new().set_bold();
+    worksheet1.write_with_format(0, 0, "Sparkline", &bold)?;
+    worksheet1.write_with_format(0, 1, "Description", &bold)?;
+
+    //
+    // Add a default line sparkline.
+    //
+    let text = "A default line sparkline.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new().set_range(("Sheet2", 0, 0, 0, 9));
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a default column sparkline.
+    //
+    let text = "A default column sparkline.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a default win/loss sparkline.
+    //
+    let text = "A default win/loss sparkline.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 2, 0, 2, 9))
+        .set_type(SparklineType::WinLose);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 2;
+
+    //
+    // Add a line sparkline with markers.
+    //
+    let text = "Line with markers.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 0, 0, 0, 9))
+        .show_markers(true);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a line sparkline with high and low points.
+    //
+    let text = "Line with high and low points.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 0, 0, 0, 9))
+        .show_high_point(true)
+        .show_low_point(true);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a line sparkline with first and last points.
+    //
+    let text = "Line with first and last point markers.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 0, 0, 0, 9))
+        .show_first_point(true)
+        .show_last_point(true);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a line sparkline with negative point markers.
+    //
+    let text = "Line with negative point markers.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 0, 0, 0, 9))
+        .show_negative_points(true);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a line sparkline with axis.
+    //
+    let text = "Line with axis.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 0, 0, 0, 9))
+        .show_axis(true);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 2;
+
+    //
+    // Add a column sparkline with style 1. The default style.
+    //
+    let text = "Column with style 1. The default.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column)
+        .set_style(1);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a column sparkline with style 2.
+    //
+    let text = "Column with style 2.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column)
+        .set_style(2);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a column sparkline with style 3.
+    //
+    let text = "Column with style 3.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column)
+        .set_style(3);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a column sparkline with style 4.
+    //
+    let text = "Column with style 4.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column)
+        .set_style(4);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a column sparkline with style 5.
+    //
+    let text = "Column with style 5.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column)
+        .set_style(5);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a column sparkline with style 6.
+    //
+    let text = "Column with style 6.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column)
+        .set_style(6);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a column sparkline with a user defined color.
+    //
+    let text = "Column with a user defined color.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 1, 0, 1, 9))
+        .set_type(SparklineType::Column)
+        .set_sparkline_color("#E965E0");
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 2;
+
+    //
+    // Add a win/loss sparkline.
+    //
+    let text = "A win/loss sparkline.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 2, 0, 2, 9))
+        .set_type(SparklineType::WinLose);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a win/loss sparkline with negative points highlighted.
+    //
+    let text = "A win/loss sparkline with negative points highlighted.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 2, 0, 2, 9))
+        .set_type(SparklineType::WinLose)
+        .show_negative_points(true);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 2;
+
+    //
+    // Add a left to right (the default) sparkline.
+    //
+    let text = "A left to right column (the default).";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 3, 0, 3, 9))
+        .set_type(SparklineType::Column)
+        .set_style(20);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Add a right to left sparkline.
+    //
+    let text = "A right to left column.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 3, 0, 3, 9))
+        .set_type(SparklineType::Column)
+        .set_style(20)
+        .set_right_to_left(true);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    row += 1;
+
+    //
+    // Sparkline and text in one cell. This just requires writing text to the
+    // same cell as the sparkline.
+    //
+    let text = "Sparkline and text in one cell.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 3, 0, 3, 9))
+        .set_type(SparklineType::Column)
+        .set_style(20);
+
+    worksheet1.add_sparkline(row, 0, &sparkline)?;
+    worksheet1.write(row, 0, "Growth")?;
+    row += 2;
+
+    //
+    // "A grouped sparkline. User changes are applied to all three. Not that the
+    // sparkline range is a 2D range and the sparkline is positioned in a 1D
+    // range of cells.
+    //
+    let text = "A grouped sparkline. Changes are applied to all three.";
+    worksheet1.write(row, 1, text)?;
+
+    let sparkline = Sparkline::new()
+        .set_range(("Sheet2", 4, 0, 6, 9))
+        .show_markers(true);
+
+    worksheet1.add_sparkline_group(row, 0, row + 2, 0, &sparkline)?;
+
+    //
+    // Add a worksheet with the data to plot on a separate worksheet.
+    //
+    let worksheet2 = workbook.add_worksheet();
+
+    // Some sample data to plot.
+    let data = [
+        // Simple line data.
+        [-2, 2, 3, -1, 0, -2, 3, 2, 1, 0],
+        // Simple column data.
+        [30, 20, 33, 20, 15, 5, 5, 15, 10, 15],
+        // Simple win/loss data.
+        [1, 1, -1, -1, 1, -1, 1, 1, 1, -1],
+        // Unbalanced histogram.
+        [5, 6, 7, 10, 15, 20, 30, 50, 70, 100],
+        // Data for the grouped sparkline example.
+        [-2, 2, 3, -1, 0, -2, 3, 2, 1, 0],
+        [3, -1, 0, -2, 3, 2, 1, 0, 2, 1],
+        [0, -2, 3, 2, 1, 0, 1, 2, 3, 1],
+    ];
+
+    worksheet2.write_row_matrix(0, 0, data)?;
+
+    // Save the file to disk.
+    workbook.save("sparklines2.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+# Traits: Extending generic `write()` to handle user data types
+
+Example of how to extend the the `rust_xlsxwriter`[`Worksheet::write()`] method using the
 [`IntoExcelData`] trait to handle arbitrary user data that can be mapped to one
 of the main Excel data types.
 
@@ -4427,7 +5715,7 @@ this is for demonstration purposes only. The [`ExcelDateTime`] struct in
 [Unix Time]: https://en.wikipedia.org/wiki/Unix_time
 [`IntoExcelData`]: crate::IntoExcelData
 [`ExcelDateTime`]: crate::ExcelDateTime
-[`worksheet.write()`]: crate::Worksheet::write
+[`Worksheet::write()`]: crate::Worksheet::write
 
 **Image of the output file:**
 
@@ -4510,7 +5798,7 @@ impl IntoExcelData for UnixTime {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         // Convert the Unix time to an Excel datetime.
         let datetime = 25569.0 + (self.seconds as f64 / (24.0 * 60.0 * 60.0));
@@ -4520,6 +5808,57 @@ impl IntoExcelData for UnixTime {
     }
 }
 ```
+
+
+# Macros: Adding macros to a workbook
+
+An example of adding macros to an `rust_xlsxwriter` file using a VBA macros
+file extracted from an existing Excel xlsm file.
+
+The [`vba_extract`](https://crates.io/crates/vba_extract) utility can be used to
+extract the `vbaProject.bin` file.
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_macros.png">
+
+```rust
+// Sample code from examples/app_macros.rs
+
+use rust_xlsxwriter::{Button, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    // Create a new Excel file object.
+    let mut workbook = Workbook::new();
+
+    // Add the VBA macro file.
+    workbook.add_vba_project("examples/vbaProject.bin")?;
+
+    // Add a worksheet and some text.
+    let worksheet = workbook.add_worksheet();
+
+    // Widen the first column for clarity.
+    worksheet.set_column_width(0, 30)?;
+
+    worksheet.write(2, 0, "Press the button to say hello:")?;
+
+    // Add a button tied to a macro in the VBA project.
+    let button = Button::new()
+        .set_caption("Press Me")
+        .set_macro("say_hello")
+        .set_width(80)
+        .set_height(30);
+
+    worksheet.insert_button(2, 1, &button)?;
+
+    // Save the file to disk. Note the `.xlsm` extension. This is required by
+    // Excel or it raise a warning.
+    workbook.save("macros.xlsm")?;
+
+    Ok(())
+}
+```
+
 
 
 # Defined names: using user defined variable names in worksheets
@@ -4578,7 +5917,7 @@ fn main() -> Result<(), XlsxError> {
 ```
 
 
-# Setting cell protection in a worksheet
+# Cell Protection: Setting cell protection in a worksheet
 
 Example of cell locking and formula hiding in an Excel worksheet using worksheet
 protection.
@@ -4632,13 +5971,12 @@ fn main() -> Result<(), XlsxError> {
 ```
 
 
-# Setting document properties Set the metadata properties for a workbook
+# Document Properties: Setting document metadata properties for a workbook
 
 An example of setting workbook document properties for a file created using the
-`rust_xlsxwriter`library.
+`rust_xlsxwriter` library.
 
 **Image of the output file:**
-
 
 <img src="https://rustxlsxwriter.github.io/images/app_doc_properties.png">
 
@@ -4670,6 +6008,150 @@ fn main() -> Result<(), XlsxError> {
     worksheet.write_string(0, 0, "See File -> Info -> Properties")?;
 
     workbook.save("doc_properties.xlsx")?;
+
+    Ok(())
+}
+```
+
+
+# Document Properties: Setting the Sensitivity Label
+
+Sensitivity Labels are a property that can be added to an Office 365 document to
+indicate that it is compliant with a company's information protection policies.
+Sensitivity Labels have designations like "Confidential", "Internal use only",
+or "Public" depending on the policies implemented by the company. They are
+generally only enabled for enterprise versions of Office.
+
+See the following Microsoft documentation on how to [Apply sensitivity labels to
+your files and email].
+
+Sensitivity Labels are generally stored as custom document properties so they
+can be enabled using [`DocProperties::set_custom_property()`]. However, since
+the metadata differs from company to company you will need to extract some of
+the required metadata from sample files.
+
+[`DocProperties::set_custom_property()`]: crate::DocProperties::set_custom_property
+
+The first step is to create a new file in Excel and set a non-encrypted
+sensitivity label. Then unzip the file by changing the extension from `.xlsx` to
+`.zip` or by using a command line utility like this:
+
+```bash
+$ unzip myfile.xlsx -d myfile
+Archive:  myfile.xlsx
+  inflating: myfile/[Content_Types].xml
+  inflating: myfile/docProps/app.xml
+  inflating: myfile/docProps/custom.xml
+  inflating: myfile/docProps/core.xml
+  inflating: myfile/_rels/.rels
+  inflating: myfile/xl/workbook.xml
+  inflating: myfile/xl/worksheets/sheet1.xml
+  inflating: myfile/xl/styles.xml
+  inflating: myfile/xl/theme/theme1.xml
+  inflating: myfile/xl/_rels/workbook.xml.rels
+```
+
+Then examine the `docProps/custom.xml` file from the unzipped xlsx file. The
+file doesn't contain newlines so it is best to view it in an editor that can
+handle XML or use a commandline utility like libxml’s [xmllint] to format the
+XML for clarity:
+
+
+```xml
+$ xmllint --format myfile/docProps/custom.xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties
+    xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"
+    xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="2"
+            name="MSIP_Label_2096f6a2-d2f7-48be-b329-b73aaa526e5d_Enabled">
+    <vt:lpwstr>true</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="3"
+            name="MSIP_Label_2096f6a2-d2f7-48be-b329-b73aaa526e5d_SetDate">
+    <vt:lpwstr>2024-01-01T12:00:00Z</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="4"
+            name="MSIP_Label_2096f6a2-d2f7-48be-b329-b73aaa526e5d_Method">
+    <vt:lpwstr>Privileged</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="5"
+            name="MSIP_Label_2096f6a2-d2f7-48be-b329-b73aaa526e5d_Name">
+    <vt:lpwstr>Confidential</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="6"
+            name="MSIP_Label_2096f6a2-d2f7-48be-b329-b73aaa526e5d_SiteId">
+    <vt:lpwstr>cb46c030-1825-4e81-a295-151c039dbf02</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="7"
+            name="MSIP_Label_2096f6a2-d2f7-48be-b329-b73aaa526e5d_ActionId">
+    <vt:lpwstr>88124cf5-1340-457d-90e1-0000a9427c99</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="8"
+            name="MSIP_Label_2096f6a2-d2f7-48be-b329-b73aaa526e5d_ContentBits">
+    <vt:lpwstr>2</vt:lpwstr>
+  </property>
+</Properties>
+```
+
+The MSIP (Microsoft Information Protection) labels in the `name` attributes
+contain a GUID that is unique to each company. The `SiteId` field will also be
+unique to your company/location. The meaning of each of these fields is
+explained in the the following Microsoft document on [Microsoft Information
+Protection SDK - Metadata]. Once you have identified the necessary metadata you
+can add it to a new document as shown below.
+
+Note, some sensitivity labels require that the document is encrypted. In order
+to extract the required metadata you will need to unencrypt the file which may
+remove the sensitivity label. In that case you may need to use a third party
+tool such as [msoffice-crypt].
+
+[xmllint]: http://xmlsoft.org/xmllint.html
+
+[msoffice-crypt]: https://github.com/herumi/msoffice
+
+[Apply sensitivity labels to your files and email]: https://support.microsoft.com/en-us/office/apply-sensitivity-labels-to-your-files-and-email-2f96e7cd-d5a4-403b-8bd7-4cc636bae0f9
+
+[Microsoft Information Protection SDK - Metadata]: https://learn.microsoft.com/en-us/information-protection/develop/concept-mip-metadata
+
+
+**Image of the output file:**
+
+<img src="https://rustxlsxwriter.github.io/images/app_sensitivity_label.png">
+
+**Code to generate the output file:**
+
+```rust
+// Sample code from examples/app_sensitivity_label.rs
+
+use rust_xlsxwriter::{DocProperties, Workbook, XlsxError};
+
+fn main() -> Result<(), XlsxError> {
+    let mut workbook = Workbook::new();
+
+    // Metadata extracted from a company specific file.
+    let site_id = "cb46c030-1825-4e81-a295-151c039dbf02";
+    let action_id = "88124cf5-1340-457d-90e1-0000a9427c99";
+    let company_guid = "2096f6a2-d2f7-48be-b329-b73aaa526e5d";
+
+    // Add the document properties. Note that these should all be in text format.
+    let properties = DocProperties::new()
+        .set_custom_property(format!("MSIP_Label_{company_guid}_Method"), "Privileged")
+        .set_custom_property(format!("MSIP_Label_{company_guid}_Name"), "Confidential")
+        .set_custom_property(format!("MSIP_Label_{company_guid}_SiteId"), site_id)
+        .set_custom_property(format!("MSIP_Label_{company_guid}_ActionId"), action_id)
+        .set_custom_property(format!("MSIP_Label_{company_guid}_ContentBits"), "2");
+
+    workbook.set_properties(&properties);
+
+    workbook.save("sensitivity_label.xlsx")?;
 
     Ok(())
 }
@@ -4772,9 +6254,9 @@ fn main() -> Result<(), XlsxError> {
     worksheet3.set_view_page_layout();
     worksheet3.write_string(0, 0, "Some text")?;
 
-    let mut image = Image::new("examples/rust_logo.png")?;
-    image.set_scale_height(0.5);
-    image.set_scale_width(0.5);
+    let image = Image::new("examples/rust_logo.png")?
+        .set_scale_height(0.5)
+        .set_scale_width(0.5);
 
     worksheet3.set_header("&L&[Picture]");
     worksheet3.set_header_image(&image, HeaderImagePosition::Left)?;
@@ -4820,7 +6302,7 @@ fn main() -> Result<(), XlsxError> {
 # Hyperlinks: Add hyperlinks to a worksheet
 
 This is an example of a program to create demonstrate creating links in a
-worksheet using the `rust_xlsxwriter`library.
+worksheet using the `rust_xlsxwriter` library.
 
 The links can be to external urls, to external files or internally to cells in
 the workbook.
@@ -5301,7 +6783,7 @@ fn write_worksheet_data(worksheet: &mut Worksheet, header: &Format) -> Result<()
 ```
 
 
-# Excel LAMBDA() function: Example of using the Excel 365 LAMBDA() function
+# Excel `LAMBDA()` function: Example of using the Excel 365 `LAMBDA()` function
 
 An example of using the new Excel `LAMBDA()` function with the`rust_xlsxwriter`
 library.

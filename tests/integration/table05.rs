@@ -6,7 +6,7 @@
 // Copyright 2022-2024, John McNamara, jmcnamara@cpan.org
 
 use crate::common;
-use rust_xlsxwriter::{Image, Table, Workbook, XlsxError};
+use rust_xlsxwriter::{Format, Image, Note, Table, Workbook, XlsxError};
 
 // Create rust_xlsxwriter file to compare against Excel file.
 fn create_new_xlsx_file(filename: &str) -> Result<(), XlsxError> {
@@ -22,12 +22,18 @@ fn create_new_xlsx_file(filename: &str) -> Result<(), XlsxError> {
     let table = Table::new();
     worksheet.add_table(2, 2, 12, 5, &table)?;
 
-    worksheet.write_url(15, 0, "http://perl.com/")?;
+    worksheet.write_url_with_format(0, 0, "http://perl.com/", &Format::default())?;
 
-    let mut image = Image::new("tests/input/images/blue.png")?;
-    image.set_alt_text("blue.png");
+    let image = Image::new("tests/input/images/blue.png")?.set_alt_text("blue.png");
 
     worksheet.insert_image(3, 0, &image)?;
+
+    worksheet.set_default_note_author("John");
+    let note = Note::new("Test1").add_author_prefix(false);
+    worksheet.insert_note(0, 7, &note)?;
+
+    let note = Note::new("Test2").add_author_prefix(false);
+    worksheet.insert_note(0, 9, &note)?;
 
     workbook.save(filename)?;
 
@@ -38,6 +44,10 @@ fn create_new_xlsx_file(filename: &str) -> Result<(), XlsxError> {
 fn test_table05() {
     let test_runner = common::TestRunner::new()
         .set_name("table05")
+        // We ignore these files since the order of the strings is different
+        // from Excel and we are testing for rel file creation and order.
+        .ignore_file("xl/sharedStrings.xml")
+        .ignore_file("xl/worksheets/sheet1.xml")
         .set_function(create_new_xlsx_file)
         .initialize();
 

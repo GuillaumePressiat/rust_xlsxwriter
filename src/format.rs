@@ -8,9 +8,12 @@
 
 mod tests;
 
-use std::{collections::HashMap, fmt, hash::Hash};
+use std::{collections::HashMap, fmt, hash::Hash, sync::OnceLock};
 
-/// The `Format` struct is used to define cell formatting for data in a worksheet.
+use crate::Color;
+
+/// The `Format` struct is used to define cell formatting for data in a
+/// worksheet.
 ///
 /// The properties of a cell that can be formatted include: fonts, colors,
 /// patterns, borders, alignment and number formatting.
@@ -148,47 +151,47 @@ use std::{collections::HashMap, fmt, hash::Hash};
 /// the Excel "Format Cell" dialog, and the equivalent `rust_xlsxwriter` Format
 /// method:
 ///
-/// | Category        | Description           |  Method Name                                                          |
-/// | :-------------- | :-------------------- |  :------------------------------------------------------------------- |
-/// | **Number**      | Numeric format        |  [`set_num_format()`](Format::set_num_format())                       |
-/// | **Alignment**   | Horizontal align      |  [`set_align()`](Format::set_align())                                 |
-/// |                 | Vertical align        |  [`set_align()`](Format::set_align())                                 |
-/// |                 | Rotation              |  [`set_rotation()`](Format::set_rotation())                           |
-/// |                 | Text wrap             |  [`set_text_wrap()`](Format::set_text_wrap())                         |
-/// |                 | Indentation           |  [`set_indent()`](Format::set_indent())                               |
-/// |                 | Reading direction     |  [`set_reading_direction()`](Format::set_reading_direction())         |
-/// |                 | Shrink to fit         |  [`set_shrink()`](Format::set_shrink())                               |
-/// | **Font**        | Font type             |  [`set_font_name()`](Format::set_font_name())                         |
-/// |                 | Font size             |  [`set_font_size()`](Format::set_font_size())                         |
-/// |                 | Font color            |  [`set_font_color()`](Format::set_font_color())                       |
-/// |                 | Bold                  |  [`set_bold()`](Format::set_bold())                                   |
-/// |                 | Italic                |  [`set_italic()`](Format::set_italic())                               |
-/// |                 | Underline             |  [`set_underline()`](Format::set_underline())                         |
-/// |                 | Strikethrough         |  [`set_font_strikethrough()`](Format::set_font_strikethrough())       |
-/// |                 | Super/Subscript       |  [`set_font_script()`](Format::set_font_script())                     |
-/// | **Border**      | Cell border           |  [`set_border()`](Format::set_border())                               |
-/// |                 | Bottom border         |  [`set_border_bottom()`](Format::set_border_bottom())                 |
-/// |                 | Top border            |  [`set_border_top()`](Format::set_border_top())                       |
-/// |                 | Left border           |  [`set_border_left()`](Format::set_border_left())                     |
-/// |                 | Right border          |  [`set_border_right()`](Format::set_border_right())                   |
-/// |                 | Border color          |  [`set_border_color()`](Format::set_border_color())                   |
-/// |                 | Bottom color          |  [`set_border_bottom_color()`](Format::set_border_bottom_color())     |
-/// |                 | Top color             |  [`set_border_top_color()`](Format::set_border_top_color())           |
-/// |                 | Left color            |  [`set_border_left_color()`](Format::set_border_left_color())         |
-/// |                 | Right color           |  [`set_border_right_color()`](Format::set_border_right_color())       |
-/// |                 | Diagonal border       |  [`set_border_diagonal()`](Format::set_border_diagonal())             |
-/// |                 | Diagonal border color |  [`set_border_diagonal_color()`](Format::set_border_diagonal_color()) |
-/// |                 | Diagonal border type  |  [`set_border_diagonal_type()`](Format::set_border_diagonal_type())   |
-/// | **Fill**        | Cell pattern          |  [`set_pattern()`](Format::set_pattern())                             |
-/// |                 | Background color      |  [`set_background_color()`](Format::set_background_color())           |
-/// |                 | Foreground color      |  [`set_foreground_color()`](Format::set_foreground_color())           |
-/// | **Protection**  | Unlock cells          |  [`set_unlocked()`](Format::set_unlocked())                           |
-/// |                 | Hide formulas         |  [`set_hidden()`](Format::set_hidden())                               |
+/// | Category        | Description           |  Method Name                             |
+/// | :-------------- | :-------------------- |  :-------------------------------------- |
+/// | **Number**      | Numeric format        |  [`Format::set_num_format()`]            |
+/// | **Alignment**   | Horizontal align      |  [`Format::set_align()`]                 |
+/// |                 | Vertical align        |  [`Format::set_align()`]                 |
+/// |                 | Rotation              |  [`Format::set_rotation()`]              |
+/// |                 | Text wrap             |  [`Format::set_text_wrap()`]             |
+/// |                 | Indentation           |  [`Format::set_indent()`]                |
+/// |                 | Reading direction     |  [`Format::set_reading_direction()`]     |
+/// |                 | Shrink to fit         |  [`Format::set_shrink()`]                |
+/// | **Font**        | Font type             |  [`Format::set_font_name()`]             |
+/// |                 | Font size             |  [`Format::set_font_size()`]             |
+/// |                 | Font color            |  [`Format::set_font_color()`]            |
+/// |                 | Bold                  |  [`Format::set_bold()`]                  |
+/// |                 | Italic                |  [`Format::set_italic()`]                |
+/// |                 | Underline             |  [`Format::set_underline()`]             |
+/// |                 | Strikethrough         |  [`Format::set_font_strikethrough()`]    |
+/// |                 | Super/Subscript       |  [`Format::set_font_script()`]           |
+/// | **Border**      | Cell border           |  [`Format::set_border()`]                |
+/// |                 | Bottom border         |  [`Format::set_border_bottom()`]         |
+/// |                 | Top border            |  [`Format::set_border_top()`]            |
+/// |                 | Left border           |  [`Format::set_border_left()`]           |
+/// |                 | Right border          |  [`Format::set_border_right()`]          |
+/// |                 | Border color          |  [`Format::set_border_color()`]          |
+/// |                 | Bottom color          |  [`Format::set_border_bottom_color()`]   |
+/// |                 | Top color             |  [`Format::set_border_top_color()`]      |
+/// |                 | Left color            |  [`Format::set_border_left_color()`]     |
+/// |                 | Right color           |  [`Format::set_border_right_color()`]    |
+/// |                 | Diagonal border       |  [`Format::set_border_diagonal()`]       |
+/// |                 | Diagonal border color |  [`Format::set_border_diagonal_color()`] |
+/// |                 | Diagonal border type  |  [`Format::set_border_diagonal_type()`]  |
+/// | **Fill**        | Cell pattern          |  [`Format::set_pattern()`]               |
+/// |                 | Background color      |  [`Format::set_background_color()`]      |
+/// |                 | Foreground color      |  [`Format::set_foreground_color()`]      |
+/// | **Protection**  | Unlock cells          |  [`Format::set_unlocked()`]              |
+/// |                 | Hide formulas         |  [`Format::set_hidden()`]                |
 ///
 /// # Format Colors
 ///
-/// Format property colors are specified by using the [`Color`] enum with a
-/// Html style RGB integer value or a limited number of defined colors:
+/// Format property colors are specified by using the [`Color`] enum with a Html
+/// style RGB integer value or a limited number of defined colors:
 ///
 /// ```
 /// # // This code is available in examples/doc_enum_Color.rs
@@ -261,9 +264,9 @@ use std::{collections::HashMap, fmt, hash::Hash};
 ///
 /// # Number Format Categories
 ///
-/// The [`set_num_format()`](Format::set_num_format) method is used to set the
-/// number format for numbers used with
-/// [`write_number_with_format()`](crate::Worksheet::write_number_with_format()):
+/// The [`Format::set_num_format()`] method is used to set the number format for
+/// numbers used with
+/// [`Worksheet::write_number_with_format()`](crate::Worksheet::write_number_with_format()):
 ///
 /// ```
 /// # // This code is available in examples/doc_format_currency1.rs
@@ -497,7 +500,7 @@ impl Format {
     /// ```
     /// # // This code is available in examples/doc_format_new.rs
     /// use rust_xlsxwriter::Format;
-    ///
+    /// #
     /// # #[allow(unused_variables)]
     /// fn main() {
     ///
@@ -601,10 +604,10 @@ impl Format {
 
     // Check if the format is in the default/unmodified condition.
     pub(crate) fn is_default(&self) -> bool {
-        lazy_static! {
-            static ref DEFAULT_STATE: Format = Format::default();
-        };
-        self == &*DEFAULT_STATE
+        static DEFAULT_STATE: OnceLock<Format> = OnceLock::new();
+        let default_state = DEFAULT_STATE.get_or_init(Format::default);
+
+        self == default_state
     }
 
     // -----------------------------------------------------------------------
@@ -627,7 +630,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `num_format` - The number format property.
+    /// - `num_format`: The number format property.
     ///
     /// # Examples
     ///
@@ -684,14 +687,14 @@ impl Format {
 
     /// Set the number format for a Format using a legacy format index.
     ///
-    /// This method is similar to [`set_num_format()`](Format::set_num_format)
-    /// except that it uses an index to a limited number of Excel's built-in,
-    /// and legacy, number formats.
+    /// This method is similar to [`Format::set_num_format()`] except that it
+    /// uses an index to a limited number of Excel's built-in, and legacy,
+    /// number formats.
     ///
     /// Unless you need to specifically access one of Excel's built-in number
-    /// formats the [`set_num_format()`](Format::set_num_format) method is a
-    /// better solution. This method is mainly included for backward
-    /// compatibility and completeness.
+    /// formats the [`Format::set_num_format()`] method is a better solution.
+    /// This method is mainly included for backward compatibility and
+    /// completeness.
     ///
     /// The Excel built-in number formats as shown in the table below:
     ///
@@ -742,11 +745,11 @@ impl Format {
     ///  - The dollar sign in the above format appears as the defined local
     ///    currency symbol.
     ///  - These formats can also be set via
-    ///    [`set_num_format()`](Format::set_num_format).
+    ///    [`Format::set_num_format()`].
     ///
     /// # Parameters
     ///
-    /// * `num_format_index` - The index to one of the inbuilt formats shown in
+    /// - `num_format_index`: The index to one of the inbuilt formats shown in
     ///   the table above.
     ///
     /// # Examples
@@ -906,7 +909,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `color` - The font color property defined by a [`Color`] enum
+    /// - `color`: The font color property defined by a [`Color`] enum
     ///   value.
     ///
     /// # Examples
@@ -939,11 +942,8 @@ impl Format {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/format_set_font_color.png">
     ///
-    pub fn set_font_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_font_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.font.color = color;
         }
@@ -959,7 +959,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `font_name` - The font name property.
+    /// - `font_name`: The font name property.
     ///
     /// # Examples
     ///
@@ -979,7 +979,7 @@ impl Format {
     ///     let format = Format::new().set_font_name("Avenir Black Oblique");
     ///
     ///     worksheet.write_string_with_format(0, 0, "Avenir Black Oblique", &format)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1010,7 +1010,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `font_size` - The font size property.
+    /// - `font_size`: The font size property.
     ///
     /// # Examples
     ///
@@ -1029,7 +1029,7 @@ impl Format {
     ///     let format = Format::new().set_font_size(30);
     ///
     ///     worksheet.write_string_with_format(0, 0, "Font Size 30", &format)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1054,7 +1054,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `font_scheme` - The font scheme property.
+    /// - `font_scheme`: The font scheme property.
     ///
     pub fn set_font_scheme(mut self, font_scheme: impl Into<String>) -> Format {
         self.font.scheme = font_scheme.into();
@@ -1068,7 +1068,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `font_family` - The font family property.
+    /// - `font_family`: The font family property.
     ///
     pub fn set_font_family(mut self, font_family: u8) -> Format {
         self.font.family = font_family;
@@ -1082,7 +1082,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `font_charset` - The font character set property.
+    /// - `font_charset`: The font character set property.
     ///
     pub fn set_font_charset(mut self, font_charset: u8) -> Format {
         self.font.charset = font_charset;
@@ -1097,7 +1097,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `underline` - The underline type defined by a [`FormatUnderline`] enum
+    /// - `underline`: The underline type defined by a [`FormatUnderline`] enum
     ///   value.
     ///
     /// # Examples
@@ -1126,7 +1126,7 @@ impl Format {
     ///     worksheet.write_string_with_format(2, 0, "Double",            &format3)?;
     ///     worksheet.write_string_with_format(3, 0, "Single Accounting", &format4)?;
     ///     worksheet.write_string_with_format(4, 0, "Double Accounting", &format5)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1162,7 +1162,7 @@ impl Format {
     ///     let format = Format::new().set_font_strikethrough();
     ///
     ///     worksheet.write_string_with_format(0, 0, "Strikethrough Text", &format)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1186,7 +1186,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `font_script` - The font superscript or subscript property via a
+    /// - `font_script`: The font superscript or subscript property via a
     ///   [`FormatScript`] enum.
     ///
     ///
@@ -1202,7 +1202,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `align` - The vertical and or horizontal alignment direction as
+    /// - `align`: The vertical and or horizontal alignment direction as
     ///   defined by the [`FormatAlign`] enum.
     ///
     /// # Examples
@@ -1246,7 +1246,7 @@ impl Format {
     ///     worksheet.write_string_with_format(1, 0, "Top - Left", &format2)?;
     ///     worksheet.write_string_with_format(2, 0, "Center - Center", &format3)?;
     ///     worksheet.write_string_with_format(3, 0, "Bottom - Right", &format4)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1291,7 +1291,7 @@ impl Format {
     ///
     /// Excel generally adjusts the height of the cell to fit the wrapped text
     /// unless a explicit row height has be set via
-    /// [`worksheet.set_row_height()`](crate::Worksheet::set_row_height()).
+    /// [`Worksheet::set_row_height()`](crate::Worksheet::set_row_height()).
     ///
     /// # Examples
     ///
@@ -1313,7 +1313,7 @@ impl Format {
     ///     worksheet.write_string(0, 0, "Some text that isn't wrapped")?;
     ///     worksheet.write_string_with_format(1, 0, "Some text that is wrapped", &format1)?;
     ///     worksheet.write_string_with_format(2, 0, "Some text\nthat is\nwrapped\nat newlines", &format1)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1334,14 +1334,13 @@ impl Format {
     /// This method can be used to indent text in a cell.
     ///
     /// Indentation is a horizontal alignment property. It can be used in Excel
-    /// in conjunction with the [Left](FormatAlign::Left),
-    /// [Right](FormatAlign::Right) and [Distributed](FormatAlign::Distributed)
-    /// alignments. It will override any other horizontal properties that don't
-    /// support indentation.
+    /// in conjunction with the [`FormatAlign::Left`], [`FormatAlign::Right`]
+    /// and [`FormatAlign::Distributed`] alignments. It will override any other
+    /// horizontal properties that don't support indentation.
     ///
     /// # Parameters
     ///
-    /// * `indent` - The indentation level for the cell.
+    /// - `indent`: The indentation level for the cell.
     ///
     /// # Examples
     ///
@@ -1364,7 +1363,7 @@ impl Format {
     ///     worksheet.write_string(0, 0, "Indent 0")?;
     ///     worksheet.write_string_with_format(1, 0, "Indent 1", &format1)?;
     ///     worksheet.write_string_with_format(2, 0, "Indent 2", &format2)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1373,7 +1372,8 @@ impl Format {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/format_set_indent.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/format_set_indent.png">
     ///
     pub fn set_indent(mut self, indent: u8) -> Format {
         self.alignment.indent = indent;
@@ -1388,7 +1388,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `rotation` - The rotation angle.
+    /// - `rotation`: The rotation angle.
     ///
     /// # Examples
     ///
@@ -1417,7 +1417,7 @@ impl Format {
     ///     worksheet.write_string_with_format(0, 0, "Rust", &format1)?;
     ///     worksheet.write_string_with_format(1, 0, "Rust", &format2)?;
     ///     worksheet.write_string_with_format(2, 0, "Rust", &format3)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1449,7 +1449,7 @@ impl Format {
     ///
     /// # Parameters
     ///
-    /// * `reading_direction` - The reading order property, should be 0, 1, or
+    /// - `reading_direction`: The reading order property, should be 0, 1, or
     ///   2, where these values refer to:
     ///
     ///   0. The reading direction is determined heuristically by Excel
@@ -1480,7 +1480,7 @@ impl Format {
     ///     worksheet.write_string(0, 0, "نص عربي / English text")?;
     ///     worksheet.write_string_with_format(1, 0, "نص عربي / English text", &format1)?;
     ///     worksheet.write_string_with_format(2, 0, "نص عربي / English text", &format2)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1523,7 +1523,7 @@ impl Format {
     ///     let format1 = Format::new().set_shrink();
     ///
     ///     worksheet.write_string_with_format(0, 0, "Shrink text to fit", &format1)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1544,13 +1544,12 @@ impl Format {
     /// Set the pattern for a cell. The most commonly used pattern is
     /// [`FormatPattern::Solid`].
     ///
-    /// To set the pattern colors see
-    /// [`set_background_color()`](Format::set_background_color()) and
-    /// [`set_foreground_color()`](Format::set_foreground_color()).
+    /// To set the pattern colors see [`Format::set_background_color()`] and
+    /// [`Format::set_foreground_color()`].
     ///
     /// # Parameters
     ///
-    /// * `pattern` - The pattern property defined by a [`FormatPattern`] enum
+    /// - `pattern`: The pattern property defined by a [`FormatPattern`] enum
     ///   value.
     ///
     /// # Examples
@@ -1581,7 +1580,7 @@ impl Format {
     ///
     ///     worksheet.write_string_with_format(0, 0, "Rust", &format1)?;
     ///     worksheet.write_blank(1, 0, &format2)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1590,7 +1589,8 @@ impl Format {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/format_set_pattern.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/format_set_pattern.png">
     ///
     pub fn set_pattern(mut self, pattern: FormatPattern) -> Format {
         self.fill.pattern = pattern;
@@ -1600,14 +1600,14 @@ impl Format {
     /// Set the Format pattern background color property.
     ///
     /// The `set_background_color` method can be used to set the background
-    /// color of a pattern. Patterns are defined via the
-    /// [`set_pattern`](Format::set_pattern()) method. If a pattern hasn't been
-    /// defined then a solid fill pattern is used as the default.
+    /// color of a pattern. Patterns are defined via the [`Format::set_pattern`]
+    /// method. If a pattern hasn't been defined then a solid fill pattern is
+    /// used as the default.
     ///
     /// # Parameters
     ///
-    /// * `color` - The background color property defined by a [`Color`]
-    ///   enum value or a type that implements the [`IntoColor`] trait.
+    /// - `color`: The background color property defined by a [`Color`] enum
+    ///   value or a type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -1629,7 +1629,7 @@ impl Format {
     ///     let format1 = Format::new().set_background_color(Color::Green);
     ///
     ///     worksheet.write_string_with_format(0, 0, "Rust", &format1)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1643,11 +1643,8 @@ impl Format {
     ///
     ///
     ///
-    pub fn set_background_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_background_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.fill.background_color = color;
         }
@@ -1659,12 +1656,12 @@ impl Format {
     ///
     /// The `set_foreground_color` method can be used to set the
     /// foreground/pattern color of a pattern. Patterns are defined via the
-    /// [`set_pattern`](Format::set_pattern()) method.
+    /// [`Format::set_pattern`] method.
     ///
     /// # Parameters
     ///
-    /// * `color` - The foreground color property defined by a [`Color`]
-    ///   enum value or a type that implements the [`IntoColor`] trait.
+    /// - `color`: The foreground color property defined by a [`Color`] enum
+    ///   value or a type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -1688,7 +1685,7 @@ impl Format {
     ///         .set_pattern(FormatPattern::DarkVertical);
     ///
     ///     worksheet.write_blank(0, 0, &format1)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1702,11 +1699,8 @@ impl Format {
     ///
     ///
     ///
-    pub fn set_foreground_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_foreground_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.fill.foreground_color = color;
         }
@@ -1719,14 +1713,14 @@ impl Format {
     /// Set the cell border style. Individual border elements can be configured
     /// using the following methods with the same parameters:
     ///
-    /// - [`set_border_top()`](Format::set_border_top())
-    /// - [`set_border_left()`](Format::set_border_left())
-    /// - [`set_border_right()`](Format::set_border_right())
-    /// - [`set_border_color()`](Format::set_border_color())
+    /// - [`Format::set_border_top()`]
+    /// - [`Format::set_border_left()`]
+    /// - [`Format::set_border_right()`]
+    /// - [`Format::set_border_color()`]
     ///
     /// # Parameters
     ///
-    /// * `border` - The border property as defined by a [`FormatBorder`] enum
+    /// - `border`: The border property as defined by a [`FormatBorder`] enum
     ///   value.
     ///
     /// # Examples
@@ -1750,7 +1744,7 @@ impl Format {
     ///     worksheet.write_blank(1, 1, &format1)?;
     ///     worksheet.write_blank(3, 1, &format2)?;
     ///     worksheet.write_blank(5, 1, &format3)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1775,21 +1769,15 @@ impl Format {
     /// Set the cell border color. Individual border elements can be configured
     /// using the following methods with the same parameters:
     ///
-    /// - [`set_border_top_color()`](Format::set_border_top_color())
-    /// - [`set_border_left_color()`](Format::set_border_left_color())
-    /// - [`set_border_right_color()`](Format::set_border_right_color())
-    /// - [`set_border_color_color()`](Format::set_border_color())
-    ///
-    /// Note: it is only, currently possible to set a border around a single
-    /// cell. To set a border around a range of cells you will need to create
-    /// 4-8 individual border formats and apply them to the cells around the
-    /// required border. A later version of this library will provide helper
-    /// functions to do this more easily.
+    /// - [`Format::set_border_top_color()`]
+    /// - [`Format::set_border_left_color()`]
+    /// - [`Format::set_border_right_color()`]
+    /// - [`Format::set_border_bottom_color()`]
     ///
     /// # Parameters
     ///
-    /// * `color` - The border color as defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The border color as defined by a [`Color`] enum value or
+    ///   a type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -1820,7 +1808,7 @@ impl Format {
     ///     worksheet.write_blank(1, 1, &format1)?;
     ///     worksheet.write_blank(3, 1, &format2)?;
     ///     worksheet.write_blank(5, 1, &format3)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1832,11 +1820,8 @@ impl Format {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/format_set_border_color.png">
     ///
-    pub fn set_border_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_border_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if !color.is_valid() {
             return self;
         }
@@ -1848,12 +1833,13 @@ impl Format {
         self
     }
 
-    /// Set the cell top border style. See
-    /// [`set_border()`](Format::set_border()) for details.
+    /// Set the cell top border style.
+    ///
+    /// See [`Format::set_border()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `border` - The border property as defined by a [`FormatBorder`] enum
+    /// - `border`: The border property as defined by a [`FormatBorder`] enum
     ///   value.
     ///
     pub fn set_border_top(mut self, border: FormatBorder) -> Format {
@@ -1861,19 +1847,17 @@ impl Format {
         self
     }
 
-    /// Set the cell top border color. See
-    /// [`set_border_color()`](Format::set_border_color()) for details.
+    /// Set the cell top border color.
+    ///
+    /// See [`Format::set_border_color()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `color` - The border color as defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The border color as defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_border_top_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_border_top_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.borders.top_color = color;
         }
@@ -1881,12 +1865,13 @@ impl Format {
         self
     }
 
-    /// Set the cell bottom border style. See
-    /// [`set_border()`](Format::set_border()) for details.
+    /// Set the cell bottom border style.
+    ///
+    /// See [`Format::set_border()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `border` - The border property as defined by a [`FormatBorder`] enum
+    /// - `border`: The border property as defined by a [`FormatBorder`] enum
     ///   value.
     ///
     pub fn set_border_bottom(mut self, border: FormatBorder) -> Format {
@@ -1894,19 +1879,17 @@ impl Format {
         self
     }
 
-    /// Set the cell bottom border color. See
-    /// [`set_border_color()`](Format::set_border_color()) for details.
+    /// Set the cell bottom border color.
+    ///
+    /// See [`Format::set_border_color()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `color` - The border color as defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The border color as defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_border_bottom_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_border_bottom_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.borders.bottom_color = color;
         }
@@ -1914,12 +1897,13 @@ impl Format {
         self
     }
 
-    /// Set the cell left border style. See
-    /// [`set_border()`](Format::set_border()) for details.
+    /// Set the cell left border style.
+    ///
+    /// See [`Format::set_border()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `border` - The border property as defined by a [`FormatBorder`] enum
+    /// - `border`: The border property as defined by a [`FormatBorder`] enum
     ///   value.
     ///
     pub fn set_border_left(mut self, border: FormatBorder) -> Format {
@@ -1927,19 +1911,17 @@ impl Format {
         self
     }
 
-    /// Set the cell left border color. See
-    /// [`set_border_color()`](Format::set_border_color()) for details.
+    /// Set the cell left border color.
+    ///
+    /// See [`Format::set_border_color()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `color` - The border color as defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The border color as defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_border_left_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_border_left_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.borders.left_color = color;
         }
@@ -1947,12 +1929,13 @@ impl Format {
         self
     }
 
-    /// Set the cell right border style. See
-    /// [`set_border()`](Format::set_border()) for details.
+    /// Set the cell right border style.
+    ///
+    /// See [`Format::set_border()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `border` - The border property as defined by a [`FormatBorder`] enum
+    /// - `border`: The border property as defined by a [`FormatBorder`] enum
     ///   value.
     ///
     pub fn set_border_right(mut self, border: FormatBorder) -> Format {
@@ -1960,19 +1943,17 @@ impl Format {
         self
     }
 
-    /// Set the cell right border color. See
-    /// [`set_border_color()`](Format::set_border_color()) for details.
+    /// Set the cell right border color.
+    ///
+    /// See [`Format::set_border_color()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `color` - The border color as defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The border color as defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_border_right_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_border_right_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.borders.right_color = color;
         }
@@ -1983,13 +1964,12 @@ impl Format {
     /// Set the Format border diagonal property.
     ///
     /// Set the cell border diagonal line style. This method should be used in
-    /// conjunction with the
-    /// [`set_border_diagonal_type()`](Format::set_border_diagonal_type())
-    /// method to set the diagonal type.
+    /// conjunction with the [`Format::set_border_diagonal_type()`] method to
+    /// set the diagonal type.
     ///
     /// # Parameters
     ///
-    /// * `border` - The border property as defined by a [`FormatBorder`] enum
+    /// - `border`: The border property as defined by a [`FormatBorder`] enum
     ///   value.
     ///
     /// # Examples
@@ -2027,7 +2007,7 @@ impl Format {
     ///     worksheet.write_blank(3, 1, &format2)?;
     ///     worksheet.write_blank(5, 1, &format3)?;
     ///     worksheet.write_blank(7, 1, &format4)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -2036,26 +2016,25 @@ impl Format {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/format_set_border_diagonal.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/format_set_border_diagonal.png">
     ///
     pub fn set_border_diagonal(mut self, border: FormatBorder) -> Format {
         self.borders.diagonal_style = border;
         self
     }
 
-    /// Set the cell diagonal border color. See
-    /// [`set_border_diagonal()`](Format::set_border_diagonal()) for details.
+    /// Set the cell diagonal border color.
+    ///
+    /// See [`Format::set_border_diagonal()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `color` - The border color as defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The border color as defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_border_diagonal_color<T>(mut self, color: T) -> Format
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_border_diagonal_color(mut self, color: impl Into<Color>) -> Format {
+        let color = color.into();
         if color.is_valid() {
             self.borders.diagonal_color = color;
         }
@@ -2063,12 +2042,13 @@ impl Format {
         self
     }
 
-    /// Set the cell diagonal border direction type. See
-    /// [`set_border_diagonal()`](Format::set_border_diagonal()) for details.
+    /// Set the cell diagonal border direction type.
+    ///
+    /// See [`Format::set_border_diagonal()`] for details.
     ///
     /// # Parameters
     ///
-    /// * `border_type` - The diagonal border type as defined by a
+    /// - `border_type`: The diagonal border type as defined by a
     ///   [`FormatDiagonalBorder`] enum value.
     ///
     pub fn set_border_diagonal_type(mut self, border_type: FormatDiagonalBorder) -> Format {
@@ -2095,7 +2075,7 @@ impl Format {
     /// This method can be used to allow modification of a cell in a protected
     /// worksheet. In Excel, cell locking is turned on by default for all cells.
     /// However, it only has an effect if the worksheet has been protected using
-    /// the [`worksheet.protect()`](crate::Worksheet::protect) method.
+    /// the [`Worksheet::protect()`](crate::Worksheet::protect) method.
     ///
     /// # Examples
     ///
@@ -2130,7 +2110,7 @@ impl Format {
     ///
     ///     worksheet.write_string(2, 0, "Cell B3 is hidden. The formula isn't visible.")?;
     ///     worksheet.write_formula_with_format(2, 1, "=1+2", &hidden)?;
-    ///
+    /// #
     /// #     worksheet.write_string(4, 0, "Use Menu -> Review -> Unprotect Sheet")?;
     /// #     worksheet.write_string(5, 0, "to remove the worksheet protection.")?;
     /// #
@@ -2159,7 +2139,7 @@ impl Format {
     /// result. This is generally used to hide complex calculations from end
     /// users who are only interested in the result. It only has an effect if
     /// the worksheet has been protected using the
-    /// [`worksheet.protect()`](crate::Worksheet::protect) method.
+    /// [`Worksheet::protect()`](crate::Worksheet::protect) method.
     ///
     /// See the example above.
     ///
@@ -2196,7 +2176,7 @@ impl Format {
     ///     // invalid formula and raise an error. The quote prefix adds a virtual quote
     ///     // to the start of the string and prevents this from happening.
     ///     worksheet.write_string_with_format(0, 0, "=Hello", &format)?;
-    ///
+    /// #
     /// #     workbook.save("formats.xlsx")?;
     /// #
     /// #     Ok(())
@@ -2213,49 +2193,63 @@ impl Format {
     }
 
     /// Unset the bold Format property back to its default "off" state.
-    /// The opposite of [`set_bold()`](Format::set_bold()).
+    ///
+    /// The opposite of [`Format::set_bold()`].
+    ///
     pub fn unset_bold(mut self) -> Format {
         self.font.bold = false;
         self
     }
 
     /// Unset the italic Format property back to its default "off" state.
-    /// The opposite of [`set_italic()`](Format::set_italic()).
+    ///
+    /// The opposite of [`Format::set_italic()`].
+    ///
     pub fn unset_italic(mut self) -> Format {
         self.font.italic = false;
         self
     }
 
     /// Unset the font strikethrough Format property back to its default "off" state.
-    /// The opposite of [`set_font_strikethrough()`](Format::set_font_strikethrough()).
+    ///
+    /// The opposite of [`Format::set_font_strikethrough()`].
+    ///
     pub fn unset_font_strikethrough(mut self) -> Format {
         self.font.strikethrough = false;
         self
     }
 
     /// Unset the text wrap Format property back to its default "off" state.
-    /// The opposite of [`set_text_wrap()`](Format::set_text_wrap()).
+    ///
+    /// The opposite of [`Format::set_text_wrap()`].
+    ///
     pub fn unset_text_wrap(mut self) -> Format {
         self.alignment.text_wrap = false;
         self
     }
 
     /// Unset the shrink Format property back to its default "off" state.
-    /// The opposite of [`set_shrink()`](Format::set_shrink()).
+    ///
+    /// The opposite of [`Format::set_shrink()`].
+    ///
     pub fn unset_shrink(mut self) -> Format {
         self.alignment.shrink = false;
         self
     }
 
     /// Set the locked Format property back to its default "on" state.
-    /// The opposite of [`set_unlocked()`](Format::set_unlocked()).
+    ///
+    /// The opposite of [`Format::set_unlocked()`].
+    ///
     pub fn set_locked(mut self) -> Format {
         self.locked = true;
         self
     }
 
     /// Unset the hidden Format property back to its default "off" state.
-    /// The opposite of [`set_hidden()`](Format::set_hidden()).
+    ///
+    /// The opposite of [`Format::set_hidden()`].
+    ///
     pub fn unset_hidden(mut self) -> Format {
         self.hidden = false;
         self
@@ -2269,7 +2263,9 @@ impl Format {
     }
 
     /// Unset the `quote_prefix` Format property back to its default "off" state.
-    /// The opposite of [`set_quote_prefix()`](Format::set_quote_prefix()).
+    ///
+    /// The opposite of [`Format::set_quote_prefix()`].
+    ///
     pub fn unset_quote_prefix(mut self) -> Format {
         self.quote_prefix = false;
         self
@@ -2306,10 +2302,10 @@ pub(crate) struct Border {
 impl Border {
     // Check if the border is in the default/unmodified condition.
     pub(crate) fn is_default(&self) -> bool {
-        lazy_static! {
-            static ref DEFAULT_STATE: Border = Border::default();
-        };
-        self == &*DEFAULT_STATE
+        static DEFAULT_STATE: OnceLock<Border> = OnceLock::new();
+        let default_state = DEFAULT_STATE.get_or_init(Border::default);
+
+        self == default_state
     }
 }
 
@@ -2398,541 +2394,6 @@ impl From<String> for Format {
         Format::new().set_num_format(value)
     }
 }
-
-/// The `Color` enum defines Excel colors that can be used throughout the
-/// `rust_xlsxwriter` APIs.
-///
-/// There are 3 types of colors within the enum:
-///
-/// 1. Predefined named colors like `Color::Green`.
-/// 2. User defined RGB colors such as `Color::RGB(0x4F026A)` using a format
-///    similar to html colors like `#RRGGBB`, except as an integer.
-/// 3. Theme colors from the standard palette of 60 colors like
-///    `Color::Theme(9, 4)`. The theme colors are shown in the image below.
-///
-///    <img
-///    src="https://rustxlsxwriter.github.io/images/theme_color_palette.png">
-///
-///    The syntax for theme colors in `Color` is `Theme(color, shade)` where
-///    `color` is one of the 0-9 values on the top row and `shade` is the
-///    variant in the associated column from 0-5. For example "White, background
-///    1" in the top left is `Theme(0, 0)` and "Orange, Accent 6, Darker 50%" in
-///    the bottom right is `Theme(9, 5)`.
-///
-/// Note, there are no plans to support anything other than the default Excel
-/// "Office" theme.
-///
-/// # Examples
-///
-/// The following example demonstrates using different `Color` enum values to
-/// set the color of some text in a worksheet.
-///
-/// ```
-/// # // This code is available in examples/doc_enum_xlsxcolor.rs
-/// #
-/// # use rust_xlsxwriter::{Format, Workbook, Color, XlsxError};
-/// #
-/// # fn main() -> Result<(), XlsxError> {
-/// #     // Create a new Excel file object.
-/// #     let mut workbook = Workbook::new();
-/// #     let worksheet = workbook.add_worksheet();
-/// #     worksheet.set_column_width(0, 14)?;
-///
-///     let format1 = Format::new().set_font_color(Color::Red);
-///     let format2 = Format::new().set_font_color(Color::Green);
-///     let format3 = Format::new().set_font_color(Color::RGB(0x4F026A));
-///     let format4 = Format::new().set_font_color(Color::RGB(0x73CC5F));
-///     let format5 = Format::new().set_font_color(Color::Theme(4, 0));
-///     let format6 = Format::new().set_font_color(Color::Theme(9, 4));
-///
-///     worksheet.write_string_with_format(0, 0, "Red", &format1)?;
-///     worksheet.write_string_with_format(1, 0, "Green", &format2)?;
-///     worksheet.write_string_with_format(2, 0, "#4F026A", &format3)?;
-///     worksheet.write_string_with_format(3, 0, "#73CC5F", &format4)?;
-///     worksheet.write_string_with_format(4, 0, "Theme (4, 0)", &format5)?;
-///     worksheet.write_string_with_format(5, 0, "Theme (9, 4)", &format6)?;
-///
-/// #     workbook.save("colors.xlsx")?;
-/// #
-/// #     Ok(())
-/// # }
-/// ```
-///
-/// Output file:
-///
-/// <img src="https://rustxlsxwriter.github.io/images/enum_xlsxcolor.png">
-///
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Default)]
-pub enum Color {
-    /// A user defined RGB color in the range 0x000000 (black) to 0xFFFFFF
-    /// (white). Any values outside this range will be ignored with a a warning.
-    RGB(u32),
-
-    /// A theme color on the default palette (see the image above). The syntax
-    /// for theme colors is `Theme(color, shade)` where `color` is one of the
-    /// 0-9 values on the top row and `shade` is the variant in the associated
-    /// column from 0-5. Any values outside these ranges will be ignored with a
-    /// a warning.
-    Theme(u8, u8),
-
-    /// The default color for an Excel property.
-    #[default]
-    Default,
-
-    /// The Automatic color for an Excel property. This is usually the same as
-    /// the `Default` color but can vary according to system settings.
-    Automatic,
-
-    /// The color Black with a RGB value of 0x000000.
-    Black,
-
-    /// The color Blue with a RGB value of 0x0000FF.
-    Blue,
-
-    /// The color Brown with a RGB value of 0x800000.
-    Brown,
-
-    /// The color Cyan with a RGB value of 0x00FFFF.
-    Cyan,
-
-    /// The color Gray with a RGB value of 0x808080.
-    Gray,
-
-    /// The color Green with a RGB value of 0x008000.
-    Green,
-
-    /// The color Lime with a RGB value of 0x00FF00.
-    Lime,
-
-    /// The color Magenta with a RGB value of 0xFF00FF.
-    Magenta,
-
-    /// The color Navy with a RGB value of 0x000080.
-    Navy,
-
-    /// The color Orange with a RGB value of 0xFF6600.
-    Orange,
-
-    /// The color Pink with a RGB value of 0xFFC0CB.
-    Pink,
-
-    /// The color Purple with a RGB value of 0x800080.
-    Purple,
-
-    /// The color Red with a RGB value of 0xFF0000.
-    Red,
-
-    /// The color Silver with a RGB value of 0xC0C0C0.
-    Silver,
-
-    /// The color White with a RGB value of 0xFFFFFF.
-    White,
-
-    /// The color Yellow with a RGB value of 0xFFFF00
-    Yellow,
-}
-
-impl Color {
-    // Get the RGB hex value for a color.
-    pub(crate) fn rgb_hex_value(self) -> String {
-        match self {
-            Color::Red => "FF0000".to_string(),
-            Color::Blue => "0000FF".to_string(),
-            Color::Cyan => "00FFFF".to_string(),
-            Color::Gray => "808080".to_string(),
-            Color::Lime => "00FF00".to_string(),
-            Color::Navy => "000080".to_string(),
-            Color::Pink => "FFC0CB".to_string(),
-            Color::Brown => "800000".to_string(),
-            Color::Green => "008000".to_string(),
-            Color::White => "FFFFFF".to_string(),
-            Color::Orange => "FF6600".to_string(),
-            Color::Purple => "800080".to_string(),
-            Color::Silver => "C0C0C0".to_string(),
-            Color::Yellow => "FFFF00".to_string(),
-            Color::Magenta => "FF00FF".to_string(),
-            Color::RGB(color) => format!("{color:06X}"),
-
-            // Default to black for non RGB colors.
-            Color::Theme(_, _) | Color::Default | Color::Automatic | Color::Black => {
-                "000000".to_string()
-            }
-        }
-    }
-
-    // Get the ARGB hex value for a color. The alpha channel is always FF.
-    pub(crate) fn argb_hex_value(self) -> String {
-        format!("FF{}", self.rgb_hex_value())
-    }
-
-    // Convert the color in a set of "rgb" or "theme/tint" attributes used in
-    // color related Style XML elements.
-    pub(crate) fn attributes(self) -> Vec<(&'static str, String)> {
-        match self {
-            Self::Theme(color, shade) => match color {
-                // The first 3 columns of colors in the theme palette are
-                // different from the others.
-                0 => match shade {
-                    1 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-4.9989318521683403E-2".to_string()),
-                    ],
-                    2 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.14999847407452621".to_string()),
-                    ],
-                    3 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.249977111117893".to_string()),
-                    ],
-                    4 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.34998626667073579".to_string()),
-                    ],
-                    5 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.499984740745262".to_string()),
-                    ],
-                    // The 0 shade is omitted from the attributes.
-                    _ => vec![("theme", color.to_string())],
-                },
-                1 => match shade {
-                    1 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "0.499984740745262".to_string()),
-                    ],
-                    2 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "0.34998626667073579".to_string()),
-                    ],
-                    3 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "0.249977111117893".to_string()),
-                    ],
-                    4 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "0.14999847407452621".to_string()),
-                    ],
-                    5 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "4.9989318521683403E-2".to_string()),
-                    ],
-                    // The 0 shade is omitted from the attributes.
-                    _ => vec![("theme", color.to_string())],
-                },
-                2 => match shade {
-                    1 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-9.9978637043366805E-2".to_string()),
-                    ],
-                    2 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.249977111117893".to_string()),
-                    ],
-                    3 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.499984740745262".to_string()),
-                    ],
-                    4 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.749992370372631".to_string()),
-                    ],
-                    5 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.89999084444715716".to_string()),
-                    ],
-                    // The 0 shade is omitted from the attributes.
-                    _ => vec![("theme", color.to_string())],
-                },
-                _ => match shade {
-                    1 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "0.79998168889431442".to_string()),
-                    ],
-                    2 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "0.59999389629810485".to_string()),
-                    ],
-                    3 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "0.39997558519241921".to_string()),
-                    ],
-                    4 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.249977111117893".to_string()),
-                    ],
-                    5 => vec![
-                        ("theme", color.to_string()),
-                        ("tint", "-0.499984740745262".to_string()),
-                    ],
-                    // The 0 shade is omitted from the attributes.
-                    _ => vec![("theme", color.to_string())],
-                },
-            },
-
-            // Handle RGB color.
-            _ => vec![("rgb", self.argb_hex_value())],
-        }
-    }
-
-    // Convert theme colors into the luminance modulation and offset values used
-    // in chart theme colors.
-    pub(crate) fn chart_scheme(self) -> (String, u32, u32) {
-        match self {
-            Self::Theme(color, shade) => match color {
-                0 => match shade {
-                    0 => ("bg1".to_string(), 0, 0),
-                    1 => ("bg1".to_string(), 95000, 0),
-                    2 => ("bg1".to_string(), 85000, 0),
-                    3 => ("bg1".to_string(), 75000, 0),
-                    4 => ("bg1".to_string(), 65000, 0),
-                    5 => ("bg1".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                1 => match shade {
-                    0 => ("tx1".to_string(), 0, 0),
-                    1 => ("tx1".to_string(), 50000, 50000),
-                    2 => ("tx1".to_string(), 65000, 35000),
-                    3 => ("tx1".to_string(), 75000, 25000),
-                    4 => ("tx1".to_string(), 85000, 15000),
-                    5 => ("tx1".to_string(), 95000, 5000),
-                    _ => (String::new(), 0, 0),
-                },
-                2 => match shade {
-                    0 => ("bg2".to_string(), 0, 0),
-                    1 => ("bg2".to_string(), 90000, 0),
-                    2 => ("bg2".to_string(), 75000, 0),
-                    3 => ("bg2".to_string(), 50000, 0),
-                    4 => ("bg2".to_string(), 25000, 0),
-                    5 => ("bg2".to_string(), 10000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                3 => match shade {
-                    0 => ("tx2".to_string(), 0, 0),
-                    1 => ("tx2".to_string(), 20000, 80000),
-                    2 => ("tx2".to_string(), 40000, 60000),
-                    3 => ("tx2".to_string(), 60000, 40000),
-                    4 => ("tx2".to_string(), 75000, 0),
-                    5 => ("tx2".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                4 => match shade {
-                    0 => ("accent1".to_string(), 0, 0),
-                    1 => ("accent1".to_string(), 20000, 80000),
-                    2 => ("accent1".to_string(), 40000, 60000),
-                    3 => ("accent1".to_string(), 60000, 40000),
-                    4 => ("accent1".to_string(), 75000, 0),
-                    5 => ("accent1".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                5 => match shade {
-                    0 => ("accent2".to_string(), 0, 0),
-                    1 => ("accent2".to_string(), 20000, 80000),
-                    2 => ("accent2".to_string(), 40000, 60000),
-                    3 => ("accent2".to_string(), 60000, 40000),
-                    4 => ("accent2".to_string(), 75000, 0),
-                    5 => ("accent2".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                6 => match shade {
-                    0 => ("accent3".to_string(), 0, 0),
-                    1 => ("accent3".to_string(), 20000, 80000),
-                    2 => ("accent3".to_string(), 40000, 60000),
-                    3 => ("accent3".to_string(), 60000, 40000),
-                    4 => ("accent3".to_string(), 75000, 0),
-                    5 => ("accent3".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                7 => match shade {
-                    0 => ("accent4".to_string(), 0, 0),
-                    1 => ("accent4".to_string(), 20000, 80000),
-                    2 => ("accent4".to_string(), 40000, 60000),
-                    3 => ("accent4".to_string(), 60000, 40000),
-                    4 => ("accent4".to_string(), 75000, 0),
-                    5 => ("accent4".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                8 => match shade {
-                    0 => ("accent5".to_string(), 0, 0),
-                    1 => ("accent5".to_string(), 20000, 80000),
-                    2 => ("accent5".to_string(), 40000, 60000),
-                    3 => ("accent5".to_string(), 60000, 40000),
-                    4 => ("accent5".to_string(), 75000, 0),
-                    5 => ("accent5".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                9 => match shade {
-                    0 => ("accent6".to_string(), 0, 0),
-                    1 => ("accent6".to_string(), 20000, 80000),
-                    2 => ("accent6".to_string(), 40000, 60000),
-                    3 => ("accent6".to_string(), 60000, 40000),
-                    4 => ("accent6".to_string(), 75000, 0),
-                    5 => ("accent6".to_string(), 50000, 0),
-                    _ => (String::new(), 0, 0),
-                },
-                _ => (String::new(), 0, 0),
-            },
-
-            // Handle RGB color with an empty default.
-            _ => (String::new(), 0, 0),
-        }
-    }
-
-    // Check if the RGB and Theme values are in the correct range. Any of the
-    // simple enum will be by default.
-    #[allow(clippy::unreadable_literal)]
-    pub(crate) fn is_valid(self) -> bool {
-        match self {
-            Color::RGB(color) => {
-                if color > 0xFFFFFF {
-                    eprintln!(
-                        "RGB color '{color:#X}' must be in the the range 0x000000 - 0xFFFFFF."
-                    );
-                    return false;
-                }
-                true
-            }
-            Color::Theme(color, shade) => {
-                if color > 9 {
-                    eprintln!("Theme color '{color}' must be in the the range 0 - 9.");
-                    return false;
-                }
-                if shade > 5 {
-                    eprintln!("Theme shade '{shade}' must be in the the range 0 - 5.");
-                    return false;
-                }
-                true
-            }
-            _ => true,
-        }
-    }
-
-    // Check if the color has been set to a non default/automatic color.
-    pub(crate) fn is_auto_or_default(self) -> bool {
-        self == Color::Automatic || self == Color::Default
-    }
-}
-
-/// Trait to map types into an `Color` value.
-///
-/// The `IntoColor` trait is used to map strings and other types, including
-/// `Color` itself, into [`Color`] enum values. This allows syntactic
-/// shorthand such as using Html "#RRGGBB" style strings as method arguments.
-///
-/// The types that support `IntoColor` are:
-///
-/// - [`Color`] enum variants:
-///   - Named colors such as `Color::Green`.
-///   - RBG colors such as `Color::RGB(0xFF7F50)`.
-///   - Theme colors such as `Color::Theme(4, 3)`.
-/// - Html string variants such as `"#6495ED"` or `"6495ED"`.
-/// - [u32] variants such as 0xDAA520.
-///
-/// See the example below.
-///
-/// # Examples
-///
-/// An example of the different types of color syntax that is supported by the
-/// [`IntoColor`] trait.
-///
-/// ```
-/// # // This code is available in examples/doc_into_color.rs
-/// #
-/// use rust_xlsxwriter::{Format, Workbook, Color, XlsxError};
-///
-/// fn main() -> Result<(), XlsxError> {
-///     // Create a new Excel file object.
-///     let mut workbook = Workbook::new();
-///
-///     // Add a worksheet.
-///     let worksheet = workbook.add_worksheet();
-///
-///     // Widen the column for clarity.
-///     worksheet.set_column_width_pixels(0, 80)?;
-///
-///     // Some examples with named color enum values.
-///     let color_format = Format::new().set_background_color(Color::Green);
-///     worksheet.write_string(0, 0, "Green")?;
-///     worksheet.write_blank(0, 1, &color_format)?;
-///
-///     let color_format = Format::new().set_background_color(Color::Red);
-///     worksheet.write_string(1, 0, "Red")?;
-///     worksheet.write_blank(1, 1, &color_format)?;
-///
-///     // Write a RGB color using the Color::RGB() enum method.
-///     let color_format = Format::new().set_background_color(Color::RGB(0xFF7F50));
-///     worksheet.write_string(2, 0, "#FF7F50")?;
-///     worksheet.write_blank(2, 1, &color_format)?;
-///
-///     // Write a RGB color with the shorter Html string variant.
-///     let color_format = Format::new().set_background_color("#6495ED");
-///     worksheet.write_string(3, 0, "#6495ED")?;
-///     worksheet.write_blank(3, 1, &color_format)?;
-///
-///     // Write a RGB color with a Html string (but without the `#`).
-///     let color_format = Format::new().set_background_color("DCDCDC");
-///     worksheet.write_string(4, 0, "#DCDCDC")?;
-///     worksheet.write_blank(4, 1, &color_format)?;
-///
-///     // Write a RGB color with the optional u32 variant.
-///     let color_format = Format::new().set_background_color(0xDAA520);
-///     worksheet.write_string(5, 0, "#DAA520")?;
-///     worksheet.write_blank(5, 1, &color_format)?;
-///
-///     // Add a Theme color.
-///     let color_format = Format::new().set_background_color(Color::Theme(4, 3));
-///     worksheet.write_string(6, 0, "Theme(4, 3)")?;
-///     worksheet.write_blank(6, 1, &color_format)?;
-///
-///     // Save the file to disk.
-///     workbook.save("into_color.xlsx")?;
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// Output file:
-///
-/// <img src="https://rustxlsxwriter.github.io/images/into_color.png">
-///
-pub trait IntoColor {
-    /// Function to turn types into a [`Color`] enum.
-    fn new_color(self) -> Color;
-}
-
-impl IntoColor for Color {
-    fn new_color(self) -> Color {
-        self
-    }
-}
-
-impl IntoColor for u32 {
-    fn new_color(self) -> Color {
-        Color::RGB(self)
-    }
-}
-
-impl IntoColor for &str {
-    fn new_color(self) -> Color {
-        let color = if let Some(hex_string) = self.strip_prefix('#') {
-            u32::from_str_radix(hex_string, 16)
-        } else {
-            u32::from_str_radix(self, 16)
-        };
-
-        match color {
-            Ok(color) => Color::RGB(color),
-            Err(_) => {
-                eprintln!("Error parsing '{self}' to RGB color.");
-                Color::Default
-            }
-        }
-    }
-}
-
-#[doc(hidden)]
-/// A backward compatible/alternative name for the Color type.
-pub type XlsxColor = Color;
 
 /// The `FormatPattern` enum defines the Excel pattern types that can be added to
 /// a [`Format`].
@@ -3094,8 +2555,7 @@ impl fmt::Display for FormatBorder {
 
 /// The `FormatDiagonalBorder` enum defines [`Format`] diagonal border types.
 ///
-/// This is used with the
-/// [`Format::set_border_diagonal()`](Format::set_border_diagonal()) method.
+/// This is used with the [`Format::set_border_diagonal()`] method.
 ///
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Default)]
 pub enum FormatDiagonalBorder {

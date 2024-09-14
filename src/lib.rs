@@ -17,9 +17,9 @@
 //! focus on performance and on fidelity with the file format created by Excel.
 //! It cannot be used to modify an existing file.
 //!
-//! `rust_xlsxwriter` is a port of the [`XlsxWriter`] Python module by the same
-//! author. Feature porting is a work in progress. The currently supported
-//! features are:
+//! `rust_xlsxwriter` is a rewrite of the Python [`XlsxWriter`] library in Rust
+//! by the same author and with some additional Rust-like features and APIs. The
+//! currently supported features are:
 //!
 //! - Support for writing all basic Excel data types.
 //! - Full cell formatting support.
@@ -29,11 +29,16 @@
 //! - Page/Printing Setup support.
 //! - Merged ranges.
 //! - Conditional formatting.
+//! - Data validation.
+//! - Cell Notes.
+//! - Textboxes.
+//! - Sparklines.
 //! - Worksheet PNG/JPEG/GIF/BMP images.
 //! - Rich multi-format strings.
 //! - Defined names.
 //! - Autofilters.
 //! - Worksheet Tables.
+//! - Support for macros.
 //!
 //! [`XlsxWriter`]: https://xlsxwriter.readthedocs.io/index.html
 //!
@@ -41,32 +46,58 @@
 //!
 //! - [`Tutorial`](crate::tutorial): A getting started and tutorial guide.
 //! - [`Cookbook`](crate::cookbook): Examples of using `rust_xlsxwriter`.
+//!
+//! <p>
+//!
 //! - [`Workbook`]: The entry point for creating an Excel workbook of
 //!   worksheets.
+//! - [`Working with Workbooks`](crate::workbook): A higher level introduction
+//!   to creating and working with workbooks.
+//! </p>
+//!
+//! <p>
+//!
 //! - [`Worksheet`]: The main spreadsheet canvas for writing data and objects to
 //!   a worksheet.
+//! - [`Working with Worksheets`](crate::worksheet): A higher level introduction
+//!    to creating and working with worksheets.
+//! </p>
+//!
+//! <p>
+//!
+//! - [`Chart`] struct: The interface for creating worksheet charts.
+//! - [`Working with charts`](crate::chart): A higher level introduction to
+//!   creating and using charts.
+//! </p>
+//!
+//! <p>
+//!
 //! - [`Format`]: The interface for adding formatting to worksheets and other
 //!   objects.
-//! - [`Chart`] struct: The interface for creating worksheet charts.
-//!   - [`Working with charts`](crate::chart).
-//! - [`Table`]: The interface for worksheet tables.
+//!  - [`Table`]: The interface for worksheet tables.
 //! - [`Image`]: The interface for images used in worksheets.
 //! - [`Conditional Formats`](crate::conditional_format): Working with
 //!   conditional formatting in worksheets.
+//! - [`DataValidation`]: Working with data validation in worksheets.
+//! - [`Note`]: Adding Notes to worksheet cells.
+//! - [`Shape`]: Adding Textbox shapes to worksheets.
+//! - [`Macros`](crate::macros): Working with Macros.
+//! - [`Sparklines`](crate::sparkline): Working with Sparklines.
 //! - [`ExcelDateTime`]: A type to represent dates and times in Excel format.
 //! - [`Formula`]: A type for Excel formulas.
 //! - [`Url`]: A type for URLs/Hyperlinks used in worksheets.
 //! - [`DocProperties`]: The interface used to create an object to represent
 //!   document metadata properties.
+//! </p>
+//!
+//! - [`Changelog`](crate::changelog): Release notes and changelog.
 //!
 //! Other external documentation:
 //!
 //! - [User Guide]: Working with the `rust_xlsxwriter` library.
-//! - [Release Notes].
 //! - [Roadmap of planned features].
 //!
 //! [User Guide]: https://rustxlsxwriter.github.io/index.html
-//! [Release Notes]: https://rustxlsxwriter.github.io/changelog.html
 //! [Roadmap of planned features]:
 //!     https://github.com/jmcnamara/rust_xlsxwriter/issues/1
 //!
@@ -142,8 +173,8 @@
 //! The following is a list of the features supports by the `rust_xlsxwriter`
 //! crate:
 //!
-//! - `default`: Includes all the standard functionality. Has dependencies on
-//!   `zip`, `regex` and `lazy_static`.
+//! - `default`: Includes all the standard functionality. This has a dependency
+//!   on the `zip` crate only.
 //! - `serde`: Adds supports for Serde serialization. This is off by default.
 //! - `chrono`: Adds supports for Chrono date/time types to the API. This is off
 //!   by default.
@@ -154,12 +185,19 @@
 //!   easier to write.
 //! - `wasm`: Adds a dependency on `js-sys` and `wasm-bindgen` to allow
 //!   compilation for wasm/JavaScript targets.
-//!
+//! - `ryu`: Adds a dependency on `ryu`. This speeds up writing numeric
+//!   worksheet cells for large data files. It gives a performance boost above
+//!   300,000 numeric cells and can be up to 30% faster than the default number
+//!   formatting for 5,000,000 numeric cells.
 //!
 mod app;
+mod button;
+mod color;
+mod comment;
 mod content_types;
 mod core;
 mod custom;
+mod data_validation;
 mod datetime;
 mod drawing;
 mod error;
@@ -168,10 +206,16 @@ mod format;
 mod formula;
 mod image;
 mod metadata;
+mod note;
 mod packager;
 mod properties;
 mod protection;
 mod relationship;
+mod rich_value;
+mod rich_value_rel;
+mod rich_value_structure;
+mod rich_value_types;
+mod shape;
 mod shared_strings;
 mod shared_strings_table;
 mod styles;
@@ -179,50 +223,67 @@ mod table;
 mod theme;
 mod url;
 mod vml;
-mod workbook;
-mod worksheet;
 mod xmlwriter;
 
 #[cfg(feature = "serde")]
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 pub mod serializer;
 
+pub mod changelog;
 pub mod chart;
 pub mod conditional_format;
 pub mod cookbook;
+pub mod macros;
+pub mod sparkline;
 pub mod tutorial;
 pub mod utility;
+pub mod workbook;
+pub mod worksheet;
 
 #[cfg(test)]
 mod test_functions;
 
 // Re-export the public APIs.
+pub use button::*;
+pub use color::*;
+pub use data_validation::*;
 pub use datetime::*;
 pub use error::*;
 pub use filter::*;
 pub use format::*;
 pub use formula::*;
 pub use image::*;
+pub use note::*;
 pub use properties::*;
 pub use protection::*;
+pub use shape::*;
 pub use table::*;
 pub use url::*;
-pub use workbook::*;
+
+#[doc(hidden)]
+pub use chart::*;
+
+#[doc(hidden)]
+pub use comment::*;
+
+#[doc(hidden)]
+pub use conditional_format::*;
+
+#[doc(hidden)]
+pub use sparkline::*;
+
+#[doc(hidden)]
 pub use worksheet::*;
+
+#[doc(hidden)]
+pub use workbook::*;
+
+#[doc(hidden)]
+pub use utility::*;
 
 #[cfg(feature = "serde")]
 #[doc(hidden)]
 pub use serializer::*;
-
-#[doc(hidden)]
-pub use chart::*;
-#[doc(hidden)]
-pub use conditional_format::*;
-#[doc(hidden)]
-pub use utility::*;
-
-#[macro_use]
-extern crate lazy_static;
 
 #[cfg(feature = "serde")]
 extern crate rust_xlsxwriter_derive;

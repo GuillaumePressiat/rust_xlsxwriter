@@ -7,8 +7,6 @@
 #![warn(missing_docs)]
 mod tests;
 
-use regex::Regex;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -31,6 +29,7 @@ const YEAR_DAYS: u64 = 365;
 const YEAR_DAYS_4: u64 = YEAR_DAYS * 4 + 1;
 const YEAR_DAYS_100: u64 = YEAR_DAYS * 100 + 25;
 const YEAR_DAYS_400: u64 = YEAR_DAYS * 400 + 97;
+const UNIX_EPOCH_PLUS_400: i64 = 12_622_780_800;
 
 /// The `ExcelDateTime` struct is used to represent an Excel date and/or time.
 ///
@@ -57,11 +56,11 @@ const YEAR_DAYS_400: u64 = YEAR_DAYS * 400 + 97;
 ///     let worksheet = workbook.add_worksheet();
 ///
 ///     // Create some formats to use with the datetimes below.
-///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh::mm");
-///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh::mm");
-///     let format3 = Format::new().set_num_format("yyyy-mm-ddThh::mm:ss");
-///     let format4 = Format::new().set_num_format("ddd dd mmm yyyy hh::mm");
-///     let format5 = Format::new().set_num_format("dddd, mmmm dd, yyyy hh::mm");
+///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh:mm");
+///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh:mm");
+///     let format3 = Format::new().set_num_format("yyyy-mm-ddThh:mm:ss");
+///     let format4 = Format::new().set_num_format("ddd dd mmm yyyy hh:mm");
+///     let format5 = Format::new().set_num_format("dddd, mmmm dd, yyyy hh:mm");
 ///
 ///     // Set the column width for clarity.
 ///     worksheet.set_column_width(0, 30)?;
@@ -154,13 +153,13 @@ impl ExcelDateTime {
     ///     yyyy-mm-dd
     ///
     /// Times:
-    ///     hh::mm
-    ///     hh::mm::ss
-    ///     hh::mm::ss.sss
+    ///     hh:mm
+    ///     hh:mm:ss
+    ///     hh:mm:ss.sss
     ///
     /// DateTimes:
-    ///     yyyy-mm-ddThh::mm::ss
-    ///     yyyy-mm-dd hh::mm::ss
+    ///     yyyy-mm-ddThh:mm:ss
+    ///     yyyy-mm-dd hh:mm:ss
     ///
     /// ```
     ///
@@ -186,9 +185,9 @@ impl ExcelDateTime {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges.
-    /// * [`XlsxError::DateTimeParseError`] - The input string couldn't be parsed
+    /// - [`XlsxError::DateTimeParseError`] - The input string couldn't be parsed
     ///   into a date/time.
     ///
     /// # Examples
@@ -208,9 +207,9 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("hh::mm:ss");
+    ///     let format1 = Format::new().set_num_format("hh:mm:ss");
     ///     let format2 = Format::new().set_num_format("yyyy-mm-dd");
-    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss");
+    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -242,56 +241,80 @@ impl ExcelDateTime {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/datetime_parse_from_str.png">
     ///
+    #[allow(clippy::get_first)]
     pub fn parse_from_str(datetime: &str) -> Result<ExcelDateTime, XlsxError> {
-        lazy_static! {
-            static ref DATE: Regex = Regex::new(r"\b(\d\d\d\d)-(\d\d)-(\d\d)").unwrap();
-            static ref TIME: Regex = Regex::new(r"(\d+):(\d\d)(:(\d\d(\.\d+)?))?").unwrap();
-        }
-        let mut matched = false;
+        let date_parts: Vec<&str> = datetime.trim().split(&['-', 'T', 'Z', ' ', ':']).collect();
 
-        let mut dt = match DATE.captures(datetime) {
-            Some(caps) => {
-                let year = caps.get(1).unwrap().as_str().parse::<u16>().unwrap();
-                let month = caps.get(2).unwrap().as_str().parse::<u8>().unwrap();
-                let day = caps.get(3).unwrap().as_str().parse::<u8>().unwrap();
+        // Match date and optional time.
+        if datetime.contains('-') {
+            let year = match date_parts.get(0) {
+                Some(token) => token.parse::<u16>().unwrap_or_default(),
+                None => 0,
+            };
 
-                matched = true;
-                ExcelDateTime::from_ymd(year, month, day)
-            }
-            None => Ok(ExcelDateTime::default()),
-        };
+            let month = match date_parts.get(1) {
+                Some(token) => token.parse::<u8>().unwrap_or_default(),
+                None => 0,
+            };
 
-        if let Some(caps) = TIME.captures(datetime) {
-            let hour = caps.get(1).unwrap().as_str().parse::<u16>().unwrap();
-            let min = caps.get(2).unwrap().as_str().parse::<u8>().unwrap();
+            let day = match date_parts.get(2) {
+                Some(token) => token.parse::<u8>().unwrap_or_default(),
+                None => 0,
+            };
 
-            let sec = match caps.get(3) {
-                Some(_) => caps.get(4).unwrap().as_str().parse::<f64>().unwrap(),
+            let hour = match date_parts.get(3) {
+                Some(token) => token.parse::<u16>().unwrap_or_default(),
+                None => 0,
+            };
+
+            let min = match date_parts.get(4) {
+                Some(token) => token.parse::<u8>().unwrap_or_default(),
+                None => 0,
+            };
+
+            let sec = match date_parts.get(5) {
+                Some(token) => token.parse::<f64>().unwrap_or_default(),
                 None => 0.0,
             };
 
-            matched = true;
-            dt = dt.unwrap().and_hms(hour, min, sec);
+            Ok(ExcelDateTime::from_ymd(year, month, day)?.and_hms(hour, min, sec)?)
         }
+        // Match time only.
+        else if datetime.contains(':') {
+            let hour = match date_parts.get(0) {
+                Some(token) => token.parse::<u16>().unwrap_or_default(),
+                None => 0,
+            };
 
-        if !matched {
-            return Err(XlsxError::DateTimeParseError(datetime.to_string()));
+            let min = match date_parts.get(1) {
+                Some(token) => token.parse::<u8>().unwrap_or_default(),
+                None => 0,
+            };
+
+            let sec = match date_parts.get(2) {
+                Some(token) => token.parse::<f64>().unwrap_or_default(),
+                None => 0.0,
+            };
+
+            Ok(ExcelDateTime::from_hms(hour, min, sec)?)
         }
-
-        dt
+        // No match.
+        else {
+            Err(XlsxError::DateTimeParseError(datetime.to_string()))
+        }
     }
 
     /// Create a `ExcelDateTime` instance from years, months and days.
     ///
     /// # Parameters
     ///
-    /// * `year` - Integer year in range 1900-9999.
-    /// * `month` - Integer month in the range 1-12.
-    /// * `day` - Integer day in the range 1-31 (depending on year/month).
+    /// - `year`: Integer year in range 1900-9999.
+    /// - `month`: Integer month in the range 1-12.
+    /// - `day`: Integer day in the range 1-31 (depending on year/month).
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges. Excel dates must be in the
     ///   range 1900-01-01 to 9999-12-31.
     ///
@@ -312,11 +335,11 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh::mm");
-    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh::mm");
-    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss");
-    ///     let format4 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss.0");
-    ///     let format5 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss.000");
+    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh:mm");
+    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh:mm");
+    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss");
+    ///     let format4 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss.0");
+    ///     let format5 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss.000");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -362,15 +385,15 @@ impl ExcelDateTime {
     ///
     /// # Parameters
     ///
-    /// * `hour` - Integer hour. Generally in the range 0-23 but can be greater
+    /// - `hour`: Integer hour. Generally in the range 0-23 but can be greater
     ///   than 24 for time durations.
-    /// * `min` - Integer minutes in the range 0-59.
-    /// * `sec` - Integer or float seconds in the range 0-59.999. Excel only
+    /// - `min`: Integer minutes in the range 0-59.
+    /// - `sec`: Integer or float seconds in the range 0-59.999. Excel only
     ///   supports millisecond precision.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges.
     ///
     /// # Examples
@@ -390,10 +413,10 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("hh::mm");
-    ///     let format2 = Format::new().set_num_format("hh::mm:ss");
-    ///     let format3 = Format::new().set_num_format("hh::mm:ss.0");
-    ///     let format4 = Format::new().set_num_format("hh::mm:ss.000");
+    ///     let format1 = Format::new().set_num_format("hh:mm");
+    ///     let format2 = Format::new().set_num_format("hh:mm:ss");
+    ///     let format3 = Format::new().set_num_format("hh:mm:ss.0");
+    ///     let format4 = Format::new().set_num_format("hh:mm:ss.000");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -428,16 +451,16 @@ impl ExcelDateTime {
     ///
     /// # Parameters
     ///
-    /// * `hour` - Integer hour. Generally in the range 0-23 but can be greater
+    /// - `hour`: Integer hour. Generally in the range 0-23 but can be greater
     ///   than 24 for time durations.
-    /// * `min` - Integer minutes in the range 0-59.
-    /// * `sec` - Integer seconds in the range 0-59.
-    /// * `milli` - Integer milliseconds in the range 0-999. Excel only supports
+    /// - `min`: Integer minutes in the range 0-59.
+    /// - `sec`: Integer seconds in the range 0-59.
+    /// - `milli`: Integer milliseconds in the range 0-999. Excel only supports
     ///   millisecond precision.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges.
     ///
     ///
@@ -458,10 +481,10 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("hh::mm");
-    ///     let format2 = Format::new().set_num_format("hh::mm:ss");
-    ///     let format3 = Format::new().set_num_format("hh::mm:ss.0");
-    ///     let format4 = Format::new().set_num_format("hh::mm:ss.000");
+    ///     let format1 = Format::new().set_num_format("hh:mm");
+    ///     let format2 = Format::new().set_num_format("hh:mm:ss");
+    ///     let format3 = Format::new().set_num_format("hh:mm:ss.0");
+    ///     let format4 = Format::new().set_num_format("hh:mm:ss.000");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -502,14 +525,14 @@ impl ExcelDateTime {
     ///
     /// # Parameters
     ///
-    /// * `hour` - Integer hours in the range 0-23.
-    /// * `min` - Integer minutes in the range 0-59.
-    /// * `sec` - Integer or float seconds in the range 0-59.999. Excel only
+    /// - `hour`: Integer hours in the range 0-23.
+    /// - `min`: Integer minutes in the range 0-59.
+    /// - `sec`: Integer or float seconds in the range 0-59.999. Excel only
     ///   supports millisecond precision.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges.
     ///
     /// # Examples
@@ -529,11 +552,11 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh::mm");
-    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh::mm");
-    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss");
-    ///     let format4 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss.0");
-    ///     let format5 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss.000");
+    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh:mm");
+    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh:mm");
+    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss");
+    ///     let format4 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss.0");
+    ///     let format5 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss.000");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -592,15 +615,15 @@ impl ExcelDateTime {
     ///
     /// # Parameters
     ///
-    /// * `hour` - Integer hours in the range 0-23.
-    /// * `min` - Integer minutes in the range 0-59.
-    /// * `sec` - Integer seconds in the range 0-59.
-    /// * `milli` - Integer milliseconds in the range 0-999. Excel only supports
+    /// - `hour`: Integer hours in the range 0-23.
+    /// - `min`: Integer minutes in the range 0-59.
+    /// - `sec`: Integer seconds in the range 0-59.
+    /// - `milli`: Integer milliseconds in the range 0-999. Excel only supports
     ///   millisecond precision.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges.
     ///
     /// # Examples
@@ -620,11 +643,11 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh::mm");
-    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh::mm");
-    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss");
-    ///     let format4 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss.0");
-    ///     let format5 = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss.000");
+    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh:mm");
+    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh:mm");
+    ///     let format3 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss");
+    ///     let format4 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss.0");
+    ///     let format5 = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss.000");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -688,12 +711,12 @@ impl ExcelDateTime {
     ///
     /// # Parameters
     ///
-    /// * `number` - Excel serial date in the range 0.0 to 2,958,466.0 (years
+    /// - `number`: Excel serial date in the range 0.0 to 2,958,466.0 (years
     ///   1900 to 9999).
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges.
     ///
     /// # Examples
@@ -713,7 +736,7 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create a formats to use with the datetimes below.
-    ///     let format = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss");
+    ///     let format = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -766,12 +789,12 @@ impl ExcelDateTime {
     ///
     /// # Parameters
     ///
-    /// * `timestamp` - Unix time in the range -2,209,075,200 to 253,402,300,800
+    /// - `timestamp`: Unix time in the range -2,209,075,200 to 253,402,300,800
     ///   (years 1900 to 9999).
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::DateTimeRangeError`] - One of the values used to create the
+    /// - [`XlsxError::DateTimeRangeError`] - One of the values used to create the
     ///   date or time is outside Excel's allowed ranges.
     ///
     /// # Examples
@@ -791,7 +814,7 @@ impl ExcelDateTime {
     /// #     let worksheet = workbook.add_worksheet();
     ///
     ///     // Create a formats to use with the datetimes below.
-    ///     let format = Format::new().set_num_format("yyyy-mm-dd hh::mm:ss");
+    ///     let format = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -805,7 +828,7 @@ impl ExcelDateTime {
     ///     worksheet.write_with_format(0, 0, &datetime1, &format)?;
     ///     worksheet.write_with_format(1, 0, &datetime2, &format)?;
     ///     worksheet.write_with_format(2, 0, &datetime3, &format)?;
-    ///
+    /// #
     /// #     workbook.save("datetime.xlsx")?;
     /// #
     /// #     Ok(())
@@ -816,7 +839,6 @@ impl ExcelDateTime {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/datetime_from_timestamp.png">
     ///
-    #[allow(clippy::cast_precision_loss)]
     pub fn from_timestamp(timestamp: i64) -> Result<ExcelDateTime, XlsxError> {
         if !(-2_209_075_200..253_402_300_800).contains(&timestamp) {
             return Err(XlsxError::DateTimeRangeError(format!(
@@ -824,16 +846,30 @@ impl ExcelDateTime {
             )));
         }
 
-        let days = (timestamp / (24 * 60 * 60)) as f64;
-        let time = ((timestamp % (24 * 60 * 60)) as f64) / (24.0 * 60.0 * 60.0);
-        let mut datetime = 25568.0 + days + time;
+        // In order to handle negative timestamps in the Excel date range we
+        // shift the epoch forward 400 years to get a non-negative timestamp and
+        // then subtract 400 years. The 400 years is to get similar leap ranges.
+        let timestamp = (UNIX_EPOCH_PLUS_400 + timestamp) as u64;
+        let (year, month, day, hour, min, sec) = Self::unix_time_to_date_parts(timestamp);
+        let year = year - 400;
 
-        if datetime >= 60.0 {
-            datetime += 1.0;
+        // Validate the date components.
+        if let Some(err) = Self::validate_ymd(year, month, day).err() {
+            return Err(err);
+        }
+        if let Some(err) = Self::validate_hms(min, sec).err() {
+            return Err(err);
         }
 
+        // Create the new datetime.
         let dt = ExcelDateTime {
-            serial_datetime: Some(datetime),
+            year,
+            month,
+            day,
+            hour,
+            min,
+            sec,
+            datetime_type: ExcelDateTimeType::DateAndTime,
             ..ExcelDateTime::default()
         };
 
@@ -1074,6 +1110,14 @@ impl ExcelDateTime {
     //
     // Convert a Unix time (seconds from 1970) to a human readable date in
     // ISO 8601 format.
+    pub(crate) fn unix_time_to_rfc3339(timestamp: u64) -> String {
+        let (year, month, day, hour, min, sec) = Self::unix_time_to_date_parts(timestamp);
+
+        // Return the ISO 8601 date.
+        format!("{year}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}Z",)
+    }
+
+    // Convert a Unix time to it date components.
     //
     // The calculation is deceptively tricky since simple division doesn't work
     // due to the 4/100/400 year leap day changes. The basic approach is to
@@ -1085,7 +1129,8 @@ impl ExcelDateTime {
     //
     // Leap seconds and the time zone aren't taken into account.
     //
-    pub(crate) fn unix_time_to_rfc3339(timestamp: u64) -> String {
+    #[allow(clippy::cast_precision_loss)]
+    pub(crate) fn unix_time_to_date_parts(timestamp: u64) -> (u16, u8, u8, u16, u8, f64) {
         let mut months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
         // Convert the seconds to a whole number of days.
@@ -1183,8 +1228,15 @@ impl ExcelDateTime {
         let min = (seconds - hour * HOUR_SECONDS) / MINUTE_SECONDS;
         let sec = (seconds - hour * HOUR_SECONDS - min * MINUTE_SECONDS) % MINUTE_SECONDS;
 
-        // Return the ISO 8601 date.
-        format!("{year}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}Z",)
+        // Return the date components.
+        (
+            year as u16,
+            month as u8,
+            day as u8,
+            hour as u16,
+            min as u8,
+            sec as f64,
+        )
     }
 
     // Check if a year is a leap year.

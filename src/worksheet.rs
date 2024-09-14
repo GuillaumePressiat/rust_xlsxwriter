@@ -4,6 +4,1188 @@
 //
 // Copyright 2022-2024, John McNamara, jmcnamara@cpan.org
 
+//! # Working with Worksheets
+//!
+//! The [`Worksheet`] struct struct represents an Excel worksheet. It handles
+//! operations such as writing data to cells or formatting worksheet layout.
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/demo.png">
+//!
+//! Sample code to generate the Excel file shown above.
+//!
+//! ```rust
+//! # // This code is available in examples/app_demo.rs
+//! #
+//! use rust_xlsxwriter::*;
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     // Create a new Excel file object.
+//!     let mut workbook = Workbook::new();
+//!
+//!     // Create some formats to use in the worksheet.
+//!     let bold_format = Format::new().set_bold();
+//!     let decimal_format = Format::new().set_num_format("0.000");
+//!     let date_format = Format::new().set_num_format("yyyy-mm-dd");
+//!     let merge_format = Format::new()
+//!         .set_border(FormatBorder::Thin)
+//!         .set_align(FormatAlign::Center);
+//!
+//!     // Add a worksheet to the workbook.
+//!     let worksheet = workbook.add_worksheet();
+//!
+//!     // Set the column width for clarity.
+//!     worksheet.set_column_width(0, 22)?;
+//!
+//!     // Write a string without formatting.
+//!     worksheet.write(0, 0, "Hello")?;
+//!
+//!     // Write a string with the bold format defined above.
+//!     worksheet.write_with_format(1, 0, "World", &bold_format)?;
+//!
+//!     // Write some numbers.
+//!     worksheet.write(2, 0, 1)?;
+//!     worksheet.write(3, 0, 2.34)?;
+//!
+//!     // Write a number with formatting.
+//!     worksheet.write_with_format(4, 0, 3.00, &decimal_format)?;
+//!
+//!     // Write a formula.
+//!     worksheet.write(5, 0, Formula::new("=SIN(PI()/4)"))?;
+//!
+//!     // Write a date.
+//!     let date = ExcelDateTime::from_ymd(2023, 1, 25)?;
+//!     worksheet.write_with_format(6, 0, &date, &date_format)?;
+//!
+//!     // Write some links.
+//!     worksheet.write(7, 0, Url::new("https://www.rust-lang.org"))?;
+//!     worksheet.write(8, 0, Url::new("https://www.rust-lang.org").set_text("Rust"))?;
+//!
+//!     // Write some merged cells.
+//!     worksheet.merge_range(9, 0, 9, 1, "Merged cells", &merge_format)?;
+//!
+//!     // Insert an image.
+//!     let image = Image::new("examples/rust_logo.png")?;
+//!     worksheet.insert_image(1, 2, &image)?;
+//!
+//!     // Save the file to disk.
+//!     workbook.save("demo.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! For more details on the Worksheet APIs for see the [`Worksheet`]
+//! documentation and the sections below.
+//!
+//! # Contents
+//!
+//! - [Creating worksheets](#creating-worksheets)
+//!   - [Working with `add_worksheet()` and the borrow
+//!     checker](#working-with-add_worksheet-and-the-borrow-checker)
+//!   - [Working with `Worksheet::new()` and the borrow
+//!     checker](#working-with-worksheetnew-and-the-borrow-checker)
+//!   - [Using `add_worksheet()` versus
+//!     `Worksheet::new()`](#using-add_worksheet-versus--worksheetnew)
+//! - [Page Setup](#page-setup)
+//!   - [Page Setup - Page](#page-setup---page)
+//!   - [Page Setup - Margins](#page-setup---margins)
+//!   - [Page Setup - Header/Footer](#page-setup---headerfooter)
+//!   - [Page Setup - Sheet](#page-setup---sheet)
+//! - [Cell formatting](#cell-formatting)
+//! - [Adding Headers and Footers](#adding-headers-and-footers)
+//! - [Autofitting column widths](#autofitting-column-widths)
+//! - [Working with worksheet tabs](#working-with-worksheet-tabs)
+//!   - [Worksheet names](#worksheet-names)
+//!   - [Setting the active worksheet](#setting-the-active-worksheet)
+//!   - [Setting worksheet tab colors](#setting-worksheet-tab-colors)
+//!   - [Hiding worksheets](#hiding-worksheets)
+//!   - [Selecting worksheets](#selecting-worksheets)
+//! - [Worksheet protection](#worksheet-protection)
+//!   - [Setting a protection password](#setting-a-protection-password)
+//!   - [Choosing which worksheet elements to
+//!     protect](#choosing-which-worksheet-elements-to-protect)
+//!   - [Workbook protection](#workbook-protection)
+//!   - [Read-only workbook](#read-only-workbook)
+//!
+//!
+//! # Creating worksheets
+//!
+//! There are two ways of creating a worksheet object with `rust_xlsxwriter`:
+//! via the [`Workbook::add_worksheet()`] method and via the
+//! [`Worksheet::new()`] constructor.
+//!
+//! The first method ties the worksheet to a workbook object that will
+//! automatically write the worksheet when the file is saved, whereas the second
+//! method creates a worksheet that is independent of a workbook. The second
+//! method has the advantage of keeping the worksheet free of the workbook
+//! borrow checking until needed, as explained below.
+//!
+//!
+//! ## Working with `add_worksheet()` and the borrow checker
+//!
+//! Due to borrow checking rules you can only have one active reference to a
+//! worksheet object created by [`Workbook::add_worksheet()`] since that method
+//! returns a mutable reference to an element of an internal vector.
+//!
+//! For a workbook with multiple worksheets this restriction is generally
+//! workable if you can create and use the worksheets sequentially since you
+//! will only need to have one reference at any one time.
+//!
+//! However, if you can’t structure your code to work sequentially then you can
+//! get a reference to a previously created worksheet using
+//! [`Workbook::worksheet_from_index()`]. The standard borrow checking rules
+//! still apply so you will have to give up ownership of any other worksheet
+//! reference prior to calling this method.
+//!
+//! For example:
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_worksheet_from_index.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     // Start with a reference to worksheet1.
+//!     let mut worksheet1 = workbook.add_worksheet();
+//!     worksheet1.write_string(0, 0, "Hello")?;
+//!
+//!     // If we don't try to use the workbook1 reference again we can
+//!     // just switch to using a reference to worksheet2.
+//!     let mut worksheet2 = workbook.add_worksheet();
+//!     worksheet2.write_string(0, 0, "Hello")?;
+//!
+//!     // Stop using worksheet2 and move back to worksheet1.
+//!     worksheet1 = workbook.worksheet_from_index(0)?;
+//!     worksheet1.write_string(1, 0, "Sheet1")?;
+//!
+//!     // Stop using worksheet1 and move back to worksheet2.
+//!     worksheet2 = workbook.worksheet_from_index(1)?;
+//!     worksheet2.write_string(1, 0, "Sheet2")?;
+//! #
+//! #     workbook.save("workbook.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! You can also use [`Workbook::worksheet_from_name()`] to do something similar
+//! using the worksheet names:
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_worksheet_from_name.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     // Start with a reference to worksheet1.
+//!     let mut worksheet1 = workbook.add_worksheet();
+//!     let name1 = worksheet1.name(); // "Sheet1"
+//!     worksheet1.write_string(0, 0, "Hello")?;
+//!
+//!     // If we don't try to use the workbook1 reference again we can
+//!     // just switch to using a reference to worksheet2.
+//!     let mut worksheet2 = workbook.add_worksheet().set_name("Data")?;
+//!     let name2 = worksheet2.name();
+//!     worksheet2.write_string(0, 0, "Hello")?;
+//!
+//!     // Stop using worksheet2 and move back to worksheet1.
+//!     worksheet1 = workbook.worksheet_from_name(&name1)?;
+//!     worksheet1.write_string(1, 0, "Sheet1")?;
+//!
+//!     // Stop using worksheet1 and move back to worksheet2.
+//!     worksheet2 = workbook.worksheet_from_name(&name2)?;
+//!     worksheet2.write_string(1, 0, "Sheet2")?;
+//! #
+//! #     workbook.save("workbook.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Additionally can use [`Workbook::worksheets_mut()`] to get a reference to
+//! the the vector that holds the worksheets. This can be used, for instance, to
+//! iterate over all the worksheets in a workbook:
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_worksheets_mut.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     // Add three worksheets to the workbook.
+//!     let _worksheet1 = workbook.add_worksheet();
+//!     let _worksheet2 = workbook.add_worksheet();
+//!     let _worksheet3 = workbook.add_worksheet();
+//!
+//!     // Write the same data to all three worksheets.
+//!     for worksheet in workbook.worksheets_mut() {
+//!         worksheet.write_string(0, 0, "Hello")?;
+//!         worksheet.write_number(1, 0, 12345)?;
+//!     }
+//!
+//!     // If you are careful you can use standard slice operations.
+//!     workbook.worksheets_mut().swap(0, 1);
+//! #
+//! #     workbook.save("workbook.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Note the use of the [slice] operation which gives the following:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/workbook_worksheets_mut.png">
+//!
+//! All three worksheets in the output file have the same data and `Sheet2` and
+//! `Sheet1` have swapped position, as can be seen from the image.
+//!
+//! ## Working with `Worksheet::new()` and the borrow checker
+//!
+//! As outlined above it is also possible to create a Worksheet object via
+//! [`Worksheet::new()`], as you would expect. Since this type of Worksheet
+//! instance isn't tied to a Workbook it isn't subject to the additional borrow
+//! checking rules that entails.
+//!
+//! As such you can create and work with several Worksheet instances and then
+//! add them to the Workbook when you are finished via the
+//! [`Workbook::push_worksheet()`] method:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_new.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, Worksheet, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//!     // Create a new workbook.
+//!     let mut workbook = Workbook::new();
+//!
+//!     // Create new worksheets.
+//!     let mut worksheet1 = Worksheet::new();
+//!     let mut worksheet2 = Worksheet::new();
+//!
+//!     // Use the first workbook.
+//!     worksheet1.write_string(0, 0, "Hello")?;
+//!     worksheet1.write_string(1, 0, "Sheet1")?;
+//!
+//!     // Use the second workbook.
+//!     worksheet2.write_string(0, 0, "Hello")?;
+//!     worksheet2.write_string(1, 0, "Sheet2")?;
+//!
+//!     // Add the worksheets to the workbook.
+//!     workbook.push_worksheet(worksheet1);
+//!     workbook.push_worksheet(worksheet2);
+//!
+//!     // Save the workbook.
+//!     workbook.save("worksheets.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! ## Using `add_worksheet()` versus  `Worksheet::new()`
+//!
+//! Since there are two ways of doing, effectively, the same thing you will
+//! probably wonder which is best.
+//!
+//! The author mainly uses `add_worksheet()` and most of the library and
+//! documentation examples are structured to work with that method. In addition,
+//! the Excel xlsx file format has very tight coupling between it's
+//! sub-components and it is possible that some future `rust_xlsxwriter`
+//! functionality will require Worksheets and other Workbook objects to be
+//! `registered` with a parent Workbook in order for them to work. However,
+//! there aren't currently any features like that, and the author will seek to
+//! avoid them as much as possible.
+//!
+//! One common use case that works better with `Worksheet::new()` and
+//! `Workbook::push_worksheet()` is creating worksheets to run in a
+//! parallelized/async mode. However, it is worth noting that there isn't a
+//! guaranteed performance benefit from creating and working with worksheets in
+//! parallelized/async mode since the main overhead comes from **writing** the
+//! worksheets which will occur after the worksheets are joined back to the main
+//! workbook `save()` thread. In addition `rust_xlsxwriter` already parallelizes
+//! the writing of worksheets as much as possible.
+//!
+//! [`Workbook::add_worksheet()`]: crate::Workbook::add_worksheet
+//! [`Workbook::worksheets_mut()`]: crate::Workbook::worksheets_mut
+//! [`Workbook::push_worksheet()`]: crate::Workbook::push_worksheet
+//! [`Workbook::worksheet_from_name()`]: crate::Workbook::worksheet_from_name
+//! [`Workbook::worksheet_from_index()`]: crate::Workbook::worksheet_from_index
+//!
+//!
+//! # Page Setup
+//!
+//! The sections below look at the elements of the Excel Page Setup dialog and
+//! the equivalent `rust_xlsxwriter` methods.
+//!
+//! For more, general, information about the page setup options in Excel see the
+//! Microsoft documentation on [Page Setup].
+//!
+//! [Page Setup]:
+//!     https://support.microsoft.com/en-us/office/page-setup-71c20d94-b13e-48fd-9800-cedd1fec6da3
+//!
+//! ## Page Setup - Page
+//!
+//! The page Setup "Page" dialog looks like this:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/page_setup01.png">
+//!
+//! The equivalent `rust_xlsxwriter` methods are:
+//!
+//! 1. [`Worksheet::set_portrait()`]
+//! 2. [`Worksheet::set_landscape()`]
+//! 3. [`Worksheet::set_print_scale()`]
+//! 4. [`Worksheet::set_print_fit_to_pages()`]
+//! 5. [`Worksheet::set_print_first_page_number()`]
+//!
+//! Note, for [`Worksheet::set_print_fit_to_pages()`] a common requirement is to
+//! fit the printed output to `n` pages wide but have the height be as long as
+//! necessary. To achieve this set the `height` to 0:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_print_fit_to_pages.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//! #     // Add a worksheet to the workbook.
+//! #     let worksheet = workbook.add_worksheet();
+//! #
+//!     // Set the printed output to fit 1 page wide and as long as necessary.
+//!     worksheet.set_print_fit_to_pages(1, 0);
+//! #
+//! #     workbook.save("worksheet.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//!
+//! ## Page Setup - Margins
+//!
+//! The page Setup "Margins" dialog looks like this:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/page_setup02.png">
+//!
+//! The equivalent `rust_xlsxwriter` methods are:
+//!
+//! 1. [`Worksheet::set_margins()`]
+//! 2. [`Worksheet::set_print_center_horizontally()`]
+//! 3. [`Worksheet::set_print_center_vertically()`]
+//!
+//!
+//! ## Page Setup - Header/Footer
+//!
+//! The page Setup "Header/Footer" dialog looks like this:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/page_setup03.png">
+//!
+//! The equivalent `rust_xlsxwriter` methods are:
+//!
+//! 1. [`Worksheet::set_header()`]
+//! 2. [`Worksheet::set_footer()`]
+//! 3. [`Worksheet::set_header_footer_scale_with_doc()`]
+//! 4. [`Worksheet::set_header_footer_align_with_page()`]
+//!
+//! Headers and footers are explained in more detail in a subsequent section
+//! below on [Adding Headers and Footers](#adding-headers-and-footers).
+//!
+//! Note, the options for different first, odd and even pages are not supported
+//! in `rust_xlsxwriter`.
+//!
+//! ## Page Setup - Sheet
+//!
+//! The page Setup "Sheet" dialog looks like this:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/page_setup04.png">
+//!
+//! The equivalent `rust_xlsxwriter` methods are:
+//!
+//! 1. [`Worksheet::set_print_area()`]
+//! 2. [`Worksheet::set_repeat_rows()`]
+//! 3. [`Worksheet::set_repeat_columns()`]
+//! 4. [`Worksheet::set_print_gridlines()`]
+//! 5. [`Worksheet::set_print_black_and_white()`]
+//! 6. [`Worksheet::set_print_draft()`]
+//! 7. [`Worksheet::set_print_headings()`]
+//! 8. [`Worksheet::set_page_order()`]
+//!
+//!
+//! # Cell formatting
+//!
+//! In Excel the data in a worksheet cell is comprised of a type, a value and a
+//! format. When using `rust_xlsxwriter` the type is inferred and the value and
+//! format are generally written at the same time using methods like
+//! [`Worksheet::write_with_format()`]:
+//!
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_range_format2.rs
+//! #
+//! use rust_xlsxwriter::{Format, FormatBorder, Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     // Create a new Excel file object.
+//!     let mut workbook = Workbook::new();
+//!
+//!     // Add a worksheet to the workbook.
+//!     let worksheet = workbook.add_worksheet();
+//!
+//!     // Add a format.
+//!     let border = Format::new().set_border(FormatBorder::Thin);
+//!
+//!     // Some data to write.
+//!     let data = [
+//!         [10, 11, 12, 13, 14],
+//!         [20, 21, 22, 23, 24],
+//!         [30, 31, 32, 33, 34],
+//!     ];
+//!
+//!     // Write the data with formatting.
+//!     for (row_num, col) in data.iter().enumerate() {
+//!         for (col_num, cell) in col.iter().enumerate() {
+//!             let row_num = row_num as u32 + 1;
+//!             let col_num = col_num as u16 + 1;
+//!             worksheet.write_with_format(row_num, col_num, *cell, &border)?;
+//!         }
+//!     }
+//!
+//!     workbook.save("worksheet.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Which produces an output file like this:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/worksheet_set_range_format.png">
+//!
+//! However, it is sometimes easier to structure `rust_xlsxwriter` programs to
+//! write the data first and then add the formatting. To do that you can make
+//! use of the following worksheet methods:
+//!
+//! - [`Worksheet::set_cell_format()`]
+//! - [`Worksheet::set_range_format()`]
+//! - [`Worksheet::set_range_format_with_border()`]
+//!
+//! Here is an example with the same output as  the previous example where the
+//! data and formatting are handled separately:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_range_format.rs
+//! #
+//! use rust_xlsxwriter::{Format, FormatBorder, Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     // Create a new Excel file object.
+//!     let mut workbook = Workbook::new();
+//!
+//!     // Add a worksheet to the workbook.
+//!     let worksheet = workbook.add_worksheet();
+//!
+//!     // Add a format.
+//!     let border = Format::new().set_border(FormatBorder::Thin);
+//!
+//!     // Write an array of data.
+//!     let data = [
+//!         [10, 11, 12, 13, 14],
+//!         [20, 21, 22, 23, 24],
+//!         [30, 31, 32, 33, 34],
+//!     ];
+//!     worksheet.write_row_matrix(1, 1, data)?;
+//!
+//!     // Add formatting to the cells.
+//!     worksheet.set_range_format(1, 1, 3, 5, &border)?;
+//!
+//!     workbook.save("worksheet.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//! The methodology of separating the data and the formatting is particularly
+//! useful when you need to add a border to a range, since that can require up
+//! to 9 separate formats and tracking of the cell positions. Here is an example
+//! with [`Worksheet::set_range_format_with_border()`]:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_range_format_with_border.rs
+//! #
+//! use rust_xlsxwriter::{Format, FormatBorder, Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     // Create a new Excel file object.
+//!     let mut workbook = Workbook::new();
+//!
+//!     // Add a worksheet to the workbook.
+//!     let worksheet = workbook.add_worksheet();
+//!
+//!     // Add some formats.
+//!     let inner_border = Format::new().set_border(FormatBorder::Thin);
+//!     let outer_border = Format::new().set_border(FormatBorder::Double);
+//!
+//!     // Write an array of data.
+//!     let data = [
+//!         [10, 11, 12, 13, 14],
+//!         [20, 21, 22, 23, 24],
+//!         [30, 31, 32, 33, 34],
+//!     ];
+//!     worksheet.write_row_matrix(1, 1, data)?;
+//!
+//!     // Add formatting to the cells.
+//!     worksheet.set_range_format_with_border(1, 1, 3, 5, &inner_border, &outer_border)?;
+//!
+//!     workbook.save("worksheet.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Which produces an output file like this:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/worksheet_set_range_format_with_border.png">
+//!
+//!
+//! For use cases where the cell formatting changes based on cell values
+//! Conditional Formatting may be a better option (see [Working with Conditional
+//! Formats](../conditional_format/index.html)). Additionally, formatting a
+//! ranges of cells as a Worksheet Table may be a better option than simple cell
+//! formatting (see the [`Table`] section of the documentation).
+//!
+//!
+//! # Adding Headers and Footers
+//!
+//!
+//! Headers and footers can be added to worksheets using the
+//! [`Worksheet::set_header()`] and [`Worksheet::set_footer()`] methods.
+//!
+//! Headers and footers are generated using a string which is a combination of
+//! plain text and optional control characters defined by Excel.
+//!
+//! The available control characters are:
+//!
+//! | Control              | Category      | Description           |
+//! | -------------------- | ------------- | --------------------- |
+//! | `&L`                 | Alignment     | Left                  |
+//! | `&C`                 |               | Center                |
+//! | `&R`                 |               | Right                 |
+//! | `&[Page]`  or `&P`   | Information   | Page number           |
+//! | `&[Pages]` or `&N`   |               | Total number of pages |
+//! | `&[Date]`  or `&D`   |               | Date                  |
+//! | `&[Time]`  or `&T`   |               | Time                  |
+//! | `&[File]`  or `&F`   |               | File name             |
+//! | `&[Tab]`   or `&A`   |               | Worksheet name        |
+//! | `&[Path]`  or `&Z`   |               | Workbook path         |
+//! | `&fontsize`          | Font          | Font size             |
+//! | `&"font,style"`      |               | Font name and style   |
+//! | `&U`                 |               | Single underline      |
+//! | `&E`                 |               | Double underline      |
+//! | `&S`                 |               | Strikethrough         |
+//! | `&X`                 |               | Superscript           |
+//! | `&Y`                 |               | Subscript             |
+//! | `&[Picture]` or `&G` | Images        | Picture/image         |
+//! | `&&`                 | Miscellaneous | Literal ampersand &   |
+//!
+//! Some of the placeholder variables have a long version like `&[Page]` and a
+//! short version like `&P`. The longer version is displayed in the Excel
+//! interface but the shorter version is the way that it is stored in the file
+//! format. Either version is okay since `rust_xlsxwriter` will translate as
+//! required.
+//!
+//! Headers and footers have 3 edit areas to the left, center and right. Text
+//! can be aligned to these areas by prefixing the text with the control
+//! characters `&L`, `&C` and `&R`.
+//!
+//! For example:
+//!
+//! ```text
+//! worksheet.set_header("&LHello");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header01.png">
+//!
+//!
+//! ```text
+//! worksheet.set_header("&CHello");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header02.png">
+//!
+//! ```text
+//! worksheet.set_header("&RHello");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header03.png">
+//!
+//! You can also have text in each of the alignment areas:
+//!
+//! ```text
+//! worksheet.set_header("&LCiao&CBello&RCielo");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header04.png">
+//!
+//! The information control characters act as variables/templates that Excel
+//! will update/expand as the workbook or worksheet changes.
+//!
+//! ```text
+//! worksheet.set_header("&CPage &[Page] of &[Pages]");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header05.png">
+//!
+//!
+//! Times and dates are in the user's default format:
+//!
+//! ```text
+//! worksheet.set_header("&CUpdated at &[Time]");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header06.png">
+//!
+//! To insert an image in use `&[Picture]` or `&G`. You will also need to use
+//! [`Worksheet::set_header_image()`] to set the corresponding image:
+//!
+//! ```text
+//! let image = Image::new("examples/watermark.png")?;
+//!
+//! worksheet.set_header("&C&[Picture]");
+//! worksheet.set_header_image(&image, XlsxImagePosition::Center);
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header10.png">
+//!
+//! To include a single literal ampersand `&` in a header or footer you should
+//! use a double ampersand `&&`:
+//!
+//! ```text
+//! worksheet.set_header("&CCuriouser && Curiouser - Attorneys at Law");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header07.png">
+//!
+//! You can specify the font size of a section of the text by prefixing it with
+//! the control character `&n` where `n` is the font size:
+//!
+//! ```text
+//! worksheet.set_header("&C&20Big Hello");
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header08.png">
+//!
+//!
+//! You can specify the font of a section of the text by prefixing it with the
+//! control sequence `&"font,style"` where `fontname` is a font name such as
+//! Windows font descriptions: "Regular", "Italic", "Bold" or "Bold Italic":
+//! "Courier New" or "Times New Roman" and `style` is one of the standard
+//! Windows font descriptions like “Regular”, “Italic”, “Bold” or “Bold Italic”:
+//!
+//! ```text
+//! worksheet.set_header(r#"&C&"Courier New,Bold Italic"Hello"#);
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/header09.png">
+//!
+//! It is possible to combine all of these features together to create complex
+//! headers and footers. If you set up a complex header in Excel you can
+//! transfer it to `rust_xlsxwriter` by inspecting the string in the Excel file.
+//! For example the following shows how unzip and grep the Excel XML sub-files
+//! on a Linux system. The example uses libxml's xmllint to format the XML for
+//! clarity:
+//!
+//! ```bash
+//! $ unzip myfile.xlsm -d myfile
+//! $ xmllint --format `find myfile -name "*.xml" | xargs` | \
+//!     egrep "Header|Footer" | sed 's/&amp;/\&/g'
+//!
+//!  <headerFooter scaleWithDoc="0">
+//!    <oddHeader>&L&P</oddHeader>
+//!  </headerFooter>
+//! ```
+//!
+//! **Note**: Excel requires that the header or footer string be less than 256
+//! characters, including the control characters. Strings longer than this will
+//! not be written, and a warning will be output.
+//!
+//! # Autofitting column widths
+//!
+//! Column widths in a `rust_xlsxwriter` worksheet can be adjusted automatically
+//! using the [`Worksheet::autofit()`] method.
+//!
+//! There is no option in the xlsx file format that can be used to say "autofit
+//! columns on loading". Auto-fitting of columns is something that Excel does at
+//! runtime when it has access to all of the worksheet information as well as
+//! the Windows functions for calculating display areas based on fonts and
+//! formatting.
+//!
+//! As such [`Worksheet::autofit()`] simulates this behavior by calculating
+//! string widths using metrics taken from Excel. This isn't perfect but for
+//! most cases it should be sufficient and if not you can set your own widths,
+//! see below.
+//!
+//! The `Worksheet::autofit()` method ignores columns that already have an
+//! explicit column width set via [`Worksheet::set_column_width()`] or
+//! [`Worksheet::set_column_width_pixels()`] if it is greater than the
+//! calculated maximum width. Alternatively, calling these methods after
+//! `Worksheet::autofit()` will override the autofit value.
+//!
+//! **Note**, `Worksheet::autofit()` iterates through all the cells in a
+//! worksheet that have been populated with data and performs a length
+//! calculation on each one, so it can have a performance overhead for larger
+//! worksheets.
+//!
+//!
+//! # Working with worksheet tabs
+//!
+//! Worksheet tabs in Excel allow the user to differentiate between different
+//! worksheets.
+//!
+//! Worksheets in a workbook can be highlighted via the tab name, color,
+//! position or the fact that it is active when the user opens the workbook.
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/worksheet_tabs.png">
+//!
+//! The `rust_xlsxwriter` library provides a number of methods, explained below,
+//! to emulate this functionality.
+//!
+//! ## Worksheet names
+//!
+//! The worksheet name can be set with [`Worksheet::set_name()`]:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_name.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     let _worksheet1 = workbook.add_worksheet(); // Defaults to Sheet1
+//!     let _worksheet2 = workbook.add_worksheet().set_name("Foglio2");
+//!     let _worksheet3 = workbook.add_worksheet().set_name("Data");
+//!     let _worksheet4 = workbook.add_worksheet(); // Defaults to Sheet4
+//! #
+//! #     workbook.save("worksheets.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Which gives the following output:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/worksheet_set_name.png">
+//!
+//! Excel applies various rules to worksheet names such as:
+//!
+//! * The name must be less than 32 characters.
+//! * The name cannot be blank.
+//! * The name cannot contain any of the characters: `[ ] : * ? / \`.
+//! * The name cannot start or end with an apostrophe.
+//! * The name shouldn't be "History" (case-insensitive) since that is reserved
+//!   by Excel.
+//! * The name must not be a duplicate (case-insensitive) of another worksheet
+//!   name used in the workbook.
+//!
+//! The rules for worksheet names in Excel are explained in the [Microsoft
+//! Office documentation].
+//!
+//! ## Setting the active worksheet
+//!
+//! In Excel the visible worksheet in a group of worksheets is known as the
+//! active worksheet. Since only one worksheet is in the foreground at any one
+//! time there can only be one active worksheet.
+//!
+//! With `rust_xlsxwriter` the [`Worksheet::set_active()`] method is used to
+//! specify which worksheet is active. If no worksheet is set as the active
+//! worksheet then the default is to have the first one active, like in Excel.
+//!
+//! Here is an example of making the second worksheet active:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_active.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, Worksheet, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     let worksheet1 = Worksheet::new();
+//!     let worksheet3 = Worksheet::new();
+//!     let mut worksheet2 = Worksheet::new();
+//!
+//!     worksheet2.set_active(true);
+//!
+//!     workbook.push_worksheet(worksheet1);
+//!     workbook.push_worksheet(worksheet2);
+//!     workbook.push_worksheet(worksheet3);
+//! #
+//! #     workbook.save("worksheet.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Which gives the following output:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/worksheet_set_active.png">
+//!
+//! If you have a lot of worksheets then they may not all fit on the screen at
+//! the same time. In cases like that the active worksheet will still be visible
+//! but its tab may not be. In those rare cases you can use the
+//! [`Worksheet::set_first_tab()`] method to set the first visible tab (not
+//! worksheet) in a group of worksheets.
+//!
+//! ## Setting worksheet tab colors
+//!
+//! Another way of highlighting one or more worksheets in Excel is to set the
+//! tab color. With `rust_xlsxwriter` this is achieved with
+//! [`Worksheet::set_tab_color()`] and a [`Color`] color:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_tab_color.rs
+//! #
+//! # use rust_xlsxwriter::{Color, Workbook, Worksheet, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     let mut worksheet1 = Worksheet::new();
+//!     let mut worksheet2 = Worksheet::new();
+//!     let mut worksheet3 = Worksheet::new();
+//!     let mut worksheet4 = Worksheet::new();
+//!
+//!     worksheet1.set_tab_color(Color::Red);
+//!     worksheet2.set_tab_color(Color::Green);
+//!     worksheet3.set_tab_color(Color::RGB(0xFF9900));
+//!
+//!     // worksheet4 will have the default color.
+//!     worksheet4.set_active(true);
+//!
+//!     workbook.push_worksheet(worksheet1);
+//!     workbook.push_worksheet(worksheet2);
+//!     workbook.push_worksheet(worksheet3);
+//!     workbook.push_worksheet(worksheet4);
+//! #
+//! #     workbook.save("worksheet.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Which gives the following output:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/worksheet_set_tab_color.png">
+//!
+//! ## Hiding worksheets
+//!
+//! Sometimes it is desirable to hide worksheets if they contain a lot of
+//! intermediate data or calculations that end user doesn't need to see. With
+//! `rust_xlsxwriter` this is achieved with the [`Worksheet::set_hidden()`]
+//! method:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_hidden.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, Worksheet, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     let worksheet1 = Worksheet::new();
+//!     let worksheet3 = Worksheet::new();
+//!     let mut worksheet2 = Worksheet::new();
+//!
+//!     worksheet2.set_hidden(true);
+//!
+//!     workbook.push_worksheet(worksheet1);
+//!     workbook.push_worksheet(worksheet2);
+//!     workbook.push_worksheet(worksheet3);
+//! #
+//! #     workbook.save("worksheet.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Which gives the following output:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/worksheet_set_hidden.png">
+//!
+//! In Excel a hidden worksheet can not be activated or selected so
+//! [`Worksheet::set_hidden()`] is mutually exclusive with the
+//! [`Worksheet::set_active()`] and [`Worksheet::set_selected()`] methods. In
+//! addition, since the first worksheet will default to being the active
+//! worksheet, you cannot hide the first worksheet without activating another
+//! sheet.
+//!
+//!
+//! ## Selecting worksheets
+//!
+//! A selected worksheet has its tab highlighted. Selecting worksheets is a way
+//! of grouping them together so that, for example, several worksheets could be
+//! printed in one go.
+//!
+//! The [`Worksheet::set_selected()`] method is used to indicate that a
+//! worksheet is selected in a multi-sheet workbook.
+//!
+//! A worksheet that has been activated via the [`Worksheet::set_active()`]
+//! method will also appear as selected.
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_set_selected.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, Worksheet, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//!     let worksheet1 = Worksheet::new();
+//!     let worksheet3 = Worksheet::new();
+//!     let mut worksheet2 = Worksheet::new();
+//!
+//!     worksheet2.set_selected(true);
+//!
+//!     workbook.push_worksheet(worksheet1);
+//!     workbook.push_worksheet(worksheet2);
+//!     workbook.push_worksheet(worksheet3);
+//! #
+//! #     workbook.save("worksheet.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Which gives the following output. Note that Sheet 1 and Sheet2 are selected
+//! but Sheet3 isn't:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/worksheet_set_selected.png">
+//!
+//! [`Color`]: crate::Color
+//! [Microsoft Office documentation]:
+//!     https://support.office.com/en-ie/article/rename-a-worksheet-3f1f7148-ee83-404d-8ef0-9ff99fbad1f9
+//!
+//!
+//! # Worksheet protection
+//!
+//! It is occasionally necessary to lock all or parts of a worksheet to prevent
+//! unintentional editing. For example you may have certain fields that you want
+//! a user to update but have other instruction or calculation cells that you
+//! don't want modified.
+//!
+//! In Excel you do this by turning on the "*Review -> Sheet Protect*" option
+//! and in `rust_xlsxwriter` you can use the [`Worksheet::protect()`] method:
+//!
+//! ```
+//! # // This code is available in examples/app_worksheet_protection.rs
+//! #
+//! use rust_xlsxwriter::{Format, Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     // Create a new Excel file object.
+//!     let mut workbook = Workbook::new();
+//!
+//!     // Add a worksheet to the workbook.
+//!     let worksheet = workbook.add_worksheet();
+//!
+//!     // Create some format objects.
+//!     let unlocked = Format::new().set_unlocked();
+//!     let hidden = Format::new().set_hidden();
+//!
+//!     // Protect the worksheet to turn on cell locking.
+//!     worksheet.protect();
+//!
+//!     // Examples of cell locking and hiding.
+//!     worksheet.write_string(0, 0, "Cell B1 is locked. It cannot be edited.")?;
+//!     worksheet.write_formula(0, 1, "=1+2")?; // Locked by default.
+//!
+//!     worksheet.write_string(1, 0, "Cell B2 is unlocked. It can be edited.")?;
+//!     worksheet.write_formula_with_format(1, 1, "=1+2", &unlocked)?;
+//!
+//!     worksheet.write_string(2, 0, "Cell B3 is hidden. The formula isn't visible.")?;
+//!     worksheet.write_formula_with_format(2, 1, "=1+2", &hidden)?;
+//!
+//!     worksheet.write_string(4, 0, "Use Menu -> Review -> Unprotect Sheet")?;
+//!     worksheet.write_string(5, 0, "to remove the worksheet protection.")?;
+//!
+//!     worksheet.autofit();
+//!
+//!     // Save the file to disk.
+//!     workbook.save("worksheet_protection.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! The key parts of this example are:
+//!
+//! - In Excel all cells have a default "locked" format so once a worksheet is
+//!   protected the cells cannot be changed.
+//! - To allow some cells to be edited you can set a "unlocked" format.
+//! - You can also "hide" formulas in a protected worksheet.
+//!
+//! The output from the program will look like the following. Note that cell
+//! "B2", which was unlocked in the example, has been edited.
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/app_worksheet_protection.png">
+//!
+//! And this is the alert you get if you try to edit a locked cell.
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/protection_alert.png">
+//!
+//! ## Setting a protection password
+//!
+//! You can deter a user from turning off worksheet protection by adding a
+//! worksheet level password using the [`Worksheet::protect_with_password()`]
+//! method:
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_protect_with_password.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//! #     // Add a worksheet to the workbook.
+//! #     let worksheet = workbook.add_worksheet();
+//! #
+//!     // Protect the worksheet from modification.
+//!     worksheet.protect_with_password("abc123");
+//! #
+//! #     worksheet.write_string(0, 0, "Unlock the worksheet to edit the cell")?;
+//! #
+//! #     workbook.save("worksheet.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! This gives the following dialog when the user tries to unprotect the
+//! worksheet.
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/worksheet_protect_with_password.png">
+//!
+//! **Note**: Worksheet level passwords in Excel offer **very weak protection**.
+//! They do not encrypt your data and are very easy to deactivate. Full workbook
+//! encryption is not supported by `rust_xlsxwriter`. See the section on
+//! [Workbook Protection](#workbook-protection) below.
+//!
+//! ## Choosing which worksheet elements to protect
+//!
+//! Excel allows you to control which objects or actions on the worksheet that
+//! are protected. The default Excel options are:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/worksheet_protect_with_options1.png">
+//!
+//! Almost all the options are protected by default apart from "Select locked
+//! cells" and "Select unlocked cells".
+//!
+//! If you wish to turn on or off any of these options you can use the
+//! [`ProtectionOptions`] struct and the [`Worksheet::protect_with_options()`]
+//! method. For example:
+//!
+//!
+//! ```
+//! # // This code is available in examples/doc_worksheet_protect_with_options.rs
+//! #
+//! # use rust_xlsxwriter::{ProtectionOptions, Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//! #     // Add a worksheet to the workbook.
+//! #     let worksheet = workbook.add_worksheet();
+//! #
+//!     // Set some of the options and use the defaults for everything else.
+//!     let options = ProtectionOptions {
+//!         insert_columns: true,
+//!         insert_rows: true,
+//!         ..ProtectionOptions::default()
+//!     };
+//!
+//!     // Set the protection options.
+//!     worksheet.protect_with_options(&options);
+//! #
+//! #     worksheet.write_string(0, 0, "Unlock the worksheet to edit the cell")?;
+//! #
+//! #     workbook.save("worksheet.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! This changes the allowed options to:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/worksheet_protect_with_options2.png">
+//!
+//!
+//! ## Workbook protection
+//!
+//! As noted above `rust_xlsxwriter` doesn't provide workbook level
+//! encryption/protection and it is unlikely that it will be added.
+//!
+//! However, it is possible to encrypt an `rust_xlsxwriter` file using a third
+//! party open source tool called [msoffice-crypt]. This works for macOS, Linux
+//! and Windows:
+//!
+//! ```bash
+//! msoffice-crypt.exe -e -p password clear.xlsx encrypted.xlsx
+//! ```
+//!
+//!
+//! ## Read-only workbook
+//!
+//! If you wish to have an Excel workbook open as read-only by default then you
+//! can use the [`Workbook::read_only_recommended()`] method:
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_read_only_recommended.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #
+//! #     let _worksheet = workbook.add_worksheet();
+//! #
+//!     workbook.read_only_recommended();
+//! #
+//! #     workbook.save("workbook.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! This presents the user of the file with an option to open it in "read-only"
+//! mode. This means that any changes to the file can’t be saved back to the
+//! same file and must be saved to a new file.
+//!
+//! The alert looks like this:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/workbook_read_only_recommended.png">
+//!
+//!
+//! [msoffice-crypt]: https://github.com/herumi/msoffice
+//! [`ProtectionOptions`]: crate::ProtectionOptions
+//! [`Workbook::read_only_recommended()`]:
+//!     crate::Workbook::read_only_recommended
+//!
 #![warn(missing_docs)]
 mod tests;
 
@@ -17,8 +1199,6 @@ use std::sync::Arc;
 
 #[cfg(feature = "chrono")]
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-
-use regex::Regex;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -38,10 +1218,11 @@ use crate::styles::Styles;
 use crate::vml::VmlInfo;
 use crate::xmlwriter::{XMLWriter, XML_WRITE_ERROR};
 use crate::{
-    utility, Chart, ChartRangeCacheData, ChartRangeCacheDataType, Color, ConditionalFormat,
-    ExcelDateTime, FilterCondition, FilterCriteria, FilterData, FilterDataType,
-    HeaderImagePosition, Image, IntoColor, IntoExcelDateTime, ObjectMovement, ProtectionOptions,
-    Table, TableFunction, Url,
+    utility, Button, Chart, ChartEmptyCells, ChartRangeCacheData, ChartRangeCacheDataType, Color,
+    ConditionalFormat, DataValidation, DataValidationErrorStyle, DataValidationRuleInternal,
+    DataValidationType, ExcelDateTime, FilterCondition, FilterCriteria, FilterData, FilterDataType,
+    HeaderImagePosition, HyperlinkType, Image, IntoExcelDateTime, Note, ObjectMovement,
+    ProtectionOptions, Shape, Sparkline, SparklineType, Table, TableFunction, Url,
 };
 
 /// Integer type to represent a zero indexed row number. Excel's limit for rows
@@ -54,12 +1235,13 @@ pub type ColNum = u16;
 
 pub(crate) const COL_MAX: ColNum = 16_384;
 pub(crate) const ROW_MAX: RowNum = 1_048_576;
-const MAX_URL_LEN: usize = 2_080;
-const MAX_STRING_LEN: usize = 32_767;
-const MAX_PARAMETER_LEN: usize = 255;
+pub(crate) const NUM_IMAGE_FORMATS: usize = 5;
+pub(crate) const MAX_PARAMETER_LEN: usize = 255;
+pub(crate) const DEFAULT_COL_WIDTH_PIXELS: u32 = 64;
+pub(crate) const DEFAULT_ROW_HEIGHT_PIXELS: u32 = 20;
 const DEFAULT_COL_WIDTH: f64 = 8.43;
 const DEFAULT_ROW_HEIGHT: f64 = 15.0;
-pub(crate) const NUM_IMAGE_FORMATS: usize = 5;
+const MAX_STRING_LEN: usize = 32_767;
 const COLUMN_LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /// The `Worksheet` struct represents an Excel worksheet. It handles operations
@@ -147,19 +1329,36 @@ pub struct Worksheet {
     pub(crate) autofilter_area: String,
     pub(crate) xf_formats: Vec<Format>,
     pub(crate) dxf_formats: Vec<Format>,
+    pub(crate) has_vml: bool,
     pub(crate) has_hyperlink_style: bool,
-    pub(crate) table_relationships: Vec<(String, String, String)>,
-    pub(crate) hyperlink_relationships: Vec<(String, String, String)>,
-    pub(crate) drawing_object_relationships: Vec<(String, String, String)>,
-    pub(crate) drawing_relationships: Vec<(String, String, String)>,
-    pub(crate) vml_drawing_relationships: Vec<(String, String, String)>,
     pub(crate) images: BTreeMap<(RowNum, ColNum), Image>,
-    pub(crate) header_footer_vml_info: Vec<VmlInfo>,
+    pub(crate) buttons_vml_info: Vec<VmlInfo>,
+    pub(crate) comments_vml_info: Vec<VmlInfo>,
     pub(crate) drawing: Drawing,
     pub(crate) image_types: [bool; NUM_IMAGE_FORMATS],
     pub(crate) header_footer_images: [Option<Image>; 6],
     pub(crate) charts: BTreeMap<(RowNum, ColNum), Chart>,
+    pub(crate) buttons: BTreeMap<(RowNum, ColNum), Button>,
+    pub(crate) notes: BTreeMap<RowNum, BTreeMap<ColNum, Note>>,
+    pub(crate) shapes: BTreeMap<(RowNum, ColNum), Shape>,
     pub(crate) tables: Vec<Table>,
+    pub(crate) has_embedded_image_descriptions: bool,
+    pub(crate) embedded_images: Vec<Image>,
+    pub(crate) global_embedded_image_indices: Vec<u32>,
+    pub(crate) vba_codename: Option<String>,
+    pub(crate) note_authors: BTreeMap<String, usize>,
+    pub(crate) vml_data_id: String,
+    pub(crate) vml_shape_id: u32,
+
+    // These collections need to be reset on resave.
+    drawing_rel_ids: HashMap<String, u32>,
+    pub(crate) comment_relationships: Vec<(String, String, String)>,
+    pub(crate) drawing_object_relationships: Vec<(String, String, String)>,
+    pub(crate) drawing_relationships: Vec<(String, String, String)>,
+    pub(crate) header_footer_vml_info: Vec<VmlInfo>,
+    pub(crate) hyperlink_relationships: Vec<(String, String, String)>,
+    pub(crate) table_relationships: Vec<(String, String, String)>,
+    pub(crate) vml_drawing_relationships: Vec<(String, String, String)>,
 
     data_table: BTreeMap<RowNum, BTreeMap<ColNum, CellType>>,
     merged_ranges: Vec<CellRange>,
@@ -189,6 +1388,7 @@ pub struct Worksheet {
     print_options_changed: bool,
     center_horizontally: bool,
     center_vertically: bool,
+    screen_gridlines: bool,
     print_gridlines: bool,
     print_black_and_white: bool,
     print_draft: bool,
@@ -206,10 +1406,9 @@ pub struct Worksheet {
     margin_footer: f64,
     first_page_number: u16,
     default_result: Box<str>,
-    use_future_functions: bool,
     panes: Panes,
-    hyperlinks: BTreeMap<(RowNum, ColNum), Hyperlink>,
-    rel_count: u16,
+    hyperlinks: BTreeMap<(RowNum, ColNum), Url>,
+    rel_count: u32,
     protection_on: bool,
     protection_hash: u16,
     protection_options: ProtectionOptions,
@@ -223,9 +1422,16 @@ pub struct Worksheet {
     has_drawing_object_linkage: bool,
     cells_with_autofilter: HashSet<(RowNum, ColNum)>,
     conditional_formats: BTreeMap<String, Vec<Box<dyn ConditionalFormat + Send>>>,
+    data_validations: BTreeMap<String, DataValidation>,
     has_conditional_formats: bool,
     use_x14_extensions: bool,
     has_x14_conditional_formats: bool,
+    has_sparklines: bool,
+    sparklines: Vec<Sparkline>,
+    embedded_image_ids: HashMap<String, u32>,
+    show_all_notes: bool,
+    user_default_row_height: f64,
+    hide_unused_rows: bool,
 
     #[cfg(feature = "serde")]
     pub(crate) serializer_state: SerializerState,
@@ -249,7 +1455,7 @@ impl Worksheet {
     /// adding it to a workbook.
     ///
     /// There are two way of creating a worksheet object with `rust_xlsxwriter`:
-    /// via the [`workbook.add_worksheet()`](crate::Workbook::add_worksheet)
+    /// via the [`Workbook::add_worksheet()`](crate::Workbook::add_worksheet)
     /// method and via the [`Worksheet::new()`] constructor. The first method
     /// ties the worksheet to the workbook object that will write it
     /// automatically when the file is saved, whereas the second method creates
@@ -259,13 +1465,12 @@ impl Worksheet {
     ///
     /// When working with an independent worksheet object you will need to add
     /// it to a workbook using
-    /// [`workbook.push_worksheet`](crate::Workbook::push_worksheet) in order
+    /// [`Workbook::push_worksheet`](crate::Workbook::push_worksheet) in order
     /// for it to be written to a file.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Creating worksheets]
-    /// and working with the borrow checker.
-    ///
-    /// [Creating worksheets]: https://rustxlsxwriter.github.io/worksheet/create.html
+    /// See also the documentation on [Creating
+    /// worksheets](../worksheet/index.html#creating-worksheets) and working
+    /// with the borrow checker.
     ///
     /// # Examples
     ///
@@ -329,6 +1534,7 @@ impl Worksheet {
             visible: Visible::Default,
             first_sheet: false,
             uses_string_table: false,
+            has_vml: false,
             has_dynamic_arrays: false,
             print_area_defined_name: DefinedName::new(),
             repeat_row_cols_defined_name: DefinedName::new(),
@@ -365,6 +1571,7 @@ impl Worksheet {
             print_options_changed: false,
             center_horizontally: false,
             center_vertically: false,
+            screen_gridlines: true,
             print_gridlines: false,
             print_black_and_white: false,
             print_draft: false,
@@ -382,20 +1589,16 @@ impl Worksheet {
             margin_footer: 0.3,
             first_page_number: 0,
             default_result: Box::from("0"),
-            use_future_functions: false,
             panes,
             has_hyperlink_style: false,
             hyperlinks: BTreeMap::new(),
-            table_relationships: vec![],
-            hyperlink_relationships: vec![],
-            drawing_object_relationships: vec![],
-            drawing_relationships: vec![],
-            vml_drawing_relationships: vec![],
             images: BTreeMap::new(),
+            shapes: BTreeMap::new(),
             drawing: Drawing::new(),
             image_types: [false; NUM_IMAGE_FORMATS],
             header_footer_images: [None, None, None, None, None, None],
-            header_footer_vml_info: vec![],
+            buttons_vml_info: vec![],
+            comments_vml_info: vec![],
             rel_count: 0,
             protection_on: false,
             protection_hash: 0,
@@ -408,12 +1611,38 @@ impl Worksheet {
             filter_conditions: BTreeMap::new(),
             filter_automatic_off: false,
             charts: BTreeMap::new(),
+            buttons: BTreeMap::new(),
+            notes: BTreeMap::new(),
             has_drawing_object_linkage: false,
             cells_with_autofilter: HashSet::new(),
             conditional_formats: BTreeMap::new(),
+            data_validations: BTreeMap::new(),
             has_conditional_formats: false,
             use_x14_extensions: false,
             has_x14_conditional_formats: false,
+            embedded_images: vec![],
+            embedded_image_ids: HashMap::new(),
+            global_embedded_image_indices: vec![],
+            has_embedded_image_descriptions: false,
+            has_sparklines: false,
+            sparklines: vec![],
+            vba_codename: None,
+            note_authors: BTreeMap::from([("Author".to_string(), 0)]),
+            show_all_notes: false,
+            vml_data_id: String::new(),
+            vml_shape_id: 0,
+            user_default_row_height: DEFAULT_ROW_HEIGHT,
+            hide_unused_rows: false,
+
+            // These collections need to be reset on resave.
+            comment_relationships: vec![],
+            drawing_object_relationships: vec![],
+            drawing_rel_ids: HashMap::new(),
+            drawing_relationships: vec![],
+            header_footer_vml_info: vec![],
+            hyperlink_relationships: vec![],
+            table_relationships: vec![],
+            vml_drawing_relationships: vec![],
 
             #[cfg(feature = "serde")]
             serializer_state: SerializerState::new(),
@@ -428,18 +1657,18 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `name` - The worksheet name. It must follow the Excel rules, shown
+    /// - `name`: The worksheet name. It must follow the Excel rules, shown
     ///   below.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name cannot be
+    /// - [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name cannot be
     ///   blank.
-    /// * [`XlsxError::SheetnameLengthExceeded`] - Worksheet name exceeds
+    /// - [`XlsxError::SheetnameLengthExceeded`] - Worksheet name exceeds
     ///   Excel's limit of 31 characters.
-    /// * [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name
+    /// - [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name
     ///   cannot contain invalid characters: `[ ] : * ? / \`
-    /// * [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name
+    /// - [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name
     ///   cannot start or end with an apostrophe.
     ///
     /// # Examples
@@ -472,13 +1701,13 @@ impl Worksheet {
     ///
     /// The worksheet name must be a valid Excel worksheet name, i.e:
     ///
-    /// * The name is less than 32 characters.
-    /// * The name isn't blank.
-    /// * The name doesn't contain any of the characters: `[ ] : * ? / \`.
-    /// * The name doesn't start or end with an apostrophe.
-    /// * The name shouldn't be "History" (case-insensitive) since that is
+    /// - The name is less than 32 characters.
+    /// - The name isn't blank.
+    /// - The name doesn't contain any of the characters: `[ ] : * ? / \`.
+    /// - The name doesn't start or end with an apostrophe.
+    /// - The name shouldn't be "History" (case-insensitive) since that is
     ///   reserved by Excel.
-    /// * It must not be a duplicate of another worksheet name used in the
+    /// - It must not be a duplicate of another worksheet name used in the
     ///   workbook.
     ///
     /// The rules for worksheet names in Excel are explained in the [Microsoft
@@ -502,11 +1731,11 @@ impl Worksheet {
     ///
     /// Get the worksheet name that was set automatically such as Sheet1,
     /// Sheet2, etc., or that was set by the user using
-    /// [`set_name()`](Worksheet::set_name).
+    /// [`Worksheet::set_name()`].
     ///
     /// The worksheet name can be used to get a reference to a worksheet object
     /// using the
-    /// [`workbook.worksheet_from_name()`](crate::Workbook::worksheet_from_name)
+    /// [`Workbook::worksheet_from_name()`](crate::Workbook::worksheet_from_name)
     /// method.
     ///
     /// # Examples
@@ -528,7 +1757,7 @@ impl Worksheet {
     ///     // Try name() using a user defined sheet name.
     ///     let worksheet = workbook.add_worksheet().set_name("Data")?;
     ///     assert_eq!("Data", worksheet.name());
-    ///
+    /// #
     /// #    workbook.save("workbook.xlsx")?;
     /// #
     /// #    Ok(())
@@ -553,10 +1782,10 @@ impl Worksheet {
     /// - [`ExcelDateTime`].
     /// - [`Formula`].
     /// - [`Url`].
-    /// - [`Option<T>`]: If `T` is a supported type then write the [`Some`]
-    ///   value but ignore the [`None`].
-    /// - [`Result<T, E>`]: If `T` and `E` are supported types then write `T`
-    ///   or `E` depending on the result.
+    /// - [`Option<T>`]: If `T` is a supported type then the [`Some<T>`] value
+    ///   is written. The [`None`] value is ignored.
+    /// - [`Result<T, E>`]: If `T` and `E` are supported types then the `T` or
+    ///   `E` value is written depending on the result.
     ///
     /// If the `chrono` feature is enabled you can use the following types:
     ///
@@ -574,16 +1803,16 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - An type that implements the  [`IntoExcelData`] trait.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: An type that implements the  [`IntoExcelData`] trait.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     pub fn write(
@@ -609,10 +1838,10 @@ impl Worksheet {
     /// - [`ExcelDateTime`].
     /// - [`Formula`].
     /// - [`Url`].
-    /// - [`Option<T>`]: If `T` is a supported type then write the [`Some`]
-    ///   value or [`None`] as a formatted blank cell.
-    /// - [`Result<T, E>`]: If `T` and `E` are supported types then write `T`
-    ///   or `E` depending on the result.
+    /// - [`Option<T>`]: If `T` is a supported type then [`Some<T>`] is written
+    ///   as a formatted value or [`None`] is written as a formatted blank cell.
+    /// - [`Result<T, E>`]: If `T` and `E` are supported types then the `T` or
+    ///   `E` value is written depending on the result.
     ///
     /// If the `chrono` feature is enabled you can use the following types:
     ///
@@ -630,16 +1859,16 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - An type that implements the  [`IntoExcelData`] trait.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: An type that implements the  [`IntoExcelData`] trait.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     pub fn write_with_format<'a, T>(
@@ -647,8 +1876,8 @@ impl Worksheet {
         row: RowNum,
         col: ColNum,
         data: T,
-        format: &'a Format,
-    ) -> Result<&mut Worksheet, XlsxError>
+        format: &Format,
+    ) -> Result<&'a mut Worksheet, XlsxError>
     where
         T: IntoExcelData,
     {
@@ -664,22 +1893,22 @@ impl Worksheet {
     /// implement [`IntoIterator`] and that contain a data type that implements
     /// [`IntoExcelData`].
     ///
-    /// See also [`worksheet.write_column()`](Worksheet::write_column) for a
-    /// similar function that works in an orthogonal direction.
+    /// See also [`Worksheet::write_column()`] for a similar function that works
+    /// in an orthogonal direction.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - Arrays or array-like data structures that implement
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: Arrays or array-like data structures that implement
     ///   [`IntoIterator`] and that contain a data type that implements
     ///   [`IntoExcelData`].
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     /// # Examples
@@ -802,18 +2031,18 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - Arrays or array-like data structures that implement
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: Arrays or array-like data structures that implement
     ///   [`IntoIterator`] and that contain a data type that implements
     ///   [`IntoExcelData`].
-    /// * `format` - The [`Format`] property for the data.
+    /// - `format`: The [`Format`] property for the data.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     pub fn write_row_with_format<I>(
@@ -845,21 +2074,21 @@ impl Worksheet {
     /// implement [`IntoIterator`] and that contain a data type that implements
     /// [`IntoExcelData`].
     ///
-    /// See also [`worksheet.write_row()`](Worksheet::write_row) for a similar
-    /// function that works in an orthogonal direction.
+    /// See also [`Worksheet::write_row()`] for a similar function that works in
+    /// an orthogonal direction.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - Arrays or array-like data structures that implement
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: Arrays or array-like data structures that implement
     ///   [`IntoIterator`] and that contain a data type that implements
     ///   [`IntoExcelData`].
     ///
@@ -926,18 +2155,18 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - Arrays or array-like data structures that implement
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: Arrays or array-like data structures that implement
     ///   [`IntoIterator`] and that contain a data type that implements
     ///   [`IntoExcelData`].
-    /// * `format` - The [`Format`] property for the data.
+    /// - `format`: The [`Format`] property for the data.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     pub fn write_column_with_format<I>(
@@ -969,22 +2198,21 @@ impl Worksheet {
     /// implement [`IntoIterator`] and that contain a data type that implements
     /// [`IntoExcelData`].
     ///
-    /// See also
-    /// [`worksheet.write_column_matrix()`](Worksheet::write_column_matrix) for
-    /// a similar function that works in an orthogonal direction.
+    /// See also [`Worksheet::write_column_matrix()`] for a similar function
+    /// that works in an orthogonal direction.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - 2D arrays or array-like data structures that implement
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: 2D arrays or array-like data structures that implement
     ///   [`IntoIterator`] and that contain a data type that implements
     ///   [`IntoExcelData`].
     ///
@@ -1055,21 +2283,21 @@ impl Worksheet {
     /// implement [`IntoIterator`] and that contain a data type that implements
     /// [`IntoExcelData`].
     ///
-    /// See also [`worksheet.write_row_matrix()`](Worksheet::write_row_matrix)
-    /// for a similar function that works in an orthogonal direction.
+    /// See also [`Worksheet::write_row_matrix()`] for a similar function that
+    /// works in an orthogonal direction.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data` - 2D arrays or array-like data structures that implement
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data`: 2D arrays or array-like data structures that implement
     ///   [`IntoIterator`] and that contain a data type that implements
     ///   [`IntoExcelData`].
     ///
@@ -1135,7 +2363,7 @@ impl Worksheet {
     ///
     /// Write an unformatted number to a worksheet cell. To write a formatted
     /// number see the
-    /// [`write_number_with_format()`](Worksheet::write_number_with_format())
+    /// [`Worksheet::write_number_with_format()`]
     /// method below.
     ///
     /// All numerical values in Excel are stored as [IEEE 754] Doubles which are
@@ -1159,13 +2387,13 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `number` - The number to write to the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `number`: The number to write to the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -1198,7 +2426,7 @@ impl Worksheet {
     ///     // Note Excel normally ignores trailing decimal zeros
     ///     // when the number is unformatted.
     ///     worksheet.write_number(7, 0, 1234.50000)?;
-    ///
+    /// #
     /// #     workbook.save("numbers.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1242,20 +2470,19 @@ impl Worksheet {
     /// store the number with a loss of precision outside Excel's integer range
     /// of +/- 999,999,999,999,999 (15 digits).
     ///
-    /// Excel doesn't have handling for NaN or INF floating point numbers.
-    /// These will be stored as the strings "Nan", "INF", and "-INF" strings
-    /// instead.
+    /// Excel doesn't have handling for NaN or INF floating point numbers. These
+    /// will be stored as the strings "Nan", "INF", and "-INF" strings instead.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `number` - The number to write to the cell.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `number`: The number to write to the cell.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -1282,7 +2509,7 @@ impl Worksheet {
     ///     worksheet.write_number_with_format(1, 0, 1234.5, &currency_format)?;
     ///     worksheet.write_number_with_format(2, 0, 0.3300, &percentage_format)?;
     ///     worksheet.write_number_with_format(3, 0, 1234.5, &bold_italic_format)?;
-    ///
+    /// #
     /// #     workbook.save("numbers.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1291,7 +2518,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_write_number_with_format.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_write_number_with_format.png">
     ///
     ///
     pub fn write_number_with_format(
@@ -1308,9 +2536,7 @@ impl Worksheet {
     /// Write an unformatted string to a worksheet cell.
     ///
     /// Write an unformatted string to a worksheet cell. To write a formatted
-    /// string see the
-    /// [`write_string_with_format()`](Worksheet::write_string_with_format())
-    /// method below.
+    /// string see the [`Worksheet::write_string_with_format()`] method below.
     ///
     /// Excel only supports UTF-8 text in the xlsx file format. Any Rust UTF-8
     /// encoded string can be written with this method. The maximum string size
@@ -1318,15 +2544,15 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `string` - The string to write to the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `string`: The string to write to the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     /// # Examples
@@ -1394,16 +2620,16 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `string` - The string to write to the cell.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `string`: The string to write to the cell.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     /// # Examples
@@ -1430,7 +2656,7 @@ impl Worksheet {
     ///     worksheet.write_string_with_format(1, 0, "שָׁלוֹם",      &bold_format)?;
     ///     worksheet.write_string_with_format(2, 0, "नमस्ते",      &italic_format)?;
     ///     worksheet.write_string_with_format(3, 0, "こんにちは", &italic_format)?;
-    ///
+    /// #
     /// #     workbook.save("strings.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1457,13 +2683,13 @@ impl Worksheet {
     /// The `write_rich_string()` method is used to write strings with multiple
     /// font formats within the string. For example strings like "This is
     /// **bold** and this is *italic*". For strings with a single format you can
-    /// use the more common
-    /// [`write_string_with_format()`](Worksheet::write_string) method.
+    /// use the more common [`Worksheet::write_string_with_format()`] method.
     ///
     /// The basic rule is to break the string into pairs of [`Format`] and
     /// [`str`] fragments. So if we look at the above string again:
     ///
-    /// * This is **bold** and this is *italic*
+    /// &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This is **bold** and this is
+    /// *italic*
     ///
     /// The would be broken down into 4 fragments:
     ///
@@ -1495,23 +2721,22 @@ impl Worksheet {
     /// string with a yellow background. It is possible to have a yellow
     /// background for the entire cell or to format other cell properties using
     /// an additional [`Format`] object and the
-    /// [`write_rich_string_with_format()`](Worksheet::write_rich_string)
-    /// method, see below.
+    /// [`Worksheet::write_rich_string_with_format()`] method, see below.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `rich_string` - An array reference of `(&Format, &str)` tuples. See
-    ///   the Errors section below for the restrictions.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `rich_string`: An array reference of `(&Format, &str)` tuples. See the
+    ///   Errors section below for the restrictions.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::ParameterError`] - The following error cases will raise a
+    /// - [`XlsxError::ParameterError`] - The following error cases will raise a
     ///   `ParameterError` error:
     ///   * If any of the str elements is empty. Excel doesn't allow this.
     ///   * If there isn't at least one `(&Format, &str)` tuple element in the
@@ -1561,7 +2786,7 @@ impl Worksheet {
     ///         (&red,     &text[25..]),
     ///     ];
     ///     worksheet.write_rich_string(1, 0, &segments)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
@@ -1588,34 +2813,33 @@ impl Worksheet {
     /// Write a "rich" string with multiple formats to a worksheet cell, with an
     /// additional cell format.
     ///
-    /// The `write_rich_string_with_format()` method is used to write strings with multiple
-    /// font formats within the string. For example strings like "This is
-    /// **bold** and this is *italic*". It also allows you to add an additional
-    /// [`Format`] to the cell so that you can, for example, center the text in
-    /// the cell.
+    /// The `write_rich_string_with_format()` method is used to write strings
+    /// with multiple font formats within the string. For example strings like
+    /// "This is **bold** and this is *italic*". It also allows you to add an
+    /// additional [`Format`] to the cell so that you can, for example, center
+    /// the text in the cell.
     ///
     /// The syntax for creating and using `(&Format, &str)` tuples to create the
-    /// rich string is shown above in
-    /// [`write_rich_string()`](Worksheet::write_rich_string).
+    /// rich string is shown above in [`Worksheet::write_rich_string()`].
     ///
     /// For strings with a single format you can use the more common
-    /// [`write_string_with_format()`](Worksheet::write_string) method.
+    /// [`Worksheet::write_string_with_format()`] method.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `rich_string` - An array reference of `(&Format, &str)` tuples. See
-    ///   the Errors section below for the restrictions.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `rich_string`: An array reference of `(&Format, &str)` tuples. See the
+    ///   Errors section below for the restrictions.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::ParameterError`] - The following error cases will raise a
+    /// - [`XlsxError::ParameterError`] - The following error cases will raise a
     ///   `ParameterError` error:
     ///   * If any of the str elements is empty. Excel doesn't allow this.
     ///   * If there isn't at least one `(&Format, &str)` tuple element in the
@@ -1694,13 +2918,13 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `formula`: The formula to write to the cell as a string or [`Formula`].
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -1727,7 +2951,7 @@ impl Worksheet {
     ///     worksheet.write_formula(3, 0, r#"=IF(A3>1,"Yes", "No")"#)?;
     ///     worksheet.write_formula(4, 0, "=AVERAGE(1, 2, 3, 4)")?;
     ///     worksheet.write_formula(5, 0, r#"=DATEVALUE("1-Jan-2023")"#)?;
-    ///
+    /// #
     /// #     workbook.save("formulas.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1759,14 +2983,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `formula`: The formula to write to the cell as a string or [`Formula`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -1795,7 +3019,7 @@ impl Worksheet {
     ///     worksheet.write_formula_with_format(1, 0, "=A1*2", &bold_format)?;
     ///     worksheet.write_formula_with_format(2, 0, "=SIN(PI()/4)", &italic_format)?;
     ///     worksheet.write_formula_with_format(3, 0, "=AVERAGE(1, 2, 3, 4)", &italic_format)?;
-    ///
+    /// #
     /// #     workbook.save("formulas.xlsx")?;
     /// #
     /// #     Ok(())
@@ -1838,17 +3062,17 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `formula`: The formula to write to the cell as a string or [`Formula`].
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row or column is larger
+    /// - [`XlsxError::RowColumnOrderError`] - First row or column is larger
     ///   than the last row or column.
     ///
     /// # Examples
@@ -1876,7 +3100,7 @@ impl Worksheet {
     /// #
     ///     // Write an array formula that returns a single value.
     ///     worksheet.write_array_formula(0, 0, 0, 0, "{=SUM(B1:C1*B2:C2)}")?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
@@ -1934,18 +3158,18 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `formula`: The formula to write to the cell as a string or [`Formula`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
     ///
     /// # Examples
@@ -1976,7 +3200,7 @@ impl Worksheet {
     /// #
     ///     // Write an array formula that returns a single value.
     ///     worksheet.write_array_formula_with_format(0, 0, 0, 0, "{=SUM(B1:C1*B2:C2)}", &bold)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
@@ -2035,17 +3259,17 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `formula`: The formula to write to the cell as a string or [`Formula`].
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
     ///
     /// # Examples
@@ -2105,9 +3329,9 @@ impl Worksheet {
     /// Write a formatted dynamic array formula to a worksheet cell or range of
     /// cells.
     ///
-    /// The `write_dynamic_array_formula_with_format()` function writes an Excel 365 dynamic
-    /// array formula to a cell range. Some examples of functions that return
-    /// dynamic arrays are:
+    /// The `write_dynamic_array_formula_with_format()` function writes an Excel
+    /// 365 dynamic array formula to a cell range. Some examples of functions
+    /// that return dynamic arrays are:
     ///
     /// - `FILTER()`
     /// - `RANDARRAY()`
@@ -2125,8 +3349,8 @@ impl Worksheet {
     /// range that the return values will be written to with the `first_` and
     /// `last_` parameters. If the array formula returns a single value then the
     /// first_ and last_ parameters should be the same, as shown in the example
-    /// below or use the
-    /// [`write_dynamic_formula_with_format()`](Worksheet::write_dynamic_formula_with_format()) method.
+    /// below or use the [`Worksheet::write_dynamic_formula_with_format()`]
+    /// method.
     ///
     /// For more details see the `rust_xlsxwriter` documentation section on
     /// [Dynamic Array support] and the [Dynamic array formulas] example.
@@ -2138,18 +3362,19 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `formula`: The formula to write to the cell as a string or
+    ///   [`Formula`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row or column is larger
+    /// - [`XlsxError::RowColumnOrderError`] - First row or column is larger
     ///   than the last row or column.
     ///
     /// # Examples
@@ -2212,11 +3437,11 @@ impl Worksheet {
     /// Write a dynamic formula to a worksheet cell.
     ///
     /// The `write_dynamic_formula()` method is similar to the
-    /// [`write_dynamic_array_formula()`](Worksheet::write_dynamic_array_formula())
-    /// method, shown above, except that it writes a dynamic array formula to a
-    /// single cell, rather than a range. This is a syntactic shortcut since the
-    /// array range isn't generally known for a dynamic range and specifying the
-    /// initial cell is sufficient for Excel.
+    /// [`Worksheet::write_dynamic_array_formula()`] method, shown above, except
+    /// that it writes a dynamic array formula to a single cell, rather than a
+    /// range. This is a syntactic shortcut since the array range isn't
+    /// generally known for a dynamic range and specifying the initial cell is
+    /// sufficient for Excel.
     ///
     /// For more details see the `rust_xlsxwriter` documentation section on
     /// [Dynamic Array support] and the [Dynamic array formulas] example.
@@ -2228,13 +3453,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `formula`: The formula to write to the cell as a string or
+    ///   [`Formula`].
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     pub fn write_dynamic_formula(
@@ -2250,11 +3476,11 @@ impl Worksheet {
     /// Write a formatted dynamic formula to a worksheet cell.
     ///
     /// The `write_dynamic_formula_with_format()` method is similar to the
-    /// [`write_dynamic_array_formula_with_format()`](Worksheet::write_dynamic_array_formula_with_format())
-    /// method, shown above, except that it writes a dynamic array formula to a
-    /// single cell, rather than a range. This is a syntactic shortcut since the
-    /// array range isn't generally known for a dynamic range and specifying the
-    /// initial cell is sufficient for Excel.
+    /// [`Worksheet::write_dynamic_array_formula_with_format()`] method, shown
+    /// above, except that it writes a dynamic array formula to a single cell,
+    /// rather than a range. This is a syntactic shortcut since the array range
+    /// isn't generally known for a dynamic range and specifying the initial
+    /// cell is sufficient for Excel.
     ///
     /// For more details see the `rust_xlsxwriter` documentation section on
     /// [Dynamic Array support] and the [Dynamic array formulas] example.
@@ -2266,14 +3492,15 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `formula` - The formula to write to the cell as a string or [`Formula`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `formula`: The formula to write to the cell as a string or
+    ///   [`Formula`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     pub fn write_dynamic_formula_with_format(
@@ -2302,13 +3529,13 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -2336,7 +3563,7 @@ impl Worksheet {
     ///
     ///     worksheet.write_blank(1, 1, &format1)?;
     ///     worksheet.write_blank(3, 1, &format2)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -2409,26 +3636,28 @@ impl Worksheet {
     ///
     /// For other variants of this function see:
     ///
-    /// * [`write_url_with_text()`](Worksheet::write_url_with_text()) to add
-    ///   alternative text to the link.
-    /// * [`write_url_with_format()`](Worksheet::write_url_with_format()) to add
-    ///   an alternative format to the link.
+    /// - [`Worksheet::write_url_with_text()`] to add alternative text to the
+    ///   link.
+    /// - [`Worksheet::write_url_with_format()`] to add an alternative format to
+    ///   the link.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `string` - The url string to write to the cell.
-    /// * `link` - The url/hyperlink to write to the cell as a string or [`Url`].
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `string`: The url string to write to the cell.
+    /// - `link`: The url/hyperlink to write to the cell as a string or [`Url`].
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
+    /// - [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
     ///   Excel's limit of 2080 characters.
-    /// * [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
+    /// - [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
     ///   the supported types listed above.
+    /// - [`XlsxError::ParameterError`] - [`Url`] mouseover tool tip exceeds
+    ///   Excel's limit of 255 characters.
     ///
     /// # Examples
     ///
@@ -2471,7 +3700,7 @@ impl Worksheet {
     ///     let worksheet2 = workbook.add_worksheet();
     ///     worksheet2.write_string(3, 2, "Here I am")?;
     ///     worksheet2.write_url_with_text(4, 2, "internal:Sheet1!A6", "Go back")?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("hyperlinks.xlsx")?;
     /// #
@@ -2518,7 +3747,7 @@ impl Worksheet {
         link: impl Into<Url>,
     ) -> Result<&mut Worksheet, XlsxError> {
         // Store the cell data.
-        self.store_url(row, col, link.into(), None)
+        self.store_url(row, col, &link.into(), None)
     }
 
     /// Write a url/hyperlink to a worksheet cell with an alternative text.
@@ -2526,29 +3755,30 @@ impl Worksheet {
     /// Write a url/hyperlink to a worksheet cell with an alternative, user
     /// friendly, text and the default Excel "Hyperlink" cell style.
     ///
-    /// This method is similar to [`write_url()`](Worksheet::write_url())  except
-    /// that you can specify an alternative string for the url. For example you
-    /// could have a cell contain the link [Learn
-    /// Rust](https://www.rust-lang.org) instead of the raw link
-    /// <https://www.rust-lang.org>.
+    /// This method is similar to [`Worksheet::write_url()`]  except that you
+    /// can specify an alternative string for the url. For example you could
+    /// have a cell contain the link [Learn Rust](https://www.rust-lang.org)
+    /// instead of the raw link <https://www.rust-lang.org>.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `link` - The url/hyperlink to write to the cell as a string or [`Url`].
-    /// * `text` - The alternative string to write to the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `link`: The url/hyperlink to write to the cell as a string or [`Url`].
+    /// - `text`: The alternative string to write to the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - Text string exceeds Excel's
+    /// - [`XlsxError::MaxStringLengthExceeded`] - Text string exceeds Excel's
     ///   limit of 32,767 characters.
-    /// * [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
+    /// - [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
     ///   Excel's limit of 2080 characters.
-    /// * [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
+    /// - [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
     ///   the supported types listed above.
+    /// - [`XlsxError::ParameterError`] - [`Url`] mouseover tool tip exceeds
+    ///   Excel's limit of 255 characters.
     ///
     /// # Examples
     ///
@@ -2579,7 +3809,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_write_url_with_text.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_write_url_with_text.png">
     ///
     /// You can also write the url using a [`Url`] struct:
     ///
@@ -2614,7 +3845,7 @@ impl Worksheet {
     ) -> Result<&mut Worksheet, XlsxError> {
         // Store the cell data.
         let link = link.into().set_text(text.into());
-        self.store_url(row, col, link, None)
+        self.store_url(row, col, &link, None)
     }
 
     /// Write a url/hyperlink to a worksheet cell with a user defined format
@@ -2622,28 +3853,31 @@ impl Worksheet {
     /// Write a url/hyperlink to a worksheet cell with a user defined format
     /// instead of the default Excel "Hyperlink" cell style.
     ///
-    /// This method is similar to [`write_url()`](Worksheet::write_url())
-    /// except that you can specify an alternative format for the url.
+    /// This method is similar to [`Worksheet::write_url()`] except that you can
+    /// specify an alternative format for the url.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `link` - The url/hyperlink to write to the cell as a string or [`Url`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `link`: The url/hyperlink to write to the cell as a string or [`Url`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
+    /// - [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
     ///   Excel's limit of 2080 characters.
-    /// * [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
+    /// - [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
     ///   the supported types listed above.
+    /// - [`XlsxError::ParameterError`] - [`Url`] mouseover tool tip exceeds
+    ///   Excel's limit of 255 characters.
     ///
     /// # Examples
     ///
-    /// The following example demonstrates writing a url with alternative format.
+    /// The following example demonstrates writing a url with alternative
+    /// format.
     ///
     /// ```
     /// # // This code is available in examples/doc_worksheet_write_url_with_format.rs
@@ -2664,7 +3898,7 @@ impl Worksheet {
     ///
     ///     // Write a url with an alternative format.
     ///     worksheet.write_url_with_format(0, 0, "https://www.rust-lang.org", &link_format)?;
-    ///
+    /// #
     /// #    // Save the file to disk.
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
@@ -2674,7 +3908,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_write_url_with_format.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_write_url_with_format.png">
     ///
     pub fn write_url_with_format(
         &mut self,
@@ -2684,40 +3919,43 @@ impl Worksheet {
         format: &Format,
     ) -> Result<&mut Worksheet, XlsxError> {
         // Store the cell data.
-        self.store_url(row, col, link.into(), Some(format))
+        self.store_url(row, col, &link.into(), Some(format))
     }
 
     #[doc(hidden)] // Hide the docs since this is more easily done with a Url struct.
     ///
     /// Write a url/hyperlink to a worksheet cell with various options
     ///
-    /// This method is similar to [`write_url()`](Worksheet::write_url()) and
-    /// variant methods except that you can also add a screen tip message, if
-    /// required.
+    /// This method is similar to [`Worksheet::write_url()`] and variant methods
+    /// except that you can also add a screen tip message, if required.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `link` - The url/hyperlink to write to the cell as a string or [`Url`].
-    /// * `text` - The alternative string to write to the cell.
-    /// * `tip` - The screen tip string to display when the user hovers over the
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `link`: The url/hyperlink to write to the cell as a string or [`Url`].
+    /// - `text`: The alternative string to write to the cell.
+    /// - `tip`: The screen tip string to display when the user hovers over the
     ///   url cell.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// The `text` and `tip` parameters are optional and can be set as a blank
-    /// string. The `format` is an `Option<>` parameter and can be specified as `None` if not required.
+    /// string. The `format` is an `Option<>` parameter and can be specified as
+    /// `None` if not required.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - Text string exceeds Excel's
+    /// - [`XlsxError::MaxStringLengthExceeded`] - Text string exceeds Excel's
     ///   limit of 32,767 characters.
-    /// * [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
-    ///   Excel's limit of 2080 characters or the screen tip exceed 255 characters.
-    /// * [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
+    /// - [`XlsxError::MaxUrlLengthExceeded`] - URL string or anchor exceeds
+    ///   Excel's limit of 2080 characters or the screen tip exceed 255
+    ///   characters.
+    /// - [`XlsxError::UnknownUrlType`] - The URL has an unknown URI type. See
     ///   the supported types listed above.
+    /// - [`XlsxError::ParameterError`] - [`Url`] mouseover tool tip exceeds
+    ///   Excel's limit of 255 characters.
     ///
     pub fn write_url_with_options(
         &mut self,
@@ -2730,7 +3968,7 @@ impl Worksheet {
     ) -> Result<&mut Worksheet, XlsxError> {
         // Store the cell data.
         let link = link.into().set_text(text.into()).set_tip(tip.into());
-        self.store_url(row, col, link, format)
+        self.store_url(row, col, &link, format)
     }
 
     /// Write a formatted date and/or time to a worksheet cell.
@@ -2758,14 +3996,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `datetime` - A date/time instance that implements [`IntoExcelDateTime`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `datetime`: A date/time instance that implements [`IntoExcelDateTime`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -2785,11 +4023,11 @@ impl Worksheet {
     ///     let worksheet = workbook.add_worksheet();
     ///
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh::mm");
-    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh::mm");
-    ///     let format3 = Format::new().set_num_format("yyyy-mm-ddThh::mm:ss");
-    ///     let format4 = Format::new().set_num_format("ddd dd mmm yyyy hh::mm");
-    ///     let format5 = Format::new().set_num_format("dddd, mmmm dd, yyyy hh::mm");
+    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh:mm");
+    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh:mm");
+    ///     let format3 = Format::new().set_num_format("yyyy-mm-ddThh:mm:ss");
+    ///     let format4 = Format::new().set_num_format("ddd dd mmm yyyy hh:mm");
+    ///     let format5 = Format::new().set_num_format("dddd, mmmm dd, yyyy hh:mm");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -2803,7 +4041,7 @@ impl Worksheet {
     ///     worksheet.write_datetime_with_format(2, 0, &datetime, &format3)?;
     ///     worksheet.write_datetime_with_format(3, 0, &datetime, &format4)?;
     ///     worksheet.write_datetime_with_format(4, 0, &datetime, &format5)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -2846,7 +4084,7 @@ impl Worksheet {
     ///     worksheet.write_datetime_with_format(2, 0, &date, &format3)?;
     ///     worksheet.write_datetime_with_format(3, 0, &date, &format4)?;
     ///     worksheet.write_datetime_with_format(4, 0, &date, &format5)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -2871,11 +4109,11 @@ impl Worksheet {
     ///     let worksheet = workbook.add_worksheet();
     ///
     ///     // Create some formats to use with the times below.
-    ///     let format1 = Format::new().set_num_format("h::mm");
-    ///     let format2 = Format::new().set_num_format("hh::mm");
-    ///     let format3 = Format::new().set_num_format("hh::mm:ss");
-    ///     let format4 = Format::new().set_num_format("hh::mm:ss.000");
-    ///     let format5 = Format::new().set_num_format("h::mm AM/PM");
+    ///     let format1 = Format::new().set_num_format("h:mm");
+    ///     let format2 = Format::new().set_num_format("hh:mm");
+    ///     let format3 = Format::new().set_num_format("hh:mm:ss");
+    ///     let format4 = Format::new().set_num_format("hh:mm:ss.000");
+    ///     let format5 = Format::new().set_num_format("h:mm AM/PM");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -2889,7 +4127,7 @@ impl Worksheet {
     ///     worksheet.write_datetime_with_format(2, 0, &time, &format3)?;
     ///     worksheet.write_datetime_with_format(3, 0, &time, &format4)?;
     ///     worksheet.write_datetime_with_format(4, 0, &time, &format5)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -2943,14 +4181,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `datetime` - A date/time instance that implements
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `datetime`: A date/time instance that implements
     ///   [`IntoExcelDateTime`].
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -2970,9 +4208,9 @@ impl Worksheet {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     // Create some formats to use with the datetimes below.
-    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh::mm");
-    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh::mm");
-    ///     let format3 = Format::new().set_num_format("yyyy-mm-ddThh::mm:ss");
+    ///     let format1 = Format::new().set_num_format("dd/mm/yyyy hh:mm");
+    ///     let format2 = Format::new().set_num_format("mm/dd/yyyy hh:mm");
+    ///     let format3 = Format::new().set_num_format("yyyy-mm-ddThh:mm:ss");
     ///
     ///     // Set the column formats.
     ///     worksheet.set_column_format(0, &format1)?;
@@ -3042,14 +4280,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `date` - A date/time instance that implements [`IntoExcelDateTime`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `date`: A date/time instance that implements [`IntoExcelDateTime`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -3087,7 +4325,7 @@ impl Worksheet {
     ///     worksheet.write_date_with_format(2, 0, &date, &format3)?;
     ///     worksheet.write_date_with_format(3, 0, &date, &format4)?;
     ///     worksheet.write_date_with_format(4, 0, &date, &format5)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -3137,14 +4375,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `time` - A date/time instance that implements [`IntoExcelDateTime`].
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `time`: A date/time instance that implements [`IntoExcelDateTime`].
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -3164,11 +4402,11 @@ impl Worksheet {
     ///     let worksheet = workbook.add_worksheet();
     ///
     ///     // Create some formats to use with the times below.
-    ///     let format1 = Format::new().set_num_format("h::mm");
-    ///     let format2 = Format::new().set_num_format("hh::mm");
-    ///     let format3 = Format::new().set_num_format("hh::mm:ss");
-    ///     let format4 = Format::new().set_num_format("hh::mm:ss.000");
-    ///     let format5 = Format::new().set_num_format("h::mm AM/PM");
+    ///     let format1 = Format::new().set_num_format("h:mm");
+    ///     let format2 = Format::new().set_num_format("hh:mm");
+    ///     let format3 = Format::new().set_num_format("hh:mm:ss");
+    ///     let format4 = Format::new().set_num_format("hh:mm:ss.000");
+    ///     let format5 = Format::new().set_num_format("h:mm AM/PM");
     ///
     ///     // Set the column width for clarity.
     ///     worksheet.set_column_width(0, 30)?;
@@ -3182,7 +4420,7 @@ impl Worksheet {
     ///     worksheet.write_time_with_format(2, 0, &time, &format3)?;
     ///     worksheet.write_time_with_format(3, 0, &time, &format4)?;
     ///     worksheet.write_time_with_format(4, 0, &time, &format5)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -3212,13 +4450,13 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `boolean` - The boolean value to write to the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `boolean`: The boolean value to write to the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -3238,7 +4476,7 @@ impl Worksheet {
     ///
     ///     worksheet.write_boolean(0, 0, true)?;
     ///     worksheet.write_boolean(1, 0, false)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -3268,14 +4506,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `boolean` - The boolean value to write to the cell.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `boolean`: The boolean value to write to the cell.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -3298,7 +4536,7 @@ impl Worksheet {
     ///
     ///     worksheet.write_boolean_with_format(0, 0, true, &bold)?;
     ///     worksheet.write_boolean_with_format(1, 0, false, &bold)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -3334,23 +4572,23 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
-    /// * `string` - The string to write to the cell. Other types can also be
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `string`: The string to write to the cell. Other types can also be
     ///   handled. See the documentation above and the example below.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
-    /// * [`XlsxError::MergeRangeSingleCell`] - A merge range cannot be a single
+    /// - [`XlsxError::MergeRangeSingleCell`] - A merge range cannot be a single
     ///   cell in Excel.
-    /// * [`XlsxError::MergeRangeOverlaps`] - The merge range overlaps a
+    /// - [`XlsxError::MergeRangeOverlaps`] - The merge range overlaps a
     ///   previous merge range.
     ///
     ///
@@ -3394,7 +4632,7 @@ impl Worksheet {
     ///         .set_background_color(Color::Silver);
     ///
     ///     worksheet.merge_range(7, 1, 8, 3, "Merged cells", &format)?;
-    ///
+    /// #
     /// #    // Save the file to disk.
     /// #     workbook.save("merge_range.xlsx")?;
     /// #
@@ -3483,7 +4721,7 @@ impl Worksheet {
     ///
     /// - PNG
     /// - JPG
-    /// - GIF: The image can be an animated gif in more resent versions of
+    /// - GIF: The image can be an animated gif in more recent versions of
     ///   Excel.
     /// - BMP: BMP images are only supported for backward compatibility. In
     ///   general it is best to avoid BMP images since they are not compressed.
@@ -3504,13 +4742,13 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `image` - The [`Image`] to insert into the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `image`: The [`Image`] to insert into the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -3563,29 +4801,29 @@ impl Worksheet {
     /// Add an image to a worksheet at a pixel offset within a cell location.
     /// The image should be encapsulated in an [`Image`] object.
     ///
-    /// This method is similar to [`insert_image()`](Worksheet::insert_image)
-    /// except that the image can be offset from the top left of the cell.
+    /// This method is similar to [`Worksheet::insert_image()`] except that the
+    /// image can be offset from the top left of the cell.
     ///
     /// Note, it is possible to offset the image outside the target cell if
     /// required.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `image` - The [`Image`] to insert into the cell.
-    /// * `x_offset`: The horizontal offset within the cell in pixels.
-    /// * `y_offset`: The vertical offset within the cell in pixels.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `image`: The [`Image`] to insert into the cell.
+    /// - `x_offset`: The horizontal offset within the cell in pixels.
+    /// - `y_offset`: The vertical offset within the cell in pixels.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
     ///
-    /// This example shows how to add an image to a worksheet at an offset within
-    /// the cell.
+    /// This example shows how to add an image to a worksheet at an offset
+    /// within the cell.
     ///
     /// ```
     /// # // This code is available in examples/doc_worksheet_insert_image_with_offset.rs
@@ -3604,7 +4842,7 @@ impl Worksheet {
     ///
     ///     // Insert the image at an offset.
     ///     worksheet.insert_image_with_offset(1, 2, &image, 10, 5)?;
-    ///
+    /// #
     /// #     // Save the file to disk.
     /// #     workbook.save("image.xlsx")?;
     /// #
@@ -3614,7 +4852,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_insert_image_with_offset.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_insert_image_with_offset.png">
     ///
     pub fn insert_image_with_offset(
         &mut self,
@@ -3638,15 +4877,136 @@ impl Worksheet {
         Ok(self)
     }
 
+    /// Embed an image to a worksheet and fit it to a cell.
+    ///
+    /// This method can be used to embed a image into a worksheet cell and have
+    /// the image automatically scale to the width and height of the cell. The
+    /// X/Y scaling of the image is preserved but the size of the image is
+    /// adjusted to fit the largest possible width or height depending on the
+    /// cell dimensions.
+    ///
+    /// This is the equivalent of Excel's menu option to insert an image using
+    /// the option to "Place in Cell" which is only available in Excel 365
+    /// versions from 2023 onwards. For older versions of Excel a `#VALUE!`
+    /// error is displayed.
+    ///
+    /// The image should be encapsulated in an [`Image`] object. See
+    /// [`Worksheet::insert_image()`] above for details on the supported image
+    /// types.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `image`: The [`Image`] to insert into the cell.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    ///
+    /// # Examples
+    ///
+    /// An example of embedding images into a worksheet cells using
+    /// `rust_xlsxwriter`. This image scales to size of the cell and moves with
+    /// it.
+    ///
+    /// This is the equivalent of Excel's menu option to insert an image using
+    /// the option to "Place in Cell".
+    ///
+    /// ```
+    /// # // This code is available in examples/app_embedded_images.rs
+    /// #
+    /// use rust_xlsxwriter::{Image, Workbook, XlsxError};
+    ///
+    /// fn main() -> Result<(), XlsxError> {
+    ///     // Create a new Excel file object.
+    ///     let mut workbook = Workbook::new();
+    ///
+    ///     // Add a worksheet to the workbook.
+    ///     let worksheet = workbook.add_worksheet();
+    ///
+    ///     // Create a new image object.
+    ///     let image = Image::new("examples/rust_logo.png")?;
+    ///
+    ///     // Widen the first column to make the caption clearer.
+    ///     worksheet.set_column_width(0, 30)?;
+    ///     worksheet.write(0, 0, "Embed images that scale to the cell size")?;
+    ///
+    ///     // Change cell widths/heights to demonstrate the image differences.
+    ///     worksheet.set_column_width(1, 14)?;
+    ///     worksheet.set_row_height(1, 60)?;
+    ///     worksheet.set_row_height(3, 90)?;
+    ///
+    ///     // Embed the images in cells of different widths/heights.
+    ///     worksheet.embed_image(1, 1, &image)?;
+    ///     worksheet.embed_image(3, 1, &image)?;
+    ///
+    ///     // Save the file to disk.
+    ///     workbook.save("embedded_images.xlsx")?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/embedded_images.png">
+    ///
+    pub fn embed_image(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        image: &Image,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        self.store_embedded_image(row, col, image, None)
+    }
+
+    /// Embed an image to a worksheet and fit it to a formatted cell.
+    ///
+    /// This method can be used to embed a image into a worksheet cell and have
+    /// the image automatically scale to the width and height of the cell. This
+    /// is similar to the [`Worksheet::embed_image()`] above but it allows you
+    /// to add an additional cell format using [`Format`]. This is occasionally
+    /// useful if you want to set a cell border around the image or a cell
+    /// background color.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `image`: The [`Image`] to insert into the cell.
+    /// - `format`: The [`Format`] property for the cell.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    ///
+    pub fn embed_image_with_format(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        image: &Image,
+        format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        self.store_embedded_image(row, col, image, Some(format))
+    }
+
     /// Add an image to a worksheet and fit it to a cell.
     ///
     /// Add an image to a worksheet and scale it so that it fits in a cell. This
-    /// method can be useful when creating a product spreadsheet with a column
-    /// of images for each product. The image should be encapsulated in an
-    /// [`Image`] object. See [`insert_image()`](Worksheet::insert_image) above
-    /// for details on the supported image types. The scaling calculation for
-    /// this method takes into account the DPI of the image in the same way that
-    /// Excel does.
+    /// is similar in effect to [`Worksheet::embed_image()`] but in Excel's
+    /// terminology it inserts the image placed *over* the cell instead of *in*
+    /// the cell. The only advantage of this method is that the output file will
+    /// work will all versions of Excel. The `Worksheet::embed_image()` method
+    /// only works with versions of Excel from 2003 onwards.
+    ///
+    /// This method can be useful when creating a product spreadsheet with a
+    /// column of images for each product. The image should be encapsulated in
+    /// an [`Image`] object. See [`Worksheet::insert_image()`] above for details
+    /// on the supported image types. The scaling calculation for this method
+    /// takes into account the DPI of the image in the same way that Excel does.
     ///
     /// There are two options, which are controlled by the `keep_aspect_ratio`
     /// parameter. The image can be scaled vertically and horizontally to occupy
@@ -3656,24 +5016,24 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `image` - The [`Image`] to insert into the cell.
-    /// * `keep_aspect_ratio` - Boolean value to maintain the aspect ratio of
-    ///   the image if `true` or scale independently in the horizontal and
-    ///   vertical directions if `false`.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `image`: The [`Image`] to insert into the cell.
+    /// - `keep_aspect_ratio`: Boolean value to maintain the aspect ratio of the
+    ///   image if `true` or scale independently in the horizontal and vertical
+    ///   directions if `false`.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
     ///
-    /// An example of inserting images into a worksheet using `rust_xlsxwriter` so
-    /// that they are scaled to a cell. This approach can be useful if you are
-    /// building up a spreadsheet of products with a column of images for each
-    /// product.
+    /// An example of inserting images into a worksheet using `rust_xlsxwriter`
+    /// so that they are scaled to a cell. This approach can be useful if you
+    /// are building up a spreadsheet of products with a column of images for
+    /// each product.
     ///
     /// ```
     /// # // This code is available in examples/app_images_fit_to_cell.rs
@@ -3741,8 +5101,9 @@ impl Worksheet {
         let width = self.column_pixel_width(col, image.object_movement);
         let height = self.row_pixel_height(row, image.object_movement);
 
-        let mut image = image.clone();
-        image.set_scale_to_size(width, height, keep_aspect_ratio);
+        let image = image
+            .clone()
+            .set_scale_to_size(width, height, keep_aspect_ratio);
 
         self.images.insert((row, col), image);
 
@@ -3755,15 +5116,15 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `image` - The [`Image`] to insert into the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `chart`: The [`Chart`] to insert into the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::ChartError`] - A general error that is raised when a
+    /// - [`XlsxError::ChartError`] - A general error that is raised when a
     ///   chart parameter is incorrect or a chart is configured incorrectly.
     ///
     /// # Examples
@@ -3822,18 +5183,18 @@ impl Worksheet {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::ChartError`] - A general error that is raised when a
-    /// chart parameter is incorrect or a chart is configured incorrectly.
+    /// - [`XlsxError::ChartError`] - A general error that is raised when a
+    ///   chart parameter is incorrect or a chart is configured incorrectly.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `chart` - The [`Chart`] to insert into the cell.
-    /// * `x_offset`: The horizontal offset within the cell in pixels.
-    /// * `y_offset`: The vertical offset within the cell in pixels.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `chart`: The [`Chart`] to insert into the cell.
+    /// - `x_offset`: The horizontal offset within the cell in pixels.
+    /// - `y_offset`: The vertical offset within the cell in pixels.
     ///
     /// # Examples
     ///
@@ -3872,7 +5233,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_insert_chart_with_offset.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_insert_chart_with_offset.png">
     ///
     pub fn insert_chart_with_offset(
         &mut self,
@@ -3900,6 +5262,505 @@ impl Worksheet {
         Ok(self)
     }
 
+    /// Add a Note to a cell.
+    ///
+    /// A Note is a post-it style message that is revealed when the user mouses
+    /// over a worksheet cell. The presence of a Note is indicated by a small
+    /// red triangle in the upper right-hand corner of the cell.
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/doc_note_intro.png">
+    ///
+    /// In versions of Excel prior to Office 365 Notes were referred to as
+    /// "Comments". The name Comment is now used for a newer style threaded
+    /// comment and Note is used for the older non threaded version. See the
+    /// Microsoft docs on [The difference between threaded comments and notes].
+    ///
+    /// [The difference between threaded comments and notes]:
+    ///     https://support.microsoft.com/en-us/office/the-difference-between-threaded-comments-and-notes-75a51eec-4092-42ab-abf8-7669077b7be3
+    ///
+    /// See [`Note`] for details on the properties of Notes.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    /// - [`XlsxError::MaxStringLengthExceeded`] - Text exceeds Excel's limit of
+    ///   32,713 characters.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `note`: The [`Note`] to insert into the cell.
+    ///
+    /// # Examples
+    ///
+    /// An example of writing cell Notes to a worksheet using the
+    /// `rust_xlsxwriter` library.
+    ///
+    /// ```
+    /// # // This code is available in examples/app_notes.rs
+    /// #
+    /// # use rust_xlsxwriter::{Note, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Widen the first column for clarity.
+    /// #     worksheet.set_column_width(0, 16)?;
+    /// #
+    /// #     // Write some data.
+    /// #     let party_items = [
+    /// #         "Invitations",
+    /// #         "Doors",
+    /// #         "Flowers",
+    /// #         "Champagne",
+    /// #         "Menu",
+    /// #         "Peter",
+    /// #     ];
+    /// #     worksheet.write_column(0, 0, party_items)?;
+    /// #
+    ///     // Create a new worksheet Note.
+    ///     let note = Note::new("I will get the flowers myself").set_author("Clarissa Dalloway");
+    ///
+    ///     // Add the note to a cell.
+    ///     worksheet.insert_note(2, 0, &note)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("notes.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/app_notes.png">
+    ///
+    pub fn insert_note(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        note: &Note,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check row and columns are in the allowed range.
+        if !self.check_dimensions(row, col) {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        //  Check that the string is < Excel limit of 32767 chars, - 54
+        //  characters to allow for the author name prefix.
+        if note.text.chars().count() > MAX_STRING_LEN - 54 {
+            return Err(XlsxError::MaxStringLengthExceeded);
+        }
+
+        // Set the cell that the Note refers to. This is different form the cell
+        // where the note appears.
+        let mut note = note.clone();
+        note.cell_row = row;
+        note.cell_col = col;
+
+        // Store the note in a structure similar to the worksheet data table
+        // since notes also affect the calculation of <row> span attributes.
+        match self.notes.entry(row) {
+            Entry::Occupied(mut entry) => {
+                // The row already exists. Insert/replace column value.
+                let columns = entry.get_mut();
+                columns.insert(col, note);
+            }
+            Entry::Vacant(entry) => {
+                // The row doesn't exist, create a new row with columns and
+                // insert the cell value.
+                let columns = BTreeMap::from([(col, note)]);
+                entry.insert(columns);
+            }
+        }
+
+        self.has_vml = true;
+
+        Ok(self)
+    }
+
+    /// Insert a textbox shape into a worksheet.
+    ///
+    /// This method can be used to insert an Excel Textbox shape with text into
+    /// a worksheet.
+    ///
+    /// See the [`Shape`] documentation for a detailed description of the
+    /// methods that can be used to configure the size and appearance of the
+    /// textbox.
+    ///
+    /// Note, no Excel shape other than Textbox is supported. See [Support for
+    /// other Excel shape
+    /// types](crate::Shape#support-for-other-excel-shape-types).
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    ///
+    /// # Examples
+    ///
+    /// This example demonstrates adding a Textbox shape to a worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_insert_shape.rs
+    /// #
+    /// # use rust_xlsxwriter::{Shape, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a textbox shape and add some text.
+    ///     let textbox = Shape::textbox().set_text("This is some text");
+    ///
+    ///     // Insert a textbox in a cell.
+    ///     worksheet.insert_shape(1, 1, &textbox)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_insert_shape.png">
+    ///
+    pub fn insert_shape(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        shape: &Shape,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        self.insert_shape_with_offset(row, col, shape, 0, 0)?;
+
+        Ok(self)
+    }
+
+    /// Insert a textbox shape into a worksheet cell at an offset.
+    ///
+    /// This method can be used to insert an Excel Textbox shape with text into
+    /// a worksheet cell at a pixel offset.
+    ///
+    /// See the [`Shape`] documentation for a detailed description of the
+    /// methods that can be used to configure the size and appearance of the
+    /// textbox.
+    ///
+    /// Note, no Excel shape other than Textbox is supported. See [Support for
+    /// other Excel shape
+    /// types](crate::Shape#support-for-other-excel-shape-types).
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    /// # Examples
+    ///
+    /// This example demonstrates adding a Textbox shape to a worksheet cell at
+    /// an offset.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_insert_shape_with_offset.rs
+    /// #
+    /// # use rust_xlsxwriter::{Shape, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a textbox shape and add some text.
+    ///     let textbox = Shape::textbox().set_text("This is some text");
+    ///
+    ///     // Insert a textbox in a cell.
+    ///     worksheet.insert_shape_with_offset(1, 1, &textbox, 10, 5)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_insert_shape_with_offset.png">
+    ///
+    pub fn insert_shape_with_offset(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        shape: &Shape,
+        x_offset: u32,
+        y_offset: u32,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check row and columns are in the allowed range.
+        if !self.check_dimensions_only(row, col) {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        let mut shape = shape.clone();
+        shape.x_offset = x_offset;
+        shape.y_offset = y_offset;
+
+        self.shapes.insert((row, col), shape);
+
+        Ok(self)
+    }
+
+    /// Make all worksheet notes visible when the file loads.
+    ///
+    /// By default Excel hides cell notes until the user mouses over the parent
+    /// cell. However, if required you can make all worksheet notes visible when
+    /// the worksheet loads. You can also make individual notes visible using
+    /// the [`Note::set_visible()`](crate::Note::set_visible) method.
+    ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is off by default.
+    ///
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates adding notes to a worksheet and
+    /// setting the worksheet property to make them all visible.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_show_all_notes.rs
+    /// #
+    /// # use rust_xlsxwriter::{Note, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a new note.
+    ///     let note = Note::new("Some text for the note");
+    ///
+    ///     // Add the note to some worksheet cells.
+    ///     worksheet.insert_note(1, 0, &note)?;
+    ///     worksheet.insert_note(3, 3, &note)?;
+    ///     worksheet.insert_note(6, 0, &note)?;
+    ///     worksheet.insert_note(8, 3, &note)?;
+    ///
+    ///     // Display all the notes in the worksheet.
+    ///     worksheet.show_all_notes(true);
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_show_all_notes.png">
+    ///
+    pub fn show_all_notes(&mut self, enable: bool) -> &mut Worksheet {
+        self.show_all_notes = enable;
+        self
+    }
+
+    /// Set the default author name for all the notes in the worksheet.
+    ///
+    /// The Note author is the creator of the note. In Excel the author name is
+    /// taken from the user name in the options/preference dialog. The note
+    /// author name appears in two places: at the start of the note text in bold
+    /// and at the bottom of the worksheet in the status bar.
+    ///
+    /// If no name is specified the default name "Author" will be applied to the
+    /// note. The author name for individual notes can be set via the
+    /// [`Note::set_author()`](crate::Note::set_author) method. Alternatively
+    /// this method can be used to set the default author name for all notes in
+    /// a worksheet.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: The note author name. Must be less than or equal to the Excel
+    ///   limit of 52 characters.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates adding notes to a worksheet and setting
+    /// the default author name.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_set_default_note_author.rs
+    /// #
+    /// # use rust_xlsxwriter::{Note, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Create a new note.
+    ///     let note = Note::new("Some text for the note");
+    ///
+    ///     // Add the note to some worksheet cells.
+    ///     worksheet.insert_note(2, 0, &note)?;
+    ///
+    ///     // Display all the notes in the worksheet.
+    ///     worksheet.set_default_note_author("Rust");
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_default_note_author.png">
+    ///
+    pub fn set_default_note_author(&mut self, name: impl Into<String>) -> &mut Worksheet {
+        let name = name.into();
+        if name.chars().count() > 52 {
+            eprintln!("Author string must be less than the Excel limit of 52 characters: {name}");
+            return self;
+        }
+
+        self.note_authors = BTreeMap::from([(name, 0)]);
+
+        self
+    }
+
+    /// Add a Excel Form Control button object to a worksheet.
+    ///
+    /// Add a [`Button`] to a worksheet at a cell location. The worksheet button
+    /// object is mainly provided as a way of triggering a VBA macro, see
+    /// [Working with VBA macros](crate::macros) for more details.
+    ///
+    /// Note, Button is the only VBA Control supported by `rust_xlsxwriter`. It
+    /// is unlikely that any other Excel form elements will be added in the
+    /// future due to the implementation effort required.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `button`: The [`Button`] to insert into the cell.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    ///
+    /// # Examples
+    ///
+    /// An example of adding macros to an `rust_xlsxwriter` file using a VBA
+    /// macros file extracted from an existing Excel xlsm file.
+    ///
+    /// ```
+    /// # // This code is available in examples/app_macros.rs
+    /// #
+    /// use rust_xlsxwriter::{Button, Workbook, XlsxError};
+    ///
+    /// fn main() -> Result<(), XlsxError> {
+    ///     // Create a new Excel file object.
+    ///     let mut workbook = Workbook::new();
+    ///
+    ///     // Add the VBA macro file.
+    ///     workbook.add_vba_project("examples/vbaProject.bin")?;
+    ///
+    ///     // Add a worksheet and some text.
+    ///     let worksheet = workbook.add_worksheet();
+    ///
+    ///     // Widen the first column for clarity.
+    ///     worksheet.set_column_width(0, 30)?;
+    ///
+    ///     worksheet.write(2, 0, "Press the button to say hello:")?;
+    ///
+    ///     // Add a button tied to a macro in the VBA project.
+    ///     let button = Button::new()
+    ///         .set_caption("Press Me")
+    ///         .set_macro("say_hello")
+    ///         .set_width(80)
+    ///         .set_height(30);
+    ///
+    ///     worksheet.insert_button(2, 1, &button)?;
+    ///
+    ///     // Save the file to disk. Note the `.xlsm` extension. This is required by
+    ///     // Excel or it raise a warning.
+    ///     workbook.save("macros.xlsm")?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/app_macros.png">
+    ///
+    pub fn insert_button(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        button: &Button,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        self.insert_button_with_offset(row, col, button, 0, 0)?;
+
+        Ok(self)
+    }
+
+    /// Add a Excel Form Control button object to a  at an offset.
+    ///
+    /// Add a [`Button`] to a worksheet  at a pixel offset within a cell
+    /// location. See [`Worksheet::insert_button()`] above
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `button`: The [`Button`] to insert into the cell.
+    /// - `x_offset`: The horizontal offset within the cell in pixels.
+    /// - `y_offset`: The vertical offset within the cell in pixels.
+    ///
+    pub fn insert_button_with_offset(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        button: &Button,
+        x_offset: u32,
+        y_offset: u32,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check row and columns are in the allowed range.
+        if !self.check_dimensions_only(row, col) {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        let mut button = button.clone();
+        button.x_offset = x_offset;
+        button.y_offset = y_offset;
+
+        self.buttons.insert((row, col), button);
+        self.has_vml = true;
+
+        Ok(self)
+    }
+
     /// Set the height for a row of cells.
     ///
     /// The `set_row_height()` method is used to change the default height of a
@@ -3907,16 +5768,16 @@ impl Worksheet {
     /// height is 15. Excel allows height values in increments of 0.25.
     ///
     /// To specify the height in pixels use the
-    /// [`set_row_height_pixels()`](Worksheet::set_row_height_pixels()) method.
+    /// [`Worksheet::set_row_height_pixels()`] method.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `height` - The row height in character units.
+    /// - `row`: The zero indexed row number.
+    /// - `height`: The row height in character units.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -3939,7 +5800,7 @@ impl Worksheet {
     ///
     ///     // Set the row height in Excel character units.
     ///     worksheet.set_row_height(2, 30)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -3947,7 +5808,8 @@ impl Worksheet {
     /// ```
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_row_height.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_row_height.png">
     ///
     pub fn set_row_height(
         &mut self,
@@ -3993,16 +5855,16 @@ impl Worksheet {
     /// height is 20.
     ///
     /// To specify the height in Excel's character units use the
-    /// [`set_row_height()`](Worksheet::set_row_height()) method.
+    /// [`Worksheet::set_row_height()`] method.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `height` - The row height in pixels.
+    /// - `row`: The zero indexed row number.
+    /// - `height`: The row height in pixels.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -4024,7 +5886,7 @@ impl Worksheet {
     ///
     ///     // Set the row height in pixels.
     ///     worksheet.set_row_height_pixels(2, 40)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -4057,12 +5919,12 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -4090,7 +5952,7 @@ impl Worksheet {
     ///
     ///     // Add some formatted text that overrides the row format.
     ///     worksheet.write_string_with_format(1, 2, "Hello", &bold_format)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -4122,7 +5984,7 @@ impl Worksheet {
             Some(row_options) => row_options.xf_index = xf_index,
             None => {
                 let row_options = RowOptions {
-                    height: DEFAULT_ROW_HEIGHT,
+                    height: self.user_default_row_height,
                     xf_index,
                     hidden: false,
                 };
@@ -4141,11 +6003,11 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
+    /// - `row`: The zero indexed row number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -4192,7 +6054,7 @@ impl Worksheet {
             Some(row_options) => row_options.hidden = true,
             None => {
                 let row_options = RowOptions {
-                    height: DEFAULT_ROW_HEIGHT,
+                    height: self.user_default_row_height,
                     xf_index: 0,
                     hidden: true,
                 };
@@ -4211,11 +6073,11 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
+    /// - `row`: The zero indexed row number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Row exceeds Excel's worksheet
     ///   limits.
     ///
     pub fn set_row_unhidden(&mut self, row: RowNum) -> Result<&mut Worksheet, XlsxError> {
@@ -4235,6 +6097,150 @@ impl Worksheet {
         Ok(self)
     }
 
+    /// Set the default row height for all rows in a worksheet, efficiently.
+    ///
+    /// This method can be used to efficiently set the default row height for
+    /// all rows in a worksheet. It is efficient because it uses an Excel
+    /// optimization to adjust the row heights with a single XML element. By
+    /// contrast, using [`Worksheet::set_row_height()`] for every row in a
+    /// worksheet would require a million XML elements and would result in a
+    /// very large file.
+    ///
+    /// The height is specified in character units, where the default height is
+    /// 15. Excel allows height values in increments of 0.25.
+    ///
+    /// Individual row heights can be set via [`Worksheet::set_row_height()`].
+    ///
+    /// Note, there is no equivalent method for columns because the file format
+    /// already optimizes the storage of a large number of contiguous columns.
+    ///
+    /// # Parameters
+    ///
+    /// - `height`: The row height in character units. Must be greater than 0.0.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates setting the default row height for
+    /// all rows in a worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_set_default_row_height.rs
+    /// #
+    /// # use rust_xlsxwriter::{Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Set the default row height in Excel character units.
+    ///     worksheet.set_default_row_height(30);
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_default_row_height.png">
+    ///
+    pub fn set_default_row_height(&mut self, height: impl Into<f64>) -> &mut Worksheet {
+        let height = height.into();
+        if height <= 0.0 {
+            return self;
+        }
+
+        self.user_default_row_height = height;
+        self
+    }
+
+    /// Set the default row height in pixels for all rows in a worksheet,
+    /// efficiently.
+    ///
+    /// The `set_default_row_height_pixels()` method is used to change the
+    /// default height of all rows in a worksheet. See
+    /// [`Worksheet::set_default_row_height()`] above for an explanation.
+    ///
+    /// The height is specified in pixels, where the default height is 20.
+    ///
+    /// # Parameters
+    ///
+    /// - `height`: The row height in pixels.
+    ///
+    pub fn set_default_row_height_pixels(&mut self, height: u16) -> &mut Worksheet {
+        let height = 0.75 * f64::from(height);
+        self.set_default_row_height(height)
+    }
+
+    /// Hide all unused rows in a worksheet, efficiently.
+    ///
+    /// This method can be used to efficiently hide unused rows in a worksheet.
+    /// It is efficient because it uses an Excel optimization to hide the rows
+    /// with a single XML element. By contrast, using
+    /// [`Worksheet::set_row_hidden()`] for the majority of rows in a worksheet
+    /// would require a million XML elements and would result in a very large
+    /// file.
+    ///
+    /// "Unused" in this context means that the row doesn't contain data,
+    /// formatting, or any changes such as the row height.
+    ///
+    /// To hide individual rows use the [`Worksheet::set_row_hidden()`] method.
+    ///
+    /// Note, there is no equivalent method for columns because the file format
+    /// already optimizes the storage of a large number of contiguous columns.
+    ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is off by default.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates efficiently hiding the unused rows in
+    /// a worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_hide_unused_rows.rs
+    /// #
+    /// # use rust_xlsxwriter::{Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Write some data.
+    ///     worksheet.write(0, 0, "First row")?;
+    ///     worksheet.write(6, 0, "Last row")?;
+    ///
+    ///     // Set the row height for the blank rows so that they are "used".
+    ///     for row in 1..6 {
+    ///         worksheet.set_row_height(row, 15)?;
+    ///     }
+    ///
+    ///     // Hide all the unused rows.
+    ///     worksheet.hide_unused_rows(true);
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_hide_unused_rows.png">
+    ///
+    pub fn hide_unused_rows(&mut self, enable: bool) -> &mut Worksheet {
+        self.hide_unused_rows = enable;
+        self
+    }
+
     /// Set the width for a worksheet column.
     ///
     /// The `set_column_width()` method is used to change the default width of a
@@ -4247,20 +6253,18 @@ impl Worksheet {
     /// complex. See the [following explanation of column
     /// widths](https://support.microsoft.com/en-us/kb/214123) from the
     /// Microsoft support documentation for more details. To set the width in
-    /// pixels use the
-    /// [`set_column_width_pixels()`](Worksheet::set_column_width_pixels())
-    /// method.
+    /// pixels use the [`Worksheet::set_column_width_pixels()`] method.
     ///
-    /// See also the [`autofit()`](Worksheet::autofit()) method.
+    /// See also the [`Worksheet::autofit()`] method.
     ///
     /// # Parameters
     ///
-    /// * `col` - The zero indexed column number.
-    /// * `width` - The row width in character units.
+    /// - `col`: The zero indexed column number.
+    /// - `width`: The column width in character units.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -4288,7 +6292,7 @@ impl Worksheet {
     ///     worksheet.set_column_width(2, 16)?;
     ///     worksheet.set_column_width(4, 4)?;
     ///     worksheet.set_column_width(5, 4)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -4297,7 +6301,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_column_width.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_column_width.png">
     ///
     pub fn set_column_width(
         &mut self,
@@ -4325,22 +6330,22 @@ impl Worksheet {
 
     /// Set the width for a worksheet column in pixels.
     ///
-    /// The `set_column_width()` method is used to change the default width of a
-    /// worksheet column.
+    /// The `set_column_width_pixels()` method is used to change the default
+    /// width in pixels of a worksheet column.
     ///
     /// To set the width in Excel character units use the
-    /// [`set_column_width()`](Worksheet::set_column_width()) method.
+    /// [`Worksheet::set_column_width()`] method.
     ///
-    /// See also the [`autofit()`](Worksheet::autofit()) method.
+    /// See also the [`Worksheet::autofit()`] method.
     ///
     /// # Parameters
     ///
-    /// * `col` - The zero indexed column number.
-    /// * `width` - The row width in pixels.
+    /// - `col`: The zero indexed column number.
+    /// - `width`: The column width in pixels.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -4368,7 +6373,7 @@ impl Worksheet {
     ///     worksheet.set_column_width_pixels(2, 117)?;
     ///     worksheet.set_column_width_pixels(4, 33)?;
     ///     worksheet.set_column_width_pixels(5, 33)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -4377,7 +6382,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_column_width.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_column_width.png">
     ///
     pub fn set_column_width_pixels(
         &mut self,
@@ -4411,12 +6417,12 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `col` - The zero indexed column number.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `col`: The zero indexed column number.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -4446,7 +6452,7 @@ impl Worksheet {
     ///
     ///     // Add some formatted text that overrides the column format.
     ///     worksheet.write_string_with_format(2, 1, "Hello", &bold_format)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -4498,11 +6504,11 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `col` - The zero indexed column number.
+    /// - `col`: The zero indexed column number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
     ///   limits.
     ///
     /// # Examples
@@ -4558,6 +6564,199 @@ impl Worksheet {
         Ok(self)
     }
 
+    /// Set the width for a range of columns.
+    ///
+    /// This is a syntactic shortcut for setting the width for a range of
+    /// contiguous cells. See [`Worksheet::set_column_width()`] for more
+    /// details on the single column version.
+    ///
+    /// # Parameters
+    ///
+    /// - `first_col`: The first row of the range. Zero indexed.
+    /// - `last_col`: The last row of the range.
+    /// - `width`: The column width in character units.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    ///   limits.
+    /// - [`XlsxError::RowColumnOrderError`] - First column larger than the last
+    ///   column.
+    ///
+    pub fn set_column_range_width(
+        &mut self,
+        first_col: ColNum,
+        last_col: ColNum,
+        width: impl Into<f64>,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check order of first/last values.
+        if first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        let width = width.into();
+        for col_num in first_col..=last_col {
+            self.set_column_width(col_num, width)?;
+        }
+
+        Ok(self)
+    }
+
+    /// Set the pixel width for a range of columns.
+    ///
+    /// This is a syntactic shortcut for setting the width in pixels for a range of
+    /// contiguous cells. See [`Worksheet::set_column_width_pixels()`] for more
+    /// details on the single column version.
+    ///
+    /// # Parameters
+    ///
+    /// - `first_col`: The first row of the range. Zero indexed.
+    /// - `last_col`: The last row of the range.
+    /// - `width`: The column width in pixels.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    ///   limits.
+    /// - [`XlsxError::RowColumnOrderError`] - First column larger than the last
+    ///   column.
+    ///
+    pub fn set_column_range_width_pixels(
+        &mut self,
+        first_col: ColNum,
+        last_col: ColNum,
+        width: u16,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check order of first/last values.
+        if first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        for col_num in first_col..=last_col {
+            self.set_column_width_pixels(col_num, width)?;
+        }
+
+        Ok(self)
+    }
+
+    /// Set the format for a range of columns.
+    ///
+    /// This is a syntactic shortcut for setting the format for a range of
+    /// contiguous cells. See [`Worksheet::set_column_format()`] for more
+    /// details on the single column version.
+    ///
+    /// Note, this method can be used to set the cell format for the entire
+    /// worksheet when applied to all the columns in the worksheet (see the
+    /// example below). This is relatively efficient since it is stored as a
+    /// single XML element. This is also how Excel applies a format to an entire
+    /// worksheet.
+    ///
+    /// # Parameters
+    ///
+    /// - `first_col`: The first row of the range. Zero indexed.
+    /// - `last_col`: The last row of the range.
+    /// - `format`: The [`Format`] property for the cell.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    ///   limits.
+    /// - [`XlsxError::RowColumnOrderError`] - First column larger than the last
+    ///   column.
+    ///
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates setting the format for all the
+    /// columns in an Excel worksheet. This effectively, and efficiently, sets
+    /// the format for the entire worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_set_column_range_format.rs
+    /// #
+    /// # use rust_xlsxwriter::{Format, FormatBorder, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Add a format.
+    ///     let cell_format = Format::new()
+    ///         .set_background_color("#F9F2EC")
+    ///         .set_border(FormatBorder::Thin);
+    ///
+    ///     // Set the column format for the entire worksheet.
+    ///     worksheet.set_column_range_format(0, 16_383, &cell_format)?;
+    ///
+    ///     // Add some unformatted text that adopts the column format.
+    ///     worksheet.write_string(1, 1, "Hello")?;
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_column_range_format.png">
+    ///
+    pub fn set_column_range_format(
+        &mut self,
+        first_col: ColNum,
+        last_col: ColNum,
+        format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check order of first/last values.
+        if first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        for col_num in first_col..=last_col {
+            self.set_column_format(col_num, format)?;
+        }
+
+        Ok(self)
+    }
+
+    /// Hide a range of worksheet columns.
+    ///
+    /// This is a syntactic shortcut for hiding a range of contiguous cells. See
+    /// [`Worksheet::set_column_hidden()`] for more details on the single column
+    /// version.
+    ///
+    /// # Parameters
+    ///
+    /// - `first_col`: The first row of the range. Zero indexed.
+    /// - `last_col`: The last row of the range.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    ///   limits.
+    /// - [`XlsxError::RowColumnOrderError`] - First column larger than the last
+    ///   column.
+    ///
+    pub fn set_column_range_hidden(
+        &mut self,
+        first_col: ColNum,
+        last_col: ColNum,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check order of first/last values.
+        if first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        for col_num in first_col..=last_col {
+            self.set_column_hidden(col_num)?;
+        }
+
+        Ok(self)
+    }
+
     /// Set the autofilter area in the worksheet.
     ///
     /// The `autofilter()` method allows an autofilter to be added to a
@@ -4566,25 +6765,24 @@ impl Worksheet {
     /// data based on simple criteria so that some data is shown and some is
     /// hidden.
     ///
-    /// See the [`filter_column`](Worksheet::filter_column) method for an
-    /// explanation of how to set a filter conditions for columns in the
-    /// autofilter range.
+    /// See the [`Worksheet::filter_column`] method for an explanation of how to
+    /// set a filter conditions for columns in the autofilter range.
     ///
     /// Note, Excel only allows one autofilter range per worksheet so calling
     /// this method multiple times will overwrite the previous range.
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
     ///
     /// # Examples
@@ -4629,7 +6827,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_autofilter.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_autofilter.png">
     ///
     pub fn autofilter(
         &mut self,
@@ -4673,9 +6872,9 @@ impl Worksheet {
 
     /// Set the filter condition for a column in an autofilter range.
     ///
-    /// The [`autofilter()`](Worksheet::autofilter) method sets the cell range
-    /// for an autofilter but in order to filter rows within the filter area you
-    /// must also add a filter condition.
+    /// The [`Worksheet::autofilter()`] method sets the cell range for an
+    /// autofilter but in order to filter rows within the filter area you must
+    /// also add a filter condition.
     ///
     /// Excel supports two main types of filter. The first, and most common, is
     /// a list filter where the user selects the items to filter from a list of
@@ -4711,19 +6910,18 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `col` - The zero indexed column number.
-    /// * `filter_condition` - The column filter condition defined by the
+    /// - `col`: The zero indexed column number.
+    /// - `filter_condition`: The column filter condition defined by the
     ///   [`FilterCondition`] struct.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
+    /// - [`XlsxError::RowColumnLimitError`] - Column exceeds Excel's worksheet
     ///   limits.
-    /// * [`XlsxError::ParameterError`] - Parameter error for the following
+    /// - [`XlsxError::ParameterError`] - Parameter error for the following
     ///   issues:
-    ///   - The [`autofilter()`](Worksheet::autofilter) range hasn't been set.
-    ///   - The column is outside the [`autofilter()`](Worksheet::autofilter)
-    ///     range.
+    ///   - The [`Worksheet::autofilter()`] range hasn't been set.
+    ///   - The column is outside the [`Worksheet::autofilter()`] range.
     ///   - The [`FilterCondition`] doesn't have a condition set.
     ///
     /// # Examples
@@ -4764,7 +6962,7 @@ impl Worksheet {
     ///     // column.
     ///     let filter_condition = FilterCondition::new().add_list_filter("East");
     ///     worksheet.filter_column(0, &filter_condition)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -4850,7 +7048,7 @@ impl Worksheet {
     ///
     /// The headers and total row of a table should be configured via a
     /// [`Table`] struct but the table data can be added via standard
-    /// [`worksheet.write()`](Worksheet::write) methods.
+    /// [`Worksheet::write()`] methods.
     ///
     /// For more information on tables see the Microsoft documentation on
     /// [Overview of Excel tables].
@@ -4860,10 +7058,10 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
     ///
     /// Note, you need to ensure that the `first_row` and `last_row` range
     /// includes all the rows for the table including the header and the total
@@ -4872,11 +7070,11 @@ impl Worksheet {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
-    /// * [`XlsxError::TableError`] - A general error that is raised when a
+    /// - [`XlsxError::TableError`] - A general error that is raised when a
     ///   table parameter is incorrect or a table is configured incorrectly.
     ///
     /// # Examples
@@ -4907,9 +7105,7 @@ impl Worksheet {
     ///     worksheet.write_row_matrix(3, 2, data)?;
     ///
     ///     // Set the column widths for clarity.
-    ///     for col_num in 1..=6u16 {
-    ///         worksheet.set_column_width(col_num, 12)?;
-    ///     }
+    ///     worksheet.set_column_range_width(1, 6, 12)?;
     ///
     ///     // Create a new table and configure it.
     ///     let columns = vec![
@@ -4969,6 +7165,13 @@ impl Worksheet {
         // Check order of first/last values.
         if first_row > last_row || first_col > last_col {
             return Err(XlsxError::RowColumnOrderError);
+        }
+
+        // Check that the table has at least one valid row.
+        if first_row == last_row && table.show_header_row {
+            return Err(XlsxError::TableError(
+                "Table must have at least one row".to_string(),
+            ));
         }
 
         let default_headers =
@@ -5078,20 +7281,20 @@ impl Worksheet {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
-    /// * [`XlsxError::ConditionalFormatError`] - A general error that is raised
+    /// - [`XlsxError::ConditionalFormatError`] - A general error that is raised
     ///   when a conditional formatting parameter is incorrect or missing.
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
-    /// * `conditional_format` - A conditional format instance that implements
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `conditional_format`: A conditional format instance that implements
     ///   the [`ConditionalFormat`] trait.
     ///
     /// # Examples
@@ -5128,9 +7331,7 @@ impl Worksheet {
     /// #     worksheet.write_row_matrix(2, 1, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=10u16 {
-    /// #         worksheet.set_column_width(col_num, 6)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 10, 6)?;
     /// #
     /// #     // Add a format. Light red fill with dark red text.
     /// #     let format1 = Format::new()
@@ -5155,7 +7356,7 @@ impl Worksheet {
     ///         .set_format(format2);
     ///
     ///     worksheet.add_conditional_format(2, 1, 11, 10, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5168,7 +7369,6 @@ impl Worksheet {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/conditional_format_cell1.png">
     ///
-
     pub fn add_conditional_format<T>(
         &mut self,
         first_row: RowNum,
@@ -5237,6 +7437,408 @@ impl Worksheet {
         Ok(self)
     }
 
+    /// Add a data validation to one or more cells to restrict user input based
+    /// on types and rules.
+    ///
+    /// Data validation is a feature of Excel which allows you to restrict the
+    /// data that a user enters in a cell and to display associated help and
+    /// warning messages. It also allows you to restrict input to values in a
+    /// dropdown list.
+    ///
+    /// See [`DataValidation`] for more information and examples.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    ///   row.
+    ///
+    /// # Parameters
+    ///
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `data_validation`: A [`DataValidation`] data validation instance.
+    ///
+    /// # Examples
+    ///
+    /// Example of adding a data validation to a worksheet cell. This validation
+    /// uses an input message to explain to the user what type of input is required.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_data_validation_intro1.rs
+    /// #
+    /// use rust_xlsxwriter::{DataValidation, DataValidationRule, Workbook, XlsxError};
+    ///
+    /// fn main() -> Result<(), XlsxError> {
+    ///     // Create a new Excel file object.
+    ///     let mut workbook = Workbook::new();
+    ///     let worksheet = workbook.add_worksheet();
+    ///
+    ///     worksheet.write(1, 0, "Enter rating in cell D2:")?;
+    ///
+    ///     let data_validation = DataValidation::new()
+    ///         .allow_whole_number(DataValidationRule::Between(1, 5))
+    ///         .set_input_title("Enter a star rating!")?
+    ///         .set_input_message("Enter rating 1-5.\nWhole numbers only.")?
+    ///         .set_error_title("Value outside allowed range")?
+    ///         .set_error_message("The input value must be an integer in the range 1-5.")?;
+    ///
+    ///     worksheet.add_data_validation(1, 3, 1, 3, &data_validation)?;
+    ///
+    ///     // Save the file.
+    ///     workbook.save("data_validation.xlsx")?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/data_validation_intro1.png">
+    ///
+    /// Example of adding a data validation to a worksheet cell. This validation
+    /// restricts users to a selection of values from a dropdown list.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_data_validation_allow_list_strings.rs
+    /// #
+    /// use rust_xlsxwriter::{DataValidation, Workbook, XlsxError};
+    ///
+    /// fn main() -> Result<(), XlsxError> {
+    ///     // Create a new Excel file object.
+    ///     let mut workbook = Workbook::new();
+    ///     let worksheet = workbook.add_worksheet();
+    ///
+    ///     worksheet.write(1, 0, "Select value in cell D2:")?;
+    ///
+    ///     let data_validation =
+    ///         DataValidation::new().allow_list_strings(&["Pass", "Fail", "Incomplete"])?;
+    ///
+    ///     worksheet.add_data_validation(1, 3, 1, 3, &data_validation)?;
+    ///
+    ///     // Save the file.
+    ///     workbook.save("data_validation.xlsx")?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/data_validation_allow_list_strings.png">
+    ///
+    pub fn add_data_validation(
+        &mut self,
+        first_row: RowNum,
+        first_col: ColNum,
+        last_row: RowNum,
+        last_col: ColNum,
+        data_validation: &DataValidation,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check rows and cols are in the allowed range.
+        if !self.check_dimensions_only(first_row, first_col)
+            || !self.check_dimensions_only(last_row, last_col)
+        {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        // Check order of first/last values.
+        if first_row > last_row || first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        let mut data_validation = data_validation.clone();
+
+        // The "Any" validation type should be ignored if it doesn't have any
+        // input or error titles or messages. This is the same rule as Excel.
+        if data_validation.is_invalid_any() {
+            return Ok(self);
+        }
+
+        // Store the data validation based on its range.
+        let mut cell_range = utility::cell_range(first_row, first_col, last_row, last_col);
+        if !data_validation.multi_range.is_empty() {
+            cell_range.clone_from(&data_validation.multi_range);
+        }
+
+        self.data_validations.insert(cell_range, data_validation);
+
+        Ok(self)
+    }
+
+    /// Add a sparkline to a worksheet cell.
+    ///
+    /// Sparklines are a feature of Excel 2010+ which allows you to add small
+    /// charts to worksheet cells. These are useful for showing data trends in a
+    /// compact visual format.
+    ///
+    /// The `add_sparkline()` method allows you to add a sparkline to a single
+    /// cell that displays data from a 1D range of cells.
+    ///
+    /// The sparkline can be configured with all the parameters supported by
+    /// Excel. See [`Sparkline`] for details.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `sparkline`: The [`Sparkline`] to insert into the cell.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::SparklineError`] - An error that is raised when there is
+    ///   an parameter error with the sparkline.
+    /// - [`XlsxError::ChartError`] - An error that is raised when there is an
+    ///   parameter error with the data range for the sparkline.
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    /// - [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name in chart range
+    ///   cannot be blank.
+    /// - [`XlsxError::SheetnameLengthExceeded`] - Worksheet name in chart range
+    ///   exceeds Excel's limit of 31 characters.
+    /// - [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name in
+    ///   chart range cannot contain invalid characters: `[ ] : * ? / \`
+    /// - [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name in
+    ///   chart range cannot start or end with an apostrophe.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates adding a sparkline to a worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_add_sparkline.rs
+    /// #
+    /// # use rust_xlsxwriter::{Sparkline, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Add some sample data to plot.
+    ///     worksheet.write_row(0, 0, [-2, 2, 3, -1, 0])?;
+    ///
+    ///     // Create a default line sparkline that plots the 1D data range.
+    ///     let sparkline = Sparkline::new().set_range(("Sheet1", 0, 0, 0, 4));
+    ///
+    ///     // Add it to the worksheet.
+    ///     worksheet.add_sparkline(0, 5, &sparkline)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_add_sparkline.png">
+    ///
+    pub fn add_sparkline(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        sparkline: &Sparkline,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check row and col are in the allowed range.
+        if !self.check_dimensions_only(row, col) {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        // Check that the sparkline has a range.
+        if !sparkline.data_range.has_data() {
+            return Err(XlsxError::SparklineError(
+                "Sparkline data range not set".to_string(),
+            ));
+        }
+
+        // Check that the sparkline range is valid.
+        sparkline.data_range.validate()?;
+
+        // Check that the sparkline range is 1D.
+        if !sparkline.data_range.is_1d() {
+            let range = sparkline.data_range.error_range();
+            return Err(XlsxError::SparklineError(format!(
+                "Sparkline data range '{range}' must be a 1D range"
+            )));
+        }
+
+        // Clone the sparkline and set a data range.
+        let mut sparkline = sparkline.clone();
+        sparkline.add_cell_range(row, col);
+
+        // Store the sparkline.
+        self.sparklines.push(sparkline);
+
+        // Set some global worksheet flags.
+        self.use_x14_extensions = true;
+        self.has_sparklines = true;
+
+        Ok(self)
+    }
+
+    /// Add a sparkline group to a worksheet range.
+    ///
+    /// Sparklines are a feature of Excel 2010+ which allows you to add small
+    /// charts to worksheet cells. These are useful for showing data trends in a
+    /// compact visual format.
+    ///
+    /// In Excel sparklines can be added as a single entity in a cell that
+    /// refers to a 1D data range or as a "group" sparkline that is applied
+    /// across a 1D range and refers to data in a 2D range. A grouped sparkline
+    /// uses one sparkline for the specified range and any changes to it are
+    /// applied to the entire sparkline group.
+    ///
+    /// The [`Worksheet::add_sparkline()`] method shown above allows you to add
+    /// a sparkline to a single cell that displays data from a 1D range of cells
+    /// whereas `add_sparkline_group()` applies the group sparkline to a range.
+    ///
+    /// The sparkline can be configured with all the parameters supported by
+    /// Excel. See [`Sparkline`] for details.
+    ///
+    /// # Parameters
+    ///
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `sparkline`: The [`Sparkline`] to insert into the cell.
+    ///
+    /// # Errors
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::SparklineError`] - An error that is raised when there is
+    ///   an parameter error with the sparkline.
+    /// - [`XlsxError::ChartError`] - An error that is raised when there is an
+    ///   parameter error with the data range for the sparkline.
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    /// - [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name in chart range
+    ///   cannot be blank.
+    /// - [`XlsxError::SheetnameLengthExceeded`] - Worksheet name in chart range
+    ///   exceeds Excel's limit of 31 characters.
+    /// - [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name in
+    ///   chart range cannot contain invalid characters: `[ ] : * ? / \`
+    /// - [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name in
+    ///   chart range cannot start or end with an apostrophe.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates adding a sparkline group to a
+    /// worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_add_sparkline_group.rs
+    /// #
+    /// # use rust_xlsxwriter::{Sparkline, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Add some sample data to plot.
+    ///     let data = [
+    ///         [-2,  2,  3, -1,  0],
+    ///         [30, 20, 33, 20, 15],
+    ///         [1,  -1, -1,  1, -1]
+    ///     ];
+    ///     worksheet.write_row_matrix(0, 0, data)?;
+    ///
+    ///     // Create a default line sparkline that plots the 2D data range.
+    ///     let sparkline = Sparkline::new().set_range(("Sheet1", 0, 0, 2, 4));
+    ///
+    ///     // Add it to the worksheet as a sparkline group.
+    ///     worksheet.add_sparkline_group(0, 5, 2, 5, &sparkline)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_add_sparkline_group.png">
+    ///
+    pub fn add_sparkline_group(
+        &mut self,
+        first_row: RowNum,
+        first_col: ColNum,
+        last_row: RowNum,
+        last_col: ColNum,
+        sparkline: &Sparkline,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check rows and cols are in the allowed range.
+        if !self.check_dimensions_only(first_row, first_col)
+            || !self.check_dimensions_only(last_row, last_col)
+        {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        // Check order of first/last values.
+        if first_row > last_row || first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        // Check that the sparkline has a range.
+        if !sparkline.data_range.has_data() {
+            return Err(XlsxError::SparklineError(
+                "Sparkline data range not set".to_string(),
+            ));
+        }
+
+        // Check that the sparkline range is valid.
+        sparkline.data_range.validate()?;
+
+        // Check that the sparkline range is 2D.
+        if sparkline.data_range.is_1d() {
+            let range = sparkline.data_range.error_range();
+            return Err(XlsxError::SparklineError(format!(
+                "Sparkline data range '{range}' must be a 2D range"
+            )));
+        }
+
+        // Check that the group data range matches 1 dimension of the sparkline
+        // data range.
+        let row_range = (last_row - first_row + 1) as usize;
+        let col_range = (last_col - first_col + 1) as usize;
+        let num_cells = std::cmp::max(row_range, col_range);
+        let (num_rows, num_cols) = sparkline.data_range.number_of_range_points();
+        if num_cells != num_rows && num_cells != num_cols {
+            let cell_range = format!("({first_row}, {first_col}, {last_row}, {last_col})");
+            let sparkline_range = sparkline.data_range.error_range();
+            return Err(XlsxError::SparklineError(format!(
+                "Sparkline group range '{cell_range}' doesn't match dimensions of data range '{sparkline_range}'"
+            )));
+        }
+
+        // Clone the sparkline and set a data range.
+        let mut sparkline = sparkline.clone();
+        sparkline.add_group_range(first_row, first_col, last_row, last_col);
+
+        // Store the sparkline.
+        self.sparklines.push(sparkline);
+
+        // Set some global worksheet flags.
+        self.use_x14_extensions = true;
+        self.has_sparklines = true;
+
+        Ok(self)
+    }
+
     /// Protect a worksheet from modification.
     ///
     /// The `protect()` method protects a worksheet from modification. It works
@@ -5249,9 +7851,9 @@ impl Worksheet {
     /// src="https://rustxlsxwriter.github.io/images/protection_alert.png">
     ///
     /// These properties can be set using the
-    /// [`format.set_locked()`](Format::set_locked)
-    /// [`format.set_unlocked()`](Format::set_unlocked) and
-    /// [`worksheet.set_hidden()`](Format::set_hidden) format methods. All cells
+    /// [`Format::set_locked()`](Format::set_locked)
+    /// [`Format::set_unlocked()`](Format::set_unlocked) and
+    /// [`Worksheet::set_hidden()`](Format::set_hidden) format methods. All cells
     /// have the `locked` property turned on by default (see the example below)
     /// so in general you don't have to explicitly turn it on.
     ///
@@ -5288,7 +7890,7 @@ impl Worksheet {
     ///
     ///     worksheet.write_string(2, 0, "Cell B3 is hidden. The formula isn't visible.")?;
     ///     worksheet.write_formula_with_format(2, 1, "=1+2", &hidden)?;
-    ///
+    /// #
     /// #     worksheet.write_string(4, 0, "Use Menu -> Review -> Unprotect Sheet")?;
     /// #     worksheet.write_string(5, 0, "to remove the worksheet protection.")?;
     /// #
@@ -5315,15 +7917,16 @@ impl Worksheet {
     /// Protect a worksheet from modification with a password.
     ///
     /// The `protect_with_password()` method is like the
-    /// [`protect()`](Worksheet::protect) method, see above, except that you can
-    /// add an optional, weak, password to prevent modification.
+    /// [`Worksheet::protect()`] method, see above, except that you can add an
+    /// optional, weak, password to prevent modification.
     ///
     /// **Note**: Worksheet level passwords in Excel offer very weak protection.
     /// They do not encrypt your data and are very easy to deactivate. Full
     /// workbook encryption is not supported by `rust_xlsxwriter`. However, it
-    /// is possible to encrypt an `rust_xlsxwriter` file using a third party open
-    /// source tool called [msoffice-crypt](https://github.com/herumi/msoffice).
-    /// This works for macOS, Linux and Windows:
+    /// is possible to encrypt an `rust_xlsxwriter` file using a third party
+    /// open source tool called
+    /// [msoffice-crypt](https://github.com/herumi/msoffice). This works for
+    /// macOS, Linux and Windows:
     ///
     /// ```text
     /// msoffice-crypt.exe -e -p password clear.xlsx encrypted.xlsx
@@ -5331,7 +7934,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `password` - The password string. Note, only ascii text passwords are
+    /// - `password`: The password string. Note, only ascii text passwords are
     ///   supported. Passing the empty string "" is the same as turning on
     ///   protection without a password.
     ///
@@ -5353,7 +7956,7 @@ impl Worksheet {
     ///
     ///     // Protect the worksheet from modification.
     ///     worksheet.protect_with_password("abc123");
-    ///
+    /// #
     /// #     worksheet.write_string(0, 0, "Unlock the worksheet to edit the cell")?;
     /// #
     /// #     workbook.save("worksheet.xlsx")?;
@@ -5377,12 +7980,12 @@ impl Worksheet {
     /// Specify which worksheet elements should, or shouldn't, be protected.
     ///
     /// The `protect_with_password()` method is like the
-    /// [`protect()`](Worksheet::protect) method, see above, except it also
-    /// specifies which worksheet elements should, or shouldn't, be protected.
+    /// [`Worksheet::protect()`] method, see above, except it also specifies
+    /// which worksheet elements should, or shouldn't, be protected.
     ///
     /// You can specify which worksheet elements protection should be on or off
-    /// via a [`ProtectionOptions`] struct reference. The Excel options
-    /// with their default states are shown below:
+    /// via a [`ProtectionOptions`] struct reference. The Excel options with
+    /// their default states are shown below:
     ///
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/worksheet_protect_with_options1.png">
@@ -5418,7 +8021,7 @@ impl Worksheet {
     ///
     ///     // Set the protection options.
     ///     worksheet.protect_with_options(&options);
-    ///
+    /// #
     /// #     worksheet.write_string(0, 0, "Unlock the worksheet to edit the cell")?;
     /// #
     /// #     workbook.save("worksheet.xlsx")?;
@@ -5442,25 +8045,24 @@ impl Worksheet {
 
     /// Unprotect a range of cells in a protected worksheet.
     ///
-    /// As shown in the example for the
-    /// [`worksheet.protect()`](Worksheet::protect) method it is possible to
-    /// unprotect a cell by setting the format `unprotect` property. Excel also
-    /// offers an interface to unprotect larger ranges of cells. This is
-    /// replicated in `rust_xlsxwriter` using the `unprotect_range()` method,
+    /// As shown in the example for the [`Worksheet::protect()`] method it is
+    /// possible to unprotect a cell by setting the format `unprotect` property.
+    /// Excel also offers an interface to unprotect larger ranges of cells. This
+    /// is replicated in `rust_xlsxwriter` using the `unprotect_range()` method,
     /// see the example below.
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
     ///
     /// # Examples
@@ -5487,7 +8089,7 @@ impl Worksheet {
     ///
     ///     // Unprotect single cell B3 by repeating (row, col).
     ///     worksheet.unprotect_range(2, 1, 2, 1)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -5511,30 +8113,29 @@ impl Worksheet {
 
     /// Unprotect a range of cells in a protected worksheet, with options.
     ///
-    /// This method is similar to
-    /// [`unprotect_range()`](Worksheet::unprotect_range), see above, expect that
-    /// it allows you to specify two additional parameters to set the name of
-    /// the range (instead of the default `Range1` .. `RangeN`) and also a optional
-    /// weak password (see
-    /// [`protect_with_password()`](Worksheet::protect_with_password) for an
-    /// explanation of what weak means here).
+    /// This method is similar to [`Worksheet::unprotect_range()`], see above,
+    /// expect that it allows you to specify two additional parameters to set
+    /// the name of the range (instead of the default `Range1` .. `RangeN`) and
+    /// also a optional weak password (see
+    /// [`Worksheet::protect_with_password()`] for an explanation of what weak
+    /// means here).
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
-    /// * `name` - The name of the range instead of `RangeN`. Can be blank if not
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `name`: The name of the range instead of `RangeN`. Can be blank if not
     ///   required.
-    /// * `password` - The password to prevent modification of the range. Can be
+    /// - `password`: The password to prevent modification of the range. Can be
     ///   blank if not required.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
     ///
     /// # Examples
@@ -5558,7 +8159,7 @@ impl Worksheet {
     ///
     ///     // Unprotect range D4:F10 and give it a user defined name.
     ///     worksheet.unprotect_range_with_options(4, 3, 9, 5, "MyRange", "")?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -5567,7 +8168,8 @@ impl Worksheet {
     ///
     /// Dialog from the output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_unprotect_range_with_options.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_unprotect_range_with_options.png">
     ///
     pub fn unprotect_range_with_options(
         &mut self,
@@ -5618,14 +8220,14 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -5705,12 +8307,12 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -5734,7 +8336,7 @@ impl Worksheet {
     ///
     ///     // Also make this the active/selected cell.
     ///     worksheet.set_selection(31, 26, 31, 26)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -5769,11 +8371,11 @@ impl Worksheet {
     /// Write a user defined result to a worksheet formula cell.
     ///
     /// The `rust_xlsxwriter` library doesn’t calculate the result of a formula
-    /// written using [`write_formula_with_format()`](Worksheet::write_formula_with_format()) or
-    /// [`write_formula()`](Worksheet::write_formula()). Instead it
-    /// stores the value 0 as the formula result. It then sets a global flag in
-    /// the xlsx file to say that all formulas and functions should be
-    /// recalculated when the file is opened.
+    /// written using [`Worksheet::write_formula_with_format()`] or
+    /// [`Worksheet::write_formula()`]. Instead it stores the value 0 as the
+    /// formula result. It then sets a global flag in the xlsx file to say that
+    /// all formulas and functions should be recalculated when the file is
+    /// opened.
     ///
     /// This works fine with Excel and other spreadsheet applications. However,
     /// applications that don’t have a facility to calculate formulas will only
@@ -5784,9 +8386,9 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `result` - The formula result to write to the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `result`: The formula result to write to the cell.
     ///
     /// # Warnings
     ///
@@ -5795,9 +8397,9 @@ impl Worksheet {
     ///
     /// # Examples
     ///
-    /// The following example demonstrates manually setting the result of a formula.
-    /// Note, this is only required for non-Excel applications that don't calculate
-    /// formula results.
+    /// The following example demonstrates manually setting the result of a
+    /// formula. Note, this is only required for non-Excel applications that
+    /// don't calculate formula results.
     ///
     /// ```
     /// # // This code is available in examples/doc_worksheet_set_formula_result.rs
@@ -5857,19 +8459,19 @@ impl Worksheet {
     /// Write the default formula result for worksheet formulas.
     ///
     /// The `rust_xlsxwriter` library doesn’t calculate the result of a formula
-    /// written using [`write_formula_with_format()`](Worksheet::write_formula_with_format()) or
-    /// [`write_formula()`](Worksheet::write_formula()). Instead it
-    /// stores the value 0 as the formula result. It then sets a global flag in
-    /// the xlsx file to say that all formulas and functions should be
-    /// recalculated when the file is opened.
+    /// written using [`Worksheet::write_formula_with_format()`] or
+    /// [`Worksheet::write_formula()`]. Instead it stores the value 0 as the
+    /// formula result. It then sets a global flag in the xlsx file to say that
+    /// all formulas and functions should be recalculated when the file is
+    /// opened.
     ///
-    /// However, for `LibreOffice` the default formula result should be set to the
-    /// empty string literal `""`, via the `set_formula_result_default()`
+    /// However, for `LibreOffice` the default formula result should be set to
+    /// the empty string literal `""`, via the `set_formula_result_default()`
     /// method, to force calculation of the result.
     ///
     /// # Parameters
     ///
-    /// * `result` - The default formula result to write to the cell.
+    /// - `result`: The default formula result to write to the cell.
     ///
     /// # Examples
     ///
@@ -5889,7 +8491,7 @@ impl Worksheet {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     worksheet.set_formula_result_default("");
-    ///
+    /// #
     /// #     workbook.save("formulas.xlsx")?;
     /// #
     /// #     Ok(())
@@ -5901,60 +8503,73 @@ impl Worksheet {
         self
     }
 
-    /// Enable the use of newer Excel future functions.
+    // -----------------------------------------------------------------------
+    // Worksheet overlay/formatting methods.
+    // -----------------------------------------------------------------------
+
+    /// Add formatting to a cell without overwriting the cell data.
     ///
-    /// Enable the use of newer Excel “future” functions without having to
-    /// prefix them with with `_xlfn`.
+    /// In Excel the data in a worksheet cell is comprised of a type, a value
+    /// and a format. When using `rust_xlsxwriter` the type is inferred and the
+    /// value and format are generally written at the same time using methods
+    /// like [`Worksheet::write_with_format()`]. However, if required you can
+    /// write the data separately and then add the format using methods like
+    /// `set_cell_format()`.
     ///
-    /// Excel 2010 and later versions added functions which weren't defined in
-    /// the original file specification. These functions are referred to by
-    /// Microsoft as "Future Functions". Examples of these functions are `ACOT`,
-    /// `CHISQ.DIST.RT` , `CONFIDENCE.NORM`, `STDEV.P`, `STDEV.S` and
-    /// `WORKDAY.INTL`.
+    /// Although this method requires an additional step it allows for use cases
+    /// where it is easier to write a large amount of data in one go and then
+    /// figure out where formatting should be applied. See also the
+    /// documentation section on [Worksheet Cell
+    /// formatting](../worksheet/index.html#cell-formatting).
     ///
-    /// When written using [`write_formula()`](Worksheet::write_formula()) these
-    /// functions need to be fully qualified with a prefix such as `_xlfn.`
-    ///
-    /// Alternatively you can use the `worksheet.use_future_functions()`
-    /// function to have `rust_xlsxwriter` automatically handle future functions
-    /// for you, or use a [`Formula`] struct and the
-    /// [`Formula::use_future_functions()`] method, see below.
+    /// For use cases where the cell formatting changes based on cell values
+    /// Conditional Formatting may be a better option (see [Working with
+    /// Conditional Formats](../conditional_format/index.html)).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `format`: The [`Format`] property for the cell.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
     ///
     /// # Examples
     ///
-    /// The following example demonstrates different ways to handle writing
-    /// Future Functions to a worksheet.
+    /// The following example demonstrates setting the format of a worksheet
+    /// cell separately from writing the cell data.
     ///
     /// ```
-    /// # // This code is available in examples/doc_worksheet_use_future_functions.rs
+    /// # // This code is available in examples/doc_worksheet_set_cell_format.rs
     /// #
-    /// # use rust_xlsxwriter::{Formula, Workbook, XlsxError};
+    /// # use rust_xlsxwriter::{Format, Workbook, XlsxError};
     /// #
     /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
     /// #     let mut workbook = Workbook::new();
     /// #
     /// #     // Add a worksheet to the workbook.
     /// #     let worksheet = workbook.add_worksheet();
     /// #
-    ///     // The following is a "Future" function and will generate a "#NAME?" warning
-    ///     // in Excel.
-    ///     worksheet.write_formula(0, 0, "=ISFORMULA($B$1)")?;
+    /// #     // Add some formats.
+    /// #     let red = Format::new().set_font_color("#FF0000");
+    /// #     let green = Format::new().set_font_color("#00FF00");
+    /// #
+    ///     // Write an array of data.
+    ///     let data = [
+    ///         [10, 11, 12, 13, 14],
+    ///         [20, 21, 22, 23, 24],
+    ///         [30, 31, 32, 33, 34],
+    ///     ];
+    ///     worksheet.write_row_matrix(1, 1, data)?;
     ///
-    ///     // The following adds the required prefix. This will work without a warning.
-    ///     worksheet.write_formula(1, 0, "=_xlfn.ISFORMULA($B$1)")?;
-    ///
-    ///     // The following uses a Formula object and expands out any future functions.
-    ///     // This also works without a warning.
-    ///     worksheet.write_formula(2, 0, Formula::new("=ISFORMULA($B$1)").use_future_functions())?;
-    ///
-    ///     // The following expands out all future functions used in the worksheet from
-    ///     // this point forward. This also works without a warning.
-    ///     worksheet.use_future_functions(true);
-    ///     worksheet.write_formula(3, 0, "=ISFORMULA($B$1)")?;
+    ///     // Add formatting to some of the cells.
+    ///     worksheet.set_cell_format(1, 1, &red)?;
+    ///     worksheet.set_cell_format(2, 3, &green)?;
+    ///     worksheet.set_cell_format(3, 5, &red)?;
     /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
@@ -5965,10 +8580,425 @@ impl Worksheet {
     /// Output file:
     ///
     /// <img
-    /// src="https://rustxlsxwriter.github.io/images/worksheet_use_future_functions.png">
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_cell_format.png">
     ///
-    pub fn use_future_functions(&mut self, enable: bool) {
-        self.use_future_functions = enable;
+    pub fn set_cell_format(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check row and col are in the allowed range.
+        if !self.check_dimensions(row, col) {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        // Get the index of the format object.
+        let xf_index = self.format_xf_index(format);
+
+        // Insert the format in a new or existing cell.
+        self.insert_cell_format(row, col, xf_index);
+
+        Ok(self)
+    }
+
+    /// Add formatting to a range of cells without overwriting the cell data.
+    ///
+    ///
+    /// In Excel the data in a worksheet cell is comprised of a type, a value
+    /// and a format. When using `rust_xlsxwriter` the type is inferred and the
+    /// value and format are generally written at the same time using methods
+    /// like [`Worksheet::write_with_format()`]. However, if required you can
+    /// write the data separately and then add the format using methods like
+    /// `set_range_format()` or [`Worksheet::set_cell_format()`] (see above).
+    ///
+    /// Although this method requires an additional step it allows for use cases
+    /// where it is easier to write a large amount of data in one go and then
+    /// figure out where formatting should be applied. See also the
+    /// documentation section on [Worksheet Cell
+    /// formatting](../worksheet/index.html#cell-formatting).
+    ///
+    /// For use cases where the cell formatting changes based on cell values
+    /// Conditional Formatting may be a better option (see [Working with
+    /// Conditional Formats](../conditional_format/index.html)).
+    ///
+    /// Note, this method should **not** be used to set the formatting for an
+    /// entire worksheet since it would add an XML element for each of the 34
+    /// billion cells in the worksheet which would result in a very large and
+    /// slow output file. To set the format for the entire worksheet see the
+    /// [`Worksheet::set_column_range_format()`] method.
+    ///
+    ///
+    /// # Parameters
+    ///
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `format`: The [`Format`] property for the cell.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    ///   row.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates setting the format of worksheet cells
+    /// separately from writing the cell data.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_set_range_format.rs
+    /// #
+    /// # use rust_xlsxwriter::{Format, FormatBorder, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Add a format.
+    ///     let border = Format::new().set_border(FormatBorder::Thin);
+    ///
+    ///     // Write an array of data.
+    ///     let data = [
+    ///         [10, 11, 12, 13, 14],
+    ///         [20, 21, 22, 23, 24],
+    ///         [30, 31, 32, 33, 34],
+    ///     ];
+    ///     worksheet.write_row_matrix(1, 1, data)?;
+    ///
+    ///     // Add formatting to the cells.
+    ///     worksheet.set_range_format(1, 1, 3, 5, &border)?;
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_range_format.png">
+    ///
+    pub fn set_range_format(
+        &mut self,
+        first_row: RowNum,
+        first_col: ColNum,
+        last_row: RowNum,
+        last_col: ColNum,
+        format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check rows and cols are in the allowed range.
+        if !self.check_dimensions_only(first_row, first_col)
+            || !self.check_dimensions_only(last_row, last_col)
+        {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        // Check order of first/last values.
+        if first_row > last_row || first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        // Get the index of the format object.
+        let xf_index = self.format_xf_index(format);
+
+        // Insert the format in a new or existing cells.
+        for row in first_row..=last_row {
+            for col in first_col..=last_col {
+                self.insert_cell_format(row, col, xf_index);
+            }
+        }
+
+        Ok(self)
+    }
+
+    /// Add formatting to a range of cells with an external border.
+    ///
+    /// This method is similar to the  [`Worksheet::set_range_format()`] method
+    /// (see above) except it also adds a border around the cell range.
+    ///
+    /// Add a border around a range of cells in Excel is generally easy to do
+    /// using the GUI interface. However, creating a border around a range of
+    /// cells programmatically is much harder since it requires the creation of
+    /// up to 9 separate formats and the tracking of where cells are relative to
+    /// the border.
+    ///
+    /// The `set_range_format_with_border()` method is provided to simplify this
+    /// task. It allows you to specify one format for the cells and another for
+    /// the border.
+    ///
+    /// You should also consider formatting a range of cells as a Worksheet
+    /// Table may be a better option than simple cell formatting (see the
+    /// [`Table`] section of the documentation).
+    ///
+    /// Note, this method should **not** be used to set the formatting for an
+    /// entire worksheet since it would add an XML element for each of the 34
+    /// billion cells in the worksheet which would result in a very large and
+    /// slow output file. To set the format for the entire worksheet see the
+    /// [`Worksheet::set_column_range_format()`] method.
+    ///
+    /// # Parameters
+    ///
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
+    /// - `cell_format`: The [`Format`] property for the cells in the range. If
+    ///   you don't require internal formatting you can use `Format::default()`.
+    /// - `border_format`: The [`Format`] property for the border. Only the
+    ///   [`Format::set_border()`] and [`Format::set_border_color()`] properties
+    ///   are used.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    ///   worksheet limits.
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    ///   row.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates setting the format of worksheet cells
+    /// separately from writing the cell data.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_set_range_format_with_border.rs
+    /// #
+    /// # use rust_xlsxwriter::{Format, FormatBorder, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     // Add some formats.
+    ///     let inner_border = Format::new().set_border(FormatBorder::Thin);
+    ///     let outer_border = Format::new().set_border(FormatBorder::Double);
+    ///
+    ///     // Write an array of data.
+    ///     let data = [
+    ///         [10, 11, 12, 13, 14],
+    ///         [20, 21, 22, 23, 24],
+    ///         [30, 31, 32, 33, 34],
+    ///     ];
+    ///     worksheet.write_row_matrix(1, 1, data)?;
+    ///
+    ///     // Add formatting to the cells.
+    ///     worksheet.set_range_format_with_border(1, 1, 3, 5, &inner_border, &outer_border)?;
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_range_format_with_border.png">
+    ///
+    pub fn set_range_format_with_border(
+        &mut self,
+        first_row: RowNum,
+        first_col: ColNum,
+        last_row: RowNum,
+        last_col: ColNum,
+        cell_format: &Format,
+        border_format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check rows and cols are in the allowed range.
+        if !self.check_dimensions_only(first_row, first_col)
+            || !self.check_dimensions_only(last_row, last_col)
+        {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        // Check order of first/last values.
+        if first_row > last_row || first_col > last_col {
+            return Err(XlsxError::RowColumnOrderError);
+        }
+
+        if first_row == last_row && first_col == last_col {
+            self.set_range_border_cell(first_row, first_col, cell_format, border_format)?;
+        } else if first_row == last_row {
+            self.set_range_border_row(first_row, first_col, last_col, cell_format, border_format)?;
+        } else if first_col == last_col {
+            self.set_range_border_col(first_row, last_row, first_col, cell_format, border_format)?;
+        } else {
+            self.set_range_border_range(
+                first_row,
+                last_row,
+                first_col,
+                last_col,
+                cell_format,
+                border_format,
+            )?;
+        }
+
+        Ok(self)
+    }
+
+    /// Clear the data and formatting from a worksheet cell.
+    ///
+    /// This method can be used to clear data and formatting previously written
+    /// to a worksheet cell using one of the worksheet `write()` methods.
+    ///
+    /// This can occasionally be useful for scenarios where it is easier to add
+    /// data in bulk but then remove certain elements.
+    ///
+    /// This method only clears data, it doesn't clear images or conditional
+    /// formatting, or other non-data elements.
+    ///
+    /// Note, this method doesn't return a [`Result`] or errors. Instructions to
+    /// clear non-existent cells are simply ignored.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates clearing some previously written cell
+    /// data and formatting from a worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_clear_cell.rs
+    /// #
+    /// # use rust_xlsxwriter::{Format, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add a format.
+    /// #     let format = Format::new().set_font_color("#FF0000");
+    /// #
+    ///     // Some array data to write.
+    ///     let data = [
+    ///         [10, 11, 12, 13, 14],
+    ///         [20, 21, 22, 23, 24],
+    ///         [30, 31, 32, 33, 34],
+    ///     ];
+    ///
+    ///     // Write the array data as a series of rows.
+    ///     worksheet.write_row_with_format(0, 0, data[0], &format)?;
+    ///     worksheet.write_row_with_format(1, 0, data[1], &format)?;
+    ///     worksheet.write_row_with_format(2, 0, data[2], &format)?;
+    ///
+    ///     // Clear the first and last cell in the written data.
+    ///     worksheet.clear_cell(0, 0);
+    ///     worksheet.clear_cell(2, 4);
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_clear_cell.png">
+    ///
+    pub fn clear_cell(&mut self, row: RowNum, col: ColNum) -> &mut Worksheet {
+        // If cell is outside the allowed range it doesn't need to be cleared.
+        if !self.check_dimensions_only(row, col) {
+            return self;
+        }
+
+        self.clear_cell_internal(row, col);
+
+        self
+    }
+
+    /// Clear the formatting from a worksheet cell.
+    ///
+    /// This method can be used to clear the formatting previously added to a
+    /// worksheet cell using one of the worksheet `write_with_format()` methods.
+    ///
+    /// This can occasionally be useful for scenarios where it is easier to add
+    /// formatted data in bulk but then remove the formatting from certain
+    /// elements.
+    ///
+    /// See also the [`Worksheet::set_cell_format()`] method for a similar
+    /// method to change the format of a cell.
+    ///
+    /// Note, this method doesn't return a [`Result`] or errors. Instructions to
+    /// clear non-existent cells are simply ignored.
+    ///
+    /// # Parameters
+    ///
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates clearing the formatting from some
+    /// previously written cells in a worksheet.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_clear_cell_format.rs
+    /// #
+    /// # use rust_xlsxwriter::{Format, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     // Create a new Excel file object.
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add a format.
+    /// #     let format = Format::new().set_font_color("#FF0000");
+    /// #
+    ///     // Some array data to write.
+    ///     let data = [
+    ///         [10, 11, 12, 13, 14],
+    ///         [20, 21, 22, 23, 24],
+    ///         [30, 31, 32, 33, 34],
+    ///     ];
+    ///
+    ///     // Write the array data as a series of rows.
+    ///     worksheet.write_row_with_format(0, 0, data[0], &format)?;
+    ///     worksheet.write_row_with_format(1, 0, data[1], &format)?;
+    ///     worksheet.write_row_with_format(2, 0, data[2], &format)?;
+    ///
+    ///     // Clear the format from the first and last cells in the data.
+    ///     worksheet.clear_cell_format(0, 0);
+    ///     worksheet.clear_cell_format(2, 4);
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_clear_cell_format.png">
+    ///
+    pub fn clear_cell_format(&mut self, row: RowNum, col: ColNum) -> &mut Worksheet {
+        // If cell is outside the allowed range it doesn't need to be cleared.
+        if !self.check_dimensions_only(row, col) {
+            return self;
+        }
+
+        self.clear_cell_format_internal(row, col);
+
+        self
     }
 
     // -----------------------------------------------------------------------
@@ -6026,16 +9056,16 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `data_structure` - A reference to a struct that implements the
+    /// - `data_structure`: A reference to a struct that implements the
     ///   [`serde::Serializer`] trait.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6128,18 +9158,18 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data_structure` - A reference to a struct that implements the
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data_structure`: A reference to a struct that implements the
     ///   [`serde::Serializer`] trait.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6291,19 +9321,19 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data_structure` - A reference to a struct that implements the
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data_structure`: A reference to a struct that implements the
     ///   [`serde::Serializer`] trait.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6419,19 +9449,19 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `data_structure` - A reference to a struct that implements the
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `data_structure`: A reference to a struct that implements the
     ///   [`serde::Serializer`] trait.
-    /// * `header_options` - A [`SerializeFieldOptions`] instance.
+    /// - `header_options`: A [`SerializeFieldOptions`] instance.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6549,16 +9579,16 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6651,17 +9681,17 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `format` - The [`Format`] property for the cell.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `format`: The [`Format`] property for the cell.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6773,17 +9803,17 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
-    /// * `header_options` - A [`SerializeFieldOptions`] instance.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
+    /// - `header_options`: A [`SerializeFieldOptions`] instance.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6897,16 +9927,16 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
-    /// * [`XlsxError::SerdeError`] - Errors encountered during the Serde
+    /// - [`XlsxError::SerdeError`] - Errors encountered during the Serde
     ///   serialization.
     ///
     /// # Examples
@@ -6998,11 +10028,11 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `struct_name` - The name/type of the target struct as a string.
+    /// - `struct_name`: The name/type of the target struct as a string.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::ParameterError`] - Unknown or unserialized struct name.
+    /// - [`XlsxError::ParameterError`] - Unknown or unserialized struct name.
     ///
     /// # Examples
     ///
@@ -7114,13 +10144,13 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `struct_name` - The name/type of the target struct, as a string.
-    /// * `struct_name` - The name of the field in the target struct, as a
+    /// - `struct_name`: The name/type of the target struct, as a string.
+    /// - `struct_name`: The name of the field in the target struct, as a
     ///   string.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::ParameterError`] - Unknown or unserialized struct name or
+    /// - [`XlsxError::ParameterError`] - Unknown or unserialized struct name or
     ///   field.
     ///
     ///
@@ -7508,7 +10538,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -7536,9 +10566,9 @@ impl Worksheet {
     ///     worksheet1.set_column_width(0,25)?;
     ///
     ///     // Standard direction:         | A1 | B1 | C1 | ...
-    ///     worksheet1.write_string(0, 0, "نص عربي / English text")?;
-    ///     worksheet1.write_string_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
-    ///     worksheet1.write_string_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
+    ///     worksheet1.write(0, 0, "نص عربي / English text")?;
+    ///     worksheet1.write_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
+    ///     worksheet1.write_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
     ///
     ///     // Add a worksheet and change it to right to left direction.
     ///     let worksheet2 = workbook.add_worksheet();
@@ -7548,10 +10578,10 @@ impl Worksheet {
     ///     worksheet2.set_column_width(0, 25)?;
     ///
     ///     // Right to left direction:    ... | C1 | B1 | A1 |
-    ///     worksheet2.write_string(0, 0, "نص عربي / English text")?;
-    ///     worksheet2.write_string_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
-    ///     worksheet2.write_string_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
-    ///
+    ///     worksheet2.write(0, 0, "نص عربي / English text")?;
+    ///     worksheet2.write_with_format(1, 0, "نص عربي / English text", &format_left_to_right)?;
+    ///     worksheet2.write_with_format(2, 0, "نص عربي / English text", &format_right_to_left)?;
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -7575,7 +10605,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -7595,7 +10625,7 @@ impl Worksheet {
     ///     let mut worksheet2 = Worksheet::new();
     ///
     ///     worksheet2.set_active(true);
-    ///
+    /// #
     /// #   workbook.push_worksheet(worksheet1);
     /// #   workbook.push_worksheet(worksheet2);
     /// #   workbook.push_worksheet(worksheet3);
@@ -7630,18 +10660,17 @@ impl Worksheet {
     /// A selected worksheet has its tab highlighted. Selecting worksheets is a
     /// way of grouping them together so that, for example, several worksheets
     /// could be printed in one go. A worksheet that has been activated via the
-    /// [`set_active()`](Worksheet::set_active) method will also appear as
-    /// selected.
+    /// [`Worksheet::set_active()`] method will also appear as selected.
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
-    /// The following example demonstrates selecting worksheet in a workbook. The
-    /// active worksheet is selected by default so in this example the first two
-    /// worksheets are selected.
+    /// The following example demonstrates selecting worksheet in a workbook.
+    /// The active worksheet is selected by default so in this example the first
+    /// two worksheets are selected.
     ///
     /// ```
     /// # // This code is available in examples/doc_worksheet_set_selected.rs
@@ -7656,7 +10685,7 @@ impl Worksheet {
     ///     let mut worksheet2 = Worksheet::new();
     ///
     ///     worksheet2.set_selected(true);
-    ///
+    /// #
     /// #   workbook.push_worksheet(worksheet1);
     /// #   workbook.push_worksheet(worksheet2);
     /// #   workbook.push_worksheet(worksheet3);
@@ -7669,7 +10698,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_selected.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_selected.png">
     ///
     pub fn set_selected(&mut self, enable: bool) -> &mut Worksheet {
         self.selected = enable;
@@ -7689,15 +10719,14 @@ impl Worksheet {
     /// data or calculations.
     ///
     /// In Excel a hidden worksheet can not be activated or selected so this
-    /// method is mutually exclusive with the
-    /// [`set_active()`](Worksheet::set_active) and
-    /// [`set_selected()`](Worksheet::set_selected) methods. In addition, since
-    /// the first worksheet will default to being the active worksheet, you
-    /// cannot hide the first worksheet without activating another sheet.
+    /// method is mutually exclusive with the [`Worksheet::set_active()`] and
+    /// [`Worksheet::set_selected()`] methods. In addition, since the first
+    /// worksheet will default to being the active worksheet, you cannot hide
+    /// the first worksheet without activating another sheet.
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -7716,7 +10745,7 @@ impl Worksheet {
     ///     let mut worksheet2 = Worksheet::new();
     ///
     ///     worksheet2.set_hidden(true);
-    ///
+    /// #
     /// #    workbook.push_worksheet(worksheet1);
     /// #    workbook.push_worksheet(worksheet2);
     /// #    workbook.push_worksheet(worksheet3);
@@ -7729,7 +10758,8 @@ impl Worksheet {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_hidden.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_hidden.png">
     ///
     pub fn set_hidden(&mut self, enable: bool) -> &mut Worksheet {
         if enable {
@@ -7750,10 +10780,14 @@ impl Worksheet {
     /// Hide a worksheet. Can only be unhidden in Excel by VBA.
     ///
     /// The `set_very_hidden()` method can be used to hide a worksheet similar
-    /// to the [`set_hidden()`](Worksheet::set_hidden) method. The difference is
-    /// that the worksheet cannot be unhidden in the the Excel user interface.
-    /// The Excel worksheet `xlSheetVeryHidden` option can only be unset
-    /// programmatically by VBA.
+    /// to the [`Worksheet::set_hidden()`] method. The difference is that the
+    /// worksheet cannot be unhidden in the the Excel user interface. The Excel
+    /// worksheet `xlSheetVeryHidden` option can only be unset programmatically
+    /// by VBA.
+    ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_very_hidden(&mut self, enable: bool) -> &mut Worksheet {
         if enable {
@@ -7773,18 +10807,18 @@ impl Worksheet {
 
     /// Set current worksheet as the first visible sheet tab.
     ///
-    /// The [`set_active()`](Worksheet::set_active)  method determines
-    /// which worksheet is initially selected. However, if there are a large
-    /// number of worksheets the selected worksheet may not appear on the
-    /// screen. To avoid this you can select which is the leftmost visible
-    /// worksheet tab using `set_first_tab()`.
+    /// The [`Worksheet::set_active()`]  method determines which worksheet is
+    /// initially selected. However, if there are a large number of worksheets
+    /// the selected worksheet may not appear on the screen. To avoid this you
+    /// can select which is the leftmost visible worksheet tab using
+    /// `set_first_tab()`.
     ///
     /// This method is not required very often. The default is the first
     /// worksheet.
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_first_tab(&mut self, enable: bool) -> &mut Worksheet {
         self.first_sheet = enable;
@@ -7804,7 +10838,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `color` - The tab color property defined by a [`Color`] enum
+    /// - `color`: The tab color property defined by a [`Color`] enum
     ///   value.
     ///
     /// # Examples
@@ -7830,7 +10864,7 @@ impl Worksheet {
     ///
     ///     // worksheet4 will have the default color.
     ///     worksheet4.set_active(true);
-    ///
+    /// #
     /// #    workbook.push_worksheet(worksheet1);
     /// #    workbook.push_worksheet(worksheet2);
     /// #    workbook.push_worksheet(worksheet3);
@@ -7846,8 +10880,8 @@ impl Worksheet {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_tab_color.png">
     ///
-    pub fn set_tab_color(&mut self, color: impl IntoColor) -> &mut Worksheet {
-        let color = color.new_color();
+    pub fn set_tab_color(&mut self, color: impl Into<Color>) -> &mut Worksheet {
+        let color = color.into();
         if color.is_valid() {
             self.tab_color = color;
         }
@@ -7915,7 +10949,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `paper_size` - The paper size index from the list above .
+    /// - `paper_size`: The paper size index from the list above .
     ///
     /// # Examples
     ///
@@ -7963,7 +10997,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. Set `true` to get "Down, then
+    /// - `enable`: Turn the property on/off. Set `true` to get "Down, then
     ///   over" (the default) and `false` to get "Over, then down".
     ///
     /// # Examples
@@ -8021,7 +11055,7 @@ impl Worksheet {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     worksheet.set_landscape();
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -8086,7 +11120,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `breaks` - A list of one or more row numbers where the page breaks
+    /// - `breaks`: A list of one or more row numbers where the page breaks
     ///   occur. To create a page break between rows 20 and 21 you must specify
     ///   the break at row 21. However in zero index notation this is actually
     ///   row 20. So you can pretend for a small while that you are using 1
@@ -8094,9 +11128,9 @@ impl Worksheet {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::ParameterError`] - The number of page breaks exceeds
+    /// - [`XlsxError::ParameterError`] - The number of page breaks exceeds
     ///   Excel's limit of 1023 page breaks.
     ///
     /// # Examples
@@ -8151,18 +11185,18 @@ impl Worksheet {
     ///
     /// The `set_vertical_page_breaks()` method adds vertical page breaks to a
     /// worksheet. This is much less common than the
-    /// [`set_page_breaks()`](Worksheet::set_page_breaks) method shown above.
+    /// [`Worksheet::set_page_breaks()`] method shown above.
     ///
     /// # Parameters
     ///
-    /// * `breaks` - A list of one or more column numbers where the page breaks
+    /// - `breaks`: A list of one or more column numbers where the page breaks
     ///   occur.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::ParameterError`] - The number of page breaks exceeds
+    /// - [`XlsxError::ParameterError`] - The number of page breaks exceeds
     ///   Excel's limit of 1023 page breaks.
     ///
     pub fn set_vertical_page_breaks(
@@ -8193,11 +11227,11 @@ impl Worksheet {
     ///
     /// The default zoom level is 100. The `set_zoom()` method does not affect
     /// the scale of the printed page in Excel. For that you should use
-    /// [`set_print_scale()`](Worksheet::set_print_scale).
+    /// [`Worksheet::set_print_scale()`].
     ///
     /// # Parameters
     ///
-    /// * `zoom` - The worksheet zoom level.
+    /// - `zoom`: The worksheet zoom level.
     ///
     /// # Examples
     ///
@@ -8216,7 +11250,7 @@ impl Worksheet {
     /// #
     ///     worksheet.write_string(0, 0, "Hello")?;
     ///     worksheet.set_zoom(200);
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -8254,12 +11288,12 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -8290,7 +11324,7 @@ impl Worksheet {
     ///
     ///     // Freeze the top row and leftmost column.
     ///     worksheet3.set_freeze_panes(1, 1)?;
-    ///
+    /// #
     /// #     workbook.push_worksheet(worksheet1);
     /// #     workbook.push_worksheet(worksheet2);
     /// #     workbook.push_worksheet(worksheet3);
@@ -8322,19 +11356,19 @@ impl Worksheet {
     /// Set the top most cell in the scrolling area of a freeze pane.
     ///
     /// This method is used in conjunction with the
-    /// [`set_freeze_panes()`](Worksheet::set_freeze_panes) method to set the
-    /// top most visible cell in the scrolling range. For example you may want
-    /// to freeze the top row a but have the worksheet pre-scrolled so that cell
-    /// `A20` is visible in the scrolled area. See the example below.
+    /// [`Worksheet::set_freeze_panes()`] method to set the top most visible
+    /// cell in the scrolling range. For example you may want to freeze the top
+    /// row but have the worksheet pre-scrolled so that cell `A20` is visible in
+    /// the scrolled area. See the example below.
     ///
     /// # Parameters
     ///
-    /// * `row` - The zero indexed row number.
-    /// * `col` - The zero indexed column number.
+    /// - `row`: The zero indexed row number.
+    /// - `col`: The zero indexed column number.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
     ///
     /// # Examples
@@ -8359,7 +11393,7 @@ impl Worksheet {
     ///
     ///     // Pre-scroll to the row 20.
     ///     worksheet.set_freeze_panes_top_cell(19, 0)?;
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -8541,7 +11575,7 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `header` - The header string with optional control characters.
+    /// - `header`: The header string with optional control characters.
     ///
     /// # Examples
     ///
@@ -8559,7 +11593,7 @@ impl Worksheet {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     worksheet.set_header("&CPage &P of &N");
-    ///
+    /// #
     /// #     worksheet.write_string(0, 0, "Hello")?;
     /// #     worksheet.write_string(200, 0, "Hello")?;
     /// #     worksheet.set_view_page_layout();
@@ -8602,12 +11636,12 @@ impl Worksheet {
     ///
     /// The `set_footer()` method can be used to set the footer for a worksheet.
     ///
-    /// See the documentation for [`set_header()`](Worksheet::set_header()) for
-    /// more details on the syntax of the header/footer string.
+    /// See the documentation for [`Worksheet::set_header()`] for more details
+    /// on the syntax of the header/footer string.
     ///
     /// # Parameters
     ///
-    /// * `footer` - The footer string with optional control characters.
+    /// - `footer`: The footer string with optional control characters.
     ///
     pub fn set_footer(&mut self, footer: impl Into<String>) -> &mut Worksheet {
         let footer = footer.into();
@@ -8636,18 +11670,17 @@ impl Worksheet {
     ///
     /// Insert an image in a worksheet header in one of the 3 sections supported
     /// by Excel: Left, Center and Right. This needs to be preceded by a call to
-    /// [`worksheet.set_header()`](Worksheet::set_header) where a corresponding
-    /// `&[Picture]` element is added to the header formatting string such as
-    /// `"&L&[Picture]"`.
+    /// [`Worksheet::set_header()`] where a corresponding `&[Picture]` element
+    /// is added to the header formatting string such as `"&L&[Picture]"`.
     ///
     /// # Parameters
     ///
-    /// * `position` - The image position as defined by the [`HeaderImagePosition`]
-    ///   enum.
+    /// - `position`: The image position as defined by the
+    ///   [`HeaderImagePosition`] enum.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::ParameterError`] - Parameter error if there isn't a
+    /// - [`XlsxError::ParameterError`] - Parameter error if there isn't a
     ///   corresponding `&[Picture]`/`&[G]` variable in the header string.
     ///
     /// # Examples
@@ -8667,14 +11700,14 @@ impl Worksheet {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     /// #     // Scale the image so it fits in the header.
-    ///     let mut image = Image::new("examples/rust_logo.png")?;
-    /// #     image.set_scale_height(0.5);
-    /// #     image.set_scale_width(0.5);
+    ///       let image = Image::new("examples/rust_logo.png")?
+    ///           .set_scale_height(0.5)
+    ///           .set_scale_width(0.5);
     /// #
     ///     // Insert the watermark image in the header.
     ///     worksheet.set_header("&C&[Picture]");
     ///     worksheet.set_header_image(&image, HeaderImagePosition::Center)?;
-    ///
+    /// #
     /// #     // Increase the top margin to 1.2 for clarity. The -1.0 values are ignored.
     /// #     worksheet.set_margins(-1.0, -1.0, 1.2, -1.0, -1.0, -1.0);
     /// #
@@ -8694,8 +11727,9 @@ impl Worksheet {
     /// src="https://rustxlsxwriter.github.io/images/worksheet_set_header_image.png">
     ///
     /// An example of adding a worksheet watermark image using the
-    /// `rust_xlsxwriter` library. This is based on the method of putting an image
-    /// in the worksheet header as suggested in the [Microsoft documentation].
+    /// `rust_xlsxwriter` library. This is based on the method of putting an
+    /// image in the worksheet header as suggested in the [Microsoft
+    /// documentation].
     ///
     /// [Microsoft documentation]:
     ///     https://support.microsoft.com/en-us/office/add-a-watermark-in-excel-a372182a-d733-484e-825c-18ddf3edf009
@@ -8757,17 +11791,17 @@ impl Worksheet {
 
     /// Insert an image in a worksheet footer.
     ///
-    /// See the documentation for
-    /// [`set_header_image()`](Worksheet::set_header_image()) for more details.
+    /// See the documentation for [`Worksheet::set_header_image()`] for more
+    /// details.
     ///
     /// # Parameters
     ///
-    /// * `position` - The image position as defined by the [`HeaderImagePosition`]
-    ///   enum.
+    /// - `position`: The image position as defined by the
+    ///   [`HeaderImagePosition`] enum.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::ParameterError`] - Parameter error if there isn't a
+    /// - [`XlsxError::ParameterError`] - Parameter error if there isn't a
     ///   corresponding `&[Picture]`/`&[G]` variable in the header string.
     ///
     pub fn set_footer_image(
@@ -8798,15 +11832,12 @@ impl Worksheet {
     /// This option determines whether the headers and footers use the same
     /// scaling as the worksheet. This defaults to "on" in Excel.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Header/Footer](../worksheet/index.html#page-setup---headerfooter).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     pub fn set_header_footer_scale_with_doc(&mut self, enable: bool) -> &mut Worksheet {
         self.header_footer_scale_with_doc = enable;
@@ -8824,16 +11855,12 @@ impl Worksheet {
     /// This option determines whether the headers and footers align with the
     /// left and right margins of the worksheet. This defaults to "on" in Excel.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Header/Footer](../worksheet/index.html#page-setup---headerfooter).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
-    ///S
+    /// - `enable`: Turn the property on/off. It is on by default. S
     pub fn set_header_footer_align_with_page(&mut self, enable: bool) -> &mut Worksheet {
         self.header_footer_align_with_page = enable;
 
@@ -8853,12 +11880,12 @@ impl Worksheet {
     ///
     /// # Parameters
     ///
-    /// * `left` - Left margin in inches. Excel default is 0.7.
-    /// * `right` - Right margin in inches. Excel default is 0.7.
-    /// * `top` - Top margin in inches. Excel default is 0.75.
-    /// * `bottom` - Bottom margin in inches. Excel default is 0.75.
-    /// * `header` - Header margin in inches. Excel default is 0.3.
-    /// * `footer` - Footer margin in inches. Excel default is 0.3.
+    /// - `left`: Left margin in inches. Excel default is 0.7.
+    /// - `right`: Right margin in inches. Excel default is 0.7.
+    /// - `top`: Top margin in inches. Excel default is 0.75.
+    /// - `bottom`: Bottom margin in inches. Excel default is 0.75.
+    /// - `header`: Header margin in inches. Excel default is 0.3.
+    /// - `footer`: Footer margin in inches. Excel default is 0.3.
     ///
     /// # Examples
     ///
@@ -8876,7 +11903,7 @@ impl Worksheet {
     /// #     let worksheet = workbook.add_worksheet();
     /// #
     ///     worksheet.set_margins(1.0, 1.25, 1.5, 1.75, 0.75, 0.25);
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -8930,22 +11957,19 @@ impl Worksheet {
     /// The `set_print_first_page_number()` method is used to set the page
     /// number of the first page when the worksheet is printed out. This option
     /// will only have and effect if you have a header/footer with the `&[Page]`
-    /// control character, see [`set_header()`](Worksheet::set_header()).
+    /// control character, see [`Worksheet::set_header()`].
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Page](../worksheet/index.html#page-setup---page).
     ///
     /// # Parameters
     ///
-    /// * `page_number` - The page number of the first printed page.
+    /// - `page_number`: The page number of the first printed page.
     ///
     /// # Examples
     ///
-    /// The following example demonstrates setting the page number on the printed
-    /// page.
+    /// The following example demonstrates setting the page number on the
+    /// printed page.
     ///
     /// ```
     /// # // This code is available in examples/doc_worksheet_set_print_first_page_number.rs
@@ -8960,7 +11984,7 @@ impl Worksheet {
     /// #
     ///     worksheet.set_header("&CPage &P of &N");
     ///     worksheet.set_print_first_page_number(2);
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -8979,17 +12003,14 @@ impl Worksheet {
     ///
     /// The default scale factor is 100. The `set_print_scale()` method
     /// does not affect the scale of the visible page in Excel. For that you
-    /// should use [`set_zoom()`](Worksheet::set_zoom).
+    /// should use [`Worksheet::set_zoom()`].
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Page](../worksheet/index.html#page-setup---page).
     ///
     /// # Parameters
     ///
-    /// * `scale` - The print scale factor.
+    /// - `scale`: The print scale factor.
     ///
     /// # Examples
     ///
@@ -9009,7 +12030,7 @@ impl Worksheet {
     /// #
     ///     // Scale the printed worksheet to 50%.
     ///     worksheet.set_print_scale(50);
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -9057,27 +12078,23 @@ impl Worksheet {
     ///   that are defined in the worksheet.
     ///
     /// - When using `set_print_fit_to_pages()` it may also be required to set
-    ///   the printer paper size using
-    ///   [`set_paper_size()`](Worksheet::set_paper_size) or else Excel will
-    ///   default to "US Letter".
+    ///   the printer paper size using [`Worksheet::set_paper_size()`] or else
+    ///   Excel will default to "US Letter".
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Page](../worksheet/index.html#page-setup---page).
     ///
     /// # Parameters
     ///
-    /// * `width` - Number of pages horizontally.
-    /// * `height` - Number of pages vertically.
+    /// - `width`: Number of pages horizontally.
+    /// - `height`: Number of pages vertically.
     ///
     /// # Examples
     ///
-    /// The following example demonstrates setting the scale of the worksheet to fit
-    /// a defined number of pages vertically and horizontally. This example shows a
-    /// common use case which is to fit the printed output to 1 page wide but have
-    /// the height be as long as necessary.
+    /// The following example demonstrates setting the scale of the worksheet to
+    /// fit a defined number of pages vertically and horizontally. This example
+    /// shows a common use case which is to fit the printed output to 1 page
+    /// wide but have the height be as long as necessary.
     ///
     /// ```
     /// # // This code is available in examples/doc_worksheet_set_print_fit_to_pages.rs
@@ -9092,7 +12109,7 @@ impl Worksheet {
     /// #
     ///     // Set the printed output to fit 1 page wide and as long as necessary.
     ///     worksheet.set_print_fit_to_pages(1, 0);
-    ///
+    /// #
     /// #     workbook.save("worksheet.xlsx")?;
     /// #
     /// #     Ok(())
@@ -9101,7 +12118,8 @@ impl Worksheet {
     ///
     /// Output:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_print_fit_to_pages.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_print_fit_to_pages.png">
     ///
     pub fn set_print_fit_to_pages(&mut self, width: u16, height: u16) -> &mut Worksheet {
         self.fit_width = width;
@@ -9120,15 +12138,12 @@ impl Worksheet {
     /// Center the worksheet data horizontally between the margins on the
     /// printed page
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Margins](../worksheet/index.html#page-setup---margins).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_print_center_horizontally(&mut self, enable: bool) -> &mut Worksheet {
         self.center_horizontally = enable;
@@ -9142,18 +12157,15 @@ impl Worksheet {
 
     /// Center the printed page vertically.
     ///
-    /// Center the worksheet data vertically between the margins on the
-    /// printed page
+    /// Center the worksheet data vertically between the margins on the printed
+    /// page
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Margins](../worksheet/index.html#page-setup---margins).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_print_center_vertically(&mut self, enable: bool) -> &mut Worksheet {
         self.center_vertically = enable;
@@ -9165,20 +12177,70 @@ impl Worksheet {
         self
     }
 
+    /// Set the option to turn on/off the screen gridlines.
+    ///
+    /// The `set_screen_gridlines()` method is use to turn on/off gridlines on
+    /// displayed worksheet. It is on by default.
+    ///
+    /// To turn on/off the printed gridlines see the
+    /// [`Worksheet::set_print_gridlines()`] method below.
+    ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is on by default.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates turn off the worksheet worksheet screen
+    /// gridlines.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_worksheet_set_screen_gridlines.rs
+    /// #
+    /// # use rust_xlsxwriter::{Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    /// #     // Add a worksheet to the workbook.
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    ///     worksheet.write(0, 0, "Hello")?;
+    ///
+    ///     // Turn off the screen gridlines.
+    ///     worksheet.set_screen_gridlines(false);
+    /// #
+    /// #     workbook.save("worksheet.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_screen_gridlines.png">
+    ///
+    pub fn set_screen_gridlines(&mut self, enable: bool) -> &mut Worksheet {
+        self.screen_gridlines = enable;
+
+        self
+    }
+
     /// Set the page setup option to turn on printed gridlines.
     ///
     /// The `set_print_gridlines()` method is use to turn on/off gridlines on
     /// the printed pages. It is off by default.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
+    /// To turn on/off the screen gridlines see the
+    /// [`Worksheet::set_screen_gridlines()`] method above.
     ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    ///
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Sheet](../worksheet/index.html#page-setup---sheet).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_print_gridlines(&mut self, enable: bool) -> &mut Worksheet {
         self.print_gridlines = enable;
@@ -9195,15 +12257,12 @@ impl Worksheet {
     /// This `set_print_black_and_white()` method can be used to force printing
     /// in black and white only. It is off by default.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Sheet](../worksheet/index.html#page-setup---sheet).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_print_black_and_white(&mut self, enable: bool) -> &mut Worksheet {
         self.print_black_and_white = enable;
@@ -9216,13 +12275,12 @@ impl Worksheet {
 
     /// Set the page setup option to print in draft quality.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page Setup].
-    ///
-    /// [Worksheet - Page Setup]: https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Sheet](../worksheet/index.html#page-setup---sheet).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_print_draft(&mut self, enable: bool) -> &mut Worksheet {
         self.print_draft = enable;
@@ -9239,15 +12297,12 @@ impl Worksheet {
     /// The `set_print_headings()` method turns on the row and column headers
     /// when printing a worksheet. This option is off by default.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Worksheet - Page
-    /// Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the documentation on [Worksheet Page Setup -
+    /// Sheet](../worksheet/index.html#page-setup---sheet).
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_print_headings(&mut self, enable: bool) -> &mut Worksheet {
         self.print_headings = enable;
@@ -9274,24 +12329,21 @@ impl Worksheet {
     /// In these examples 16,383 is the maximum column and 1,048,575 is the
     /// maximum row (zero indexed).
     ///
-    /// See also the example below and the `rust_xlsxwriter` documentation on
-    /// [Worksheet - Page Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See also the example below and the documentation on
+    /// [Worksheet Page Setup - Sheet](../worksheet/index.html#page-setup---sheet).
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (All zero indexed.)
-    /// * `first_col` - The first row of the range.
-    /// * `last_row` - The last row of the range.
-    /// * `last_col` - The last row of the range.
+    /// - `first_row`: The first row of the range. (All zero indexed.)
+    /// - `first_col`: The first row of the range.
+    /// - `last_row`: The last row of the range.
+    /// - `last_col`: The last row of the range.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row or column is larger
+    /// - [`XlsxError::RowColumnOrderError`] - First row or column is larger
     ///   than the last row or column.
     ///
     /// # Examples
@@ -9372,22 +12424,19 @@ impl Worksheet {
     /// For large Excel documents it is often desirable to have the first row or
     /// rows of the worksheet print out at the top of each page.
     ///
-    /// See the example below and the `rust_xlsxwriter` documentation on
-    /// [Worksheet - Page Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See the example below and the documentation on [Worksheet Page Setup -
+    /// Sheet](../worksheet/index.html#page-setup---sheet).
     ///
     /// # Parameters
     ///
-    /// * `first_row` - The first row of the range. (Zero indexed.)
-    /// * `last_row` - The last row of the range.
+    /// - `first_row`: The first row of the range. (Zero indexed.)
+    /// - `last_row`: The last row of the range.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row larger than the last
+    /// - [`XlsxError::RowColumnOrderError`] - First row larger than the last
     ///   row.
     ///
     /// # Examples
@@ -9419,7 +12468,8 @@ impl Worksheet {
     ///
     /// Output file, page setup dialog for worksheet2:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_repeat_rows.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_repeat_rows.png">
     ///
     pub fn set_repeat_rows(
         &mut self,
@@ -9452,22 +12502,19 @@ impl Worksheet {
     /// or columns of the worksheet print out at the left hand side of each
     /// page.
     ///
-    /// See the example below and the `rust_xlsxwriter` documentation on
-    /// [Worksheet - Page Setup].
-    ///
-    /// [Worksheet - Page Setup]:
-    ///     https://rustxlsxwriter.github.io/worksheet/page_setup.html
+    /// See the example below and the documentation on [Worksheet Page Setup -
+    /// Sheet](../worksheet/index.html#page-setup---sheet).
     ///
     /// # Parameters
     ///
-    /// * `first_col` - The first row of the range. (Zero indexed.)
-    /// * `last_col` - The last row of the range.
+    /// - `first_col`: The first row of the range. (Zero indexed.)
+    /// - `last_col`: The last row of the range.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::RowColumnOrderError`] - First row or column is larger
+    /// - [`XlsxError::RowColumnOrderError`] - First row or column is larger
     ///   than the last row or column.
     ///
     /// # Examples
@@ -9499,7 +12546,8 @@ impl Worksheet {
     ///
     /// Output file, page setup dialog for worksheet2:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/worksheet_set_repeat_columns.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/worksheet_set_repeat_columns.png">
     ///
     pub fn set_repeat_columns(
         &mut self,
@@ -9552,8 +12600,8 @@ impl Worksheet {
     ///
     /// This isn't perfect but for most cases it should be sufficient and if not
     /// you can adjust or prompt it by setting your own column widths via
-    /// [`set_column_width()`](Worksheet::set_column_width()) or
-    /// [`set_column_width_pixels()`](Worksheet::set_column_width_pixels()).
+    /// [`Worksheet::set_column_width()`] or
+    /// [`Worksheet::set_column_width_pixels()`].
     ///
     /// The `autofit()` method ignores columns that have already been explicitly
     /// set if the width is greater than the calculated autofit width.
@@ -9669,8 +12717,8 @@ impl Worksheet {
                             // Excel's default format: mm/dd/yyyy.
                             CellType::DateTime { .. } => 68,
 
-                            // Ignore blank cells, like Excel.
-                            CellType::Blank { .. } => 0,
+                            // Ignore the following types which don't add to the width.
+                            CellType::Blank { .. } | CellType::Error { .. } => 0,
                         };
 
                         // If the cell is in an autofilter header we add an
@@ -9708,6 +12756,46 @@ impl Worksheet {
         }
 
         self
+    }
+
+    /// Set the worksheet name used in VBA macros.
+    ///
+    /// This method can be used to set the VBA name for the worksheet. This is
+    /// sometimes required when a VBA macro included via
+    /// [`Workbook::add_vba_project()`](crate::Workbook::add_vba_project())
+    /// makes reference to the worksheet with a name other than the default
+    /// Excel VBA names of `Sheet1`, `Sheet2`, etc.
+    ///
+    /// See also the
+    /// [`Workbook::set_vba_name()`](crate::Workbook::set_vba_name()) method for
+    /// setting the workbook VBA name.
+    ///
+    /// The name must be a valid Excel VBA object name as defined by the
+    /// following rules:
+    ///
+    /// - The name must be less than 32 characters.
+    /// - The name can only contain word characters: letters, numbers and
+    ///   underscores.
+    /// - The name must start with a letter.
+    /// - The name cannot be blank.
+    ///
+    /// The name must be also be unique across the worksheets in the workbook.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: The vba name. It must follow the Excel rules, shown above.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::VbaNameError`] - The name doesn't meet one of Excel's
+    ///   criteria, shown above.
+    ///
+    pub fn set_vba_name(&mut self, name: impl Into<String>) -> Result<&mut Worksheet, XlsxError> {
+        let name = name.into();
+        utility::validate_vba_name(&name)?;
+        self.vba_codename = Some(name);
+
+        Ok(self)
     }
 
     // -----------------------------------------------------------------------
@@ -10143,7 +13231,7 @@ impl Worksheet {
         format: Option<&Format>,
     ) -> Result<&mut Worksheet, XlsxError> {
         // Transfer to dynamic formula handling function.
-        if formula.is_dynamic_function() {
+        if formula.has_dynamic_function {
             return self.store_array_formula(row, col, row, col, formula, None, true);
         }
 
@@ -10167,7 +13255,7 @@ impl Worksheet {
 
         // Create the appropriate cell type to hold the data.
         let cell = CellType::Formula {
-            formula: formula.expand_formula(self.use_future_functions),
+            formula: Box::from(formula.formula_string),
             xf_index,
             result,
         };
@@ -10212,7 +13300,7 @@ impl Worksheet {
 
         // Check for a dynamic function in a standard static array formula.
         let mut is_dynamic = is_dynamic;
-        if !is_dynamic && formula.is_dynamic_function() {
+        if !is_dynamic && formula.has_dynamic_function {
             is_dynamic = true;
         }
 
@@ -10229,7 +13317,7 @@ impl Worksheet {
 
         // Create the appropriate cell type to hold the data.
         let cell = CellType::ArrayFormula {
-            formula: formula.expand_formula(self.use_future_functions),
+            formula: Box::from(formula.formula_string),
             xf_index,
             result,
             is_dynamic,
@@ -10311,20 +13399,86 @@ impl Worksheet {
         &mut self,
         row: RowNum,
         col: ColNum,
-        url: Url,
+        url: &Url,
         format: Option<&Format>,
     ) -> Result<&mut Worksheet, XlsxError> {
-        let hyperlink = Hyperlink::new(url)?;
+        let mut hyperlink = url.clone();
+        hyperlink.initialize()?;
 
         match format {
-            Some(format) => self.write_string_with_format(row, col, &hyperlink.text, format)?,
+            Some(format) => {
+                self.write_string_with_format(row, col, &hyperlink.user_text, format)?
+            }
             None => {
                 let hyperlink_format = Format::new().set_hyperlink();
-                self.write_string_with_format(row, col, &hyperlink.text, &hyperlink_format)?
+                self.write_string_with_format(row, col, &hyperlink.user_text, &hyperlink_format)?
             }
         };
 
         self.hyperlinks.insert((row, col), hyperlink);
+
+        Ok(self)
+    }
+
+    // Store a reference to an embedded cell image.
+    fn store_embedded_image(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        image: &Image,
+        format: Option<&Format>,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        // Check row and columns are in the allowed range.
+        if !self.check_dimensions(row, col) {
+            return Err(XlsxError::RowColumnLimitError);
+        }
+
+        let image_id = match self.embedded_image_ids.get(&image.hash) {
+            Some(image_id) => *image_id,
+            None => {
+                let image_id = self.embedded_image_ids.len() as u32;
+                self.embedded_image_ids.insert(image.hash.clone(), image_id);
+                self.embedded_images.push(image.clone());
+                image_id
+            }
+        };
+
+        // Check for alt text in the image.
+        if !image.alt_text.is_empty() {
+            self.has_embedded_image_descriptions = true;
+        }
+
+        // Store the used image type for the Content Type file.
+        self.image_types[image.image_type.clone() as usize] = true;
+
+        // Store the image hyperlink, if any.
+        if let Some(url) = &image.url {
+            let mut hyperlink = url.clone();
+            hyperlink.rel_display = true;
+
+            self.hyperlinks.insert((row, col), hyperlink);
+        }
+
+        // Get the index of the format object, if any.
+        let xf_index = match format {
+            Some(format) => self.format_xf_index(format),
+            None => match image.url {
+                Some(_) => {
+                    let format = Format::new().set_hyperlink();
+                    self.format_xf_index(&format)
+                }
+                None => 0,
+            },
+        };
+
+        // Create the appropriate cell type to hold the data.
+        let cell = CellType::Error {
+            xf_index,
+            value: image_id,
+        };
+
+        // Store the cell error value.
+        self.insert_cell(row, col, cell);
 
         Ok(self)
     }
@@ -10343,7 +13497,17 @@ impl Worksheet {
         // Create a Style struct object to generate the font xml.
         let xf_formats: Vec<Format> = vec![];
         let dxf_formats: Vec<Format> = vec![];
-        let mut styler = Styles::new(&xf_formats, &dxf_formats, 0, 0, 0, vec![], false, true);
+        let mut styler = Styles::new(
+            &xf_formats,
+            &dxf_formats,
+            0,
+            0,
+            0,
+            vec![],
+            false,
+            false,
+            true,
+        );
         let mut raw_string = String::new();
 
         let mut first_segment = true;
@@ -10357,12 +13521,12 @@ impl Worksheet {
             // Accumulate the string segments into a unformatted string.
             raw_string.push_str(string);
 
-            let attributes =
-                if string.starts_with(['\t', '\n', ' ']) || string.ends_with(['\t', '\n', ' ']) {
-                    vec![("xml:space", "preserve")]
-                } else {
-                    vec![]
-                };
+            let whitespace = ['\t', '\n', ' '];
+            let attributes = if string.starts_with(whitespace) || string.ends_with(whitespace) {
+                vec![("xml:space", "preserve")]
+            } else {
+                vec![]
+            };
 
             // First segment doesn't require a font run for the default format.
             if format.is_default() && first_segment {
@@ -10396,6 +13560,316 @@ impl Worksheet {
                 entry.insert(columns);
             }
         }
+    }
+
+    // Insert a cell format value into the worksheet data table structure. This
+    // function creates a new blank cell if no other cell value exists.
+    fn insert_cell_format(&mut self, row: RowNum, col: ColNum, format_id: u32) {
+        match self.data_table.entry(row) {
+            Entry::Occupied(mut entry) => {
+                // The row already exists.
+                let columns = entry.get_mut();
+
+                match columns.get_mut(&col) {
+                    // The cell exists, so update the format.
+                    Some(cell) => match cell {
+                        CellType::Blank { xf_index, .. }
+                        | CellType::Error { xf_index, .. }
+                        | CellType::String { xf_index, .. }
+                        | CellType::Number { xf_index, .. }
+                        | CellType::Boolean { xf_index, .. }
+                        | CellType::Formula { xf_index, .. }
+                        | CellType::DateTime { xf_index, .. }
+                        | CellType::RichString { xf_index, .. }
+                        | CellType::ArrayFormula { xf_index, .. } => {
+                            *xf_index = format_id;
+                        }
+                    },
+
+                    // The cell doesn't exist so add a blank cell with the format.
+                    None => {
+                        let cell = CellType::Blank {
+                            xf_index: format_id,
+                        };
+
+                        columns.insert(col, cell);
+                    }
+                }
+            }
+            Entry::Vacant(entry) => {
+                // The row doesn't exist, create a new row and insert a blank
+                // cell if it has a non-default format.
+                if format_id > 0 {
+                    let cell = CellType::Blank {
+                        xf_index: format_id,
+                    };
+
+                    let columns = BTreeMap::from([(col, cell)]);
+                    entry.insert(columns);
+                }
+            }
+        }
+    }
+
+    // Update the format index in a worksheet cell. This function ignores
+    // non-existing cells (unlike the previous function).
+    fn update_cell_format(&mut self, row: RowNum, col: ColNum, format_id: u32) {
+        let Some(columns) = self.data_table.get_mut(&row) else {
+            return;
+        };
+
+        let Some(cell) = columns.get_mut(&col) else {
+            return;
+        };
+
+        match cell {
+            CellType::Blank { xf_index, .. }
+            | CellType::Error { xf_index, .. }
+            | CellType::String { xf_index, .. }
+            | CellType::Number { xf_index, .. }
+            | CellType::Boolean { xf_index, .. }
+            | CellType::Formula { xf_index, .. }
+            | CellType::DateTime { xf_index, .. }
+            | CellType::RichString { xf_index, .. }
+            | CellType::ArrayFormula { xf_index, .. } => {
+                *xf_index = format_id;
+            }
+        }
+    }
+
+    // Clear the data and formatting from a worksheet cell. Ignores non-existing
+    // cells.
+    fn clear_cell_internal(&mut self, row: RowNum, col: ColNum) {
+        let Some(columns) = self.data_table.get_mut(&row) else {
+            return;
+        };
+
+        columns.remove(&col);
+    }
+
+    // Clear the formatting from a worksheet cell. Ignores non-existing cells.
+    fn clear_cell_format_internal(&mut self, row: RowNum, col: ColNum) {
+        self.update_cell_format(row, col, 0);
+    }
+
+    // Set the border around a single cell.
+    fn set_range_border_cell(
+        &mut self,
+        row: RowNum,
+        col: ColNum,
+        cell_format: &Format,
+        border_format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        let cell_format =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::All);
+
+        self.set_cell_format(row, col, &cell_format)
+    }
+
+    // Set the border around a row of cells.
+    fn set_range_border_row(
+        &mut self,
+        row: RowNum,
+        first_col: ColNum,
+        last_col: ColNum,
+        cell_format: &Format,
+        border_format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        let left_format =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::RowLeft);
+
+        let right_format =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::RowRight);
+
+        let center_format =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::RowCenter);
+
+        for col in first_col..=last_col {
+            if col == first_col {
+                self.set_cell_format(row, col, &left_format)?;
+            } else if col == last_col {
+                self.set_cell_format(row, col, &right_format)?;
+            } else {
+                self.set_cell_format(row, col, &center_format)?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    // Set the border around a column of cells.
+    fn set_range_border_col(
+        &mut self,
+        first_row: RowNum,
+        last_row: RowNum,
+        col: ColNum,
+        cell_format: &Format,
+        border_format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        let top_format =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::ColTop);
+
+        let bottom_format =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::ColBottom);
+
+        let center_format =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::ColCenter);
+
+        for row in first_row..=last_row {
+            if row == first_row {
+                self.set_cell_format(row, col, &top_format)?;
+            } else if row == last_row {
+                self.set_cell_format(row, col, &bottom_format)?;
+            } else {
+                self.set_cell_format(row, col, &center_format)?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    // Set the border around a range of cells.
+    fn set_range_border_range(
+        &mut self,
+        first_row: RowNum,
+        last_row: RowNum,
+        first_col: ColNum,
+        last_col: ColNum,
+        cell_format: &Format,
+        border_format: &Format,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        let top_left =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::TopLeft);
+
+        let top_center =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::TopCenter);
+
+        let top_right =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::TopRight);
+
+        let center_left =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::CenterLeft);
+
+        let center_center =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::CenterCenter);
+
+        let center_right =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::CenterRight);
+
+        let bottom_left =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::BottomLeft);
+
+        let bottom_center =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::BottomCenter);
+
+        let bottom_right =
+            Self::combined_border_format(cell_format, border_format, BorderPosition::BottomRight);
+
+        for row in first_row..=last_row {
+            for col in first_col..=last_col {
+                if row == first_row {
+                    if col == first_col {
+                        self.set_cell_format(row, col, &top_left)?;
+                    } else if col == last_col {
+                        self.set_cell_format(row, col, &top_right)?;
+                    } else {
+                        self.set_cell_format(row, col, &top_center)?;
+                    }
+                } else if row == last_row {
+                    if col == first_col {
+                        self.set_cell_format(row, col, &bottom_left)?;
+                    } else if col == last_col {
+                        self.set_cell_format(row, col, &bottom_right)?;
+                    } else {
+                        self.set_cell_format(row, col, &bottom_center)?;
+                    }
+                } else if col == first_col {
+                    self.set_cell_format(row, col, &center_left)?;
+                } else if col == last_col {
+                    self.set_cell_format(row, col, &center_right)?;
+                } else {
+                    self.set_cell_format(row, col, &center_center)?;
+                }
+            }
+        }
+
+        Ok(self)
+    }
+
+    // Combine a cell format and a border format to create a new format that can
+    // be used when creating a range border.
+    fn combined_border_format(
+        cell_format: &Format,
+        border_format: &Format,
+        position: BorderPosition,
+    ) -> Format {
+        let mut cell_format = cell_format.clone();
+
+        // Top.
+        match position {
+            BorderPosition::All
+            | BorderPosition::RowLeft
+            | BorderPosition::RowCenter
+            | BorderPosition::RowRight
+            | BorderPosition::ColTop
+            | BorderPosition::TopLeft
+            | BorderPosition::TopCenter
+            | BorderPosition::TopRight => {
+                cell_format.borders.top_style = border_format.borders.top_style;
+                cell_format.borders.top_color = border_format.borders.top_color;
+            }
+            _ => {}
+        }
+
+        // Bottom.
+        match position {
+            BorderPosition::All
+            | BorderPosition::RowLeft
+            | BorderPosition::RowCenter
+            | BorderPosition::RowRight
+            | BorderPosition::ColBottom
+            | BorderPosition::BottomLeft
+            | BorderPosition::BottomCenter
+            | BorderPosition::BottomRight => {
+                cell_format.borders.bottom_style = border_format.borders.bottom_style;
+                cell_format.borders.bottom_color = border_format.borders.bottom_color;
+            }
+            _ => {}
+        }
+
+        // Left.
+        match position {
+            BorderPosition::All
+            | BorderPosition::RowLeft
+            | BorderPosition::ColTop
+            | BorderPosition::ColCenter
+            | BorderPosition::ColBottom
+            | BorderPosition::TopLeft
+            | BorderPosition::CenterLeft
+            | BorderPosition::BottomLeft => {
+                cell_format.borders.left_style = border_format.borders.left_style;
+                cell_format.borders.left_color = border_format.borders.left_color;
+            }
+            _ => {}
+        }
+
+        // Right.
+        match position {
+            BorderPosition::All
+            | BorderPosition::RowRight
+            | BorderPosition::ColTop
+            | BorderPosition::ColCenter
+            | BorderPosition::ColBottom
+            | BorderPosition::TopRight
+            | BorderPosition::CenterRight
+            | BorderPosition::BottomRight => {
+                cell_format.borders.right_style = border_format.borders.right_style;
+                cell_format.borders.right_color = border_format.borders.right_color;
+            }
+            _ => {}
+        }
+
+        cell_format
     }
 
     // Store the column width in Excel character units. Updates to the width can
@@ -10583,29 +14057,60 @@ impl Worksheet {
     // Drawing object. Also set the rel linkages between the files.
     pub(crate) fn prepare_worksheet_images(
         &mut self,
-        image_ids: &mut HashMap<u64, u32>,
+        image_ids: &mut HashMap<String, u32>,
+        image_id: &mut u32,
         drawing_id: u32,
     ) {
-        let mut rel_ids: HashMap<u64, u32> = HashMap::new();
-
         for (cell, image) in &self.images.clone() {
             let row = cell.0;
             let col = cell.1;
+            let mut drawing_hyperlink = None;
 
             let image_id = match image_ids.get(&image.hash) {
                 Some(image_id) => *image_id,
                 None => {
-                    let image_id = 1 + image_ids.len() as u32;
-                    image_ids.insert(image.hash, image_id);
-                    image_id
+                    *image_id += 1;
+                    image_ids.insert(image.hash.clone(), *image_id);
+                    *image_id
                 }
             };
 
-            let rel_id = match rel_ids.get(&image.hash) {
+            // Handle optional hyperlink in the image.
+            if let Some(hyperlink) = &image.url {
+                let mut hyperlink = hyperlink.clone();
+
+                let target = hyperlink.target();
+                let target_mode = hyperlink.target_mode();
+
+                let rel_id = match self.drawing_rel_ids.get(&hyperlink.url_link) {
+                    Some(rel_id) => *rel_id,
+                    None => {
+                        let rel_id = 1 + self.drawing_rel_ids.len() as u32;
+                        self.drawing_rel_ids
+                            .insert(hyperlink.url_link.clone(), rel_id);
+
+                        // Store the linkage to the drawings rels file.
+                        self.drawing_relationships.push((
+                            "hyperlink".to_string(),
+                            target,
+                            target_mode,
+                        ));
+
+                        rel_id
+                    }
+                };
+
+                hyperlink.rel_id = rel_id;
+
+                drawing_hyperlink = Some(hyperlink);
+            }
+
+            // Store the image references.
+            let rel_id = match self.drawing_rel_ids.get(&image.hash) {
                 Some(rel_id) => *rel_id,
                 None => {
-                    let rel_id = 1 + rel_ids.len() as u32;
-                    rel_ids.insert(image.hash, rel_id);
+                    let rel_id = 1 + self.drawing_rel_ids.len() as u32;
+                    self.drawing_rel_ids.insert(image.hash.clone(), rel_id);
 
                     // Store the linkage to the drawings rels file.
                     let image_name =
@@ -10624,6 +14129,7 @@ impl Worksheet {
             // drawing object.
             let mut drawing_info = self.position_object_emus(row, col, image);
             drawing_info.rel_id = rel_id;
+            drawing_info.url.clone_from(&drawing_hyperlink);
             self.drawing.drawings.push(drawing_info);
 
             // Store the used image type for the Content Type file.
@@ -10641,22 +14147,85 @@ impl Worksheet {
         self.has_drawing_object_linkage = true;
     }
 
+    // Convert the shape dimensions into drawing dimensions and add them to
+    // the Drawing object. Also set the rel linkages between the files.
+    pub(crate) fn prepare_worksheet_shapes(&mut self, shape_id: u32, drawing_id: u32) {
+        let mut shape_id = shape_id;
+
+        for (cell, shape) in &self.shapes.clone() {
+            let row = cell.0;
+            let col = cell.1;
+            let mut drawing_hyperlink = None;
+
+            // Handle optional hyperlink in the shape.
+            if let Some(hyperlink) = &shape.url {
+                let mut hyperlink = hyperlink.clone();
+
+                let target = hyperlink.target();
+                let target_mode = hyperlink.target_mode();
+
+                let rel_id = match self.drawing_rel_ids.get(&hyperlink.url_link) {
+                    Some(rel_id) => *rel_id,
+                    None => {
+                        let rel_id = 1 + self.drawing_rel_ids.len() as u32;
+                        self.drawing_rel_ids
+                            .insert(hyperlink.url_link.clone(), rel_id);
+
+                        // Store the linkage to the drawings rels file.
+                        self.drawing_relationships.push((
+                            "hyperlink".to_string(),
+                            target,
+                            target_mode,
+                        ));
+
+                        rel_id
+                    }
+                };
+
+                hyperlink.rel_id = rel_id;
+
+                drawing_hyperlink = Some(hyperlink);
+            }
+
+            // Convert the shape dimensions to drawing dimensions and store
+            // the drawing object.
+            let mut drawing_info = self.position_object_emus(row, col, shape);
+            drawing_info.rel_id = shape_id;
+            drawing_info.url.clone_from(&drawing_hyperlink);
+            self.drawing.drawings.push(drawing_info);
+            self.drawing.shapes.push(shape.clone());
+
+            shape_id += 1;
+        }
+
+        // Store the linkage to the worksheets rels file.
+        if self.drawing_object_relationships.is_empty() {
+            let drawing_name = format!("../drawings/drawing{drawing_id}.xml");
+            self.drawing_object_relationships.push((
+                "drawing".to_string(),
+                drawing_name,
+                String::new(),
+            ));
+
+            self.has_drawing_object_linkage = true;
+        }
+    }
+
     // Set up images used in headers and footers. Excel handles these
     // differently from worksheet images and stores them in a VML file rather
     // than an Drawing file.
     pub(crate) fn prepare_header_footer_images(
         &mut self,
-        image_ids: &mut HashMap<u64, u32>,
+        image_ids: &mut HashMap<String, u32>,
         base_image_id: u32,
-        drawing_id: u32,
     ) {
-        let mut rel_ids: HashMap<u64, u32> = HashMap::new();
+        let mut rel_ids: HashMap<String, u32> = HashMap::new();
         for image in self.header_footer_images.clone().into_iter().flatten() {
             let image_id = match image_ids.get(&image.hash) {
                 Some(image_id) => *image_id,
                 None => {
                     let image_id = 1 + base_image_id + image_ids.len() as u32;
-                    image_ids.insert(image.hash, image_id);
+                    image_ids.insert(image.hash.clone(), image_id);
                     image_id
                 }
             };
@@ -10665,7 +14234,7 @@ impl Worksheet {
                 Some(rel_id) => *rel_id,
                 None => {
                     let rel_id = 1 + rel_ids.len() as u32;
-                    rel_ids.insert(image.hash, rel_id);
+                    rel_ids.insert(image.hash.clone(), rel_id);
 
                     // Store the linkage to the drawings rels file.
                     let image_name =
@@ -10680,16 +14249,10 @@ impl Worksheet {
                 }
             };
 
-            // Header images are stored in a vmlDrawing file. We create a struct
-            // to store the required image information in that format.
-            let vml_info = VmlInfo {
-                width: image.vml_width(),
-                height: image.vml_height(),
-                title: image.vml_name(),
-                rel_id,
-                position: image.vml_position(),
-                is_scaled: image.is_scaled(),
-            };
+            // Convert the header image to a VmlInfo structure for storing in a
+            // vmlDrawing file..
+            let mut vml_info = image.vml_info();
+            vml_info.rel_id = rel_id;
 
             // Store the header/footer vml data.
             self.header_footer_vml_info.push(vml_info);
@@ -10697,8 +14260,10 @@ impl Worksheet {
             // Store the used image type for the Content Type file.
             self.image_types[image.image_type as usize] = true;
         }
+    }
 
-        // Store the linkage to the worksheets rels file.
+    // Store the vmlDrawingN.xml file linkage to the worksheets rels file.
+    pub(crate) fn add_vml_drawing_rel_link(&mut self, drawing_id: u32) {
         let vml_drawing_name = format!("../drawings/vmlDrawing{drawing_id}.vml");
         self.drawing_object_relationships.push((
             "vmlDrawing".to_string(),
@@ -10707,14 +14272,112 @@ impl Worksheet {
         ));
     }
 
+    // Convert buttons into VML objects.
+    pub(crate) fn prepare_vml_objects(&mut self, vml_data_id: u32, vml_shape_id: u32) -> u32 {
+        let mut button_id = 1;
+        let mut note_count = 0;
+
+        // Modify Note visibility and author according to worksheet settings.
+        for columns in self.notes.values_mut() {
+            for note in columns.values_mut() {
+                // Set all notes visible if required.
+                if self.show_all_notes && note.is_visible.is_none() {
+                    note.is_visible = Some(true);
+                }
+
+                // Check for a user defined author name.
+                let Some(note_author) = &note.author else {
+                    continue;
+                };
+
+                // Convert the name to an id.
+                match self.note_authors.get(note_author) {
+                    Some(id) => {
+                        note.author_id = *id;
+                    }
+                    None => {
+                        let id = self.note_authors.len();
+                        self.note_authors.insert(note_author.clone(), id);
+                        note.author_id = id;
+                    }
+                }
+            }
+        }
+
+        // Convert the Note objects to VmlInfo objects, along with their dimensions.
+        for (cell_row, columns) in &self.notes.clone() {
+            for (cell_col, note) in columns {
+                let note_row = note.row();
+                let note_col = note.col();
+
+                let mut vml_info = note.vml_info();
+                vml_info.drawing_info = self.position_object_pixels(note_row, note_col, note);
+                vml_info.row = *cell_row;
+                vml_info.col = *cell_col;
+
+                // Store the note vml data.
+                self.comments_vml_info.push(vml_info);
+
+                note_count += 1;
+            }
+        }
+
+        // Convert the Button objects to VmlInfo objects, along with their dimensions.
+        for ((row, col), button) in self.buttons.clone() {
+            let mut button = button.clone();
+            if button.name.is_empty() {
+                button.name = format!("Button {button_id}");
+            }
+
+            if button.macro_name.is_empty() {
+                button.macro_name = format!("[0]!Button{button_id}_Click");
+            } else {
+                button.macro_name = format!("[0]!{}", button.macro_name);
+            }
+
+            let mut vml_info = button.vml_info();
+            vml_info.drawing_info = self.position_object_pixels(row, col, &button);
+
+            // Store the button vml data.
+            self.buttons_vml_info.push(vml_info);
+
+            button_id += 1;
+        }
+
+        // The VML o:idmap data id contains a comma separated range when there
+        // is more than one 1024 block of comments, like this: data="1,2".
+        let mut oid_map = vml_data_id.to_string();
+
+        for i in 0..note_count / 1024 {
+            let next_id = vml_data_id + i + 1;
+            oid_map = format!("{oid_map},{next_id}");
+        }
+
+        self.vml_data_id = oid_map;
+        self.vml_shape_id = vml_shape_id;
+
+        note_count
+    }
+
+    // Store the commentN.xml file linkage to the worksheets rels file.
+    pub(crate) fn add_comment_rel_link(&mut self, comment_id: u32) {
+        let comment_name = format!("../comments{comment_id}.xml");
+        self.comment_relationships
+            .push(("comments".to_string(), comment_name, String::new()));
+    }
+
     // Convert the chart dimensions into drawing dimensions and add them to the
     // Drawing object. Also set the rel linkages between the files.
-    pub(crate) fn prepare_worksheet_charts(&mut self, mut chart_id: u32, drawing_id: u32) -> u32 {
+    pub(crate) fn prepare_worksheet_charts(&mut self, chart_id: u32, drawing_id: u32) {
+        let mut chart_id = chart_id;
         for chart in self.charts.values_mut() {
             chart.id = chart_id;
-            chart.add_axis_ids();
+            chart.add_axis_ids(chart_id);
             chart_id += 1;
         }
+
+        let mut rel_id = self.drawing_relationships.len() as u32;
+        self.drawing_rel_ids.insert("Chart".to_string(), rel_id);
 
         for (cell, chart) in &mut self.charts.clone() {
             let row = cell.0;
@@ -10729,7 +14392,9 @@ impl Worksheet {
 
             // Convert the chart dimensions to drawing dimensions and store the
             // drawing object.
-            let drawing_info = self.position_object_emus(row, col, chart);
+            let mut drawing_info = self.position_object_emus(row, col, chart);
+            rel_id += 1;
+            drawing_info.rel_id = rel_id;
             self.drawing.drawings.push(drawing_info);
         }
 
@@ -10743,8 +14408,6 @@ impl Worksheet {
                 String::new(),
             ));
         }
-
-        chart_id
     }
 
     // Set a unique table id for each table and also set the rel linkages
@@ -10949,6 +14612,7 @@ impl Worksheet {
             object_movement: object.object_movement(),
             drawing_type: object.drawing_type(),
             rel_id: 0,
+            url: None,
         }
     }
 
@@ -10993,7 +14657,7 @@ impl Worksheet {
                     (row_options.height * 4.0 / 3.0) as u32
                 }
             }
-            None => 20,
+            None => (self.user_default_row_height * 4.0 / 3.0) as u32,
         }
     }
 
@@ -11011,13 +14675,15 @@ impl Worksheet {
         }
 
         self.rel_count = 0;
-        self.drawing.drawings.clear();
-        self.table_relationships.clear();
-        self.hyperlink_relationships.clear();
+        self.comment_relationships.clear();
         self.drawing_object_relationships.clear();
+        self.drawing_rel_ids.clear();
         self.drawing_relationships.clear();
-        self.vml_drawing_relationships.clear();
+        self.drawing.drawings.clear();
         self.header_footer_vml_info.clear();
+        self.hyperlink_relationships.clear();
+        self.table_relationships.clear();
+        self.vml_drawing_relationships.clear();
     }
 
     // Check if any external relationships are required.
@@ -11040,24 +14706,52 @@ impl Worksheet {
     // Check that there is a header/footer &[Picture] variable in the correct
     // position to match the corresponding image object.
     fn verify_header_footer_image(string: &str, position: &HeaderImagePosition) -> bool {
-        lazy_static! {
-            static ref LEFT: Regex = Regex::new(r"(&[L].*)(:?&[CR])?").unwrap();
-            static ref RIGHT: Regex = Regex::new(r"(&[R].*)(:?&[LC])?").unwrap();
-            static ref CENTER: Regex = Regex::new(r"(&[C].*)(:?&[LR])?").unwrap();
-        }
+        match position {
+            HeaderImagePosition::Left => {
+                let segments: Vec<&str> = string.split("&L").collect();
+                if segments.len() == 2 {
+                    let right_segment = segments[1];
+                    let segments: Vec<&str> = right_segment.split("&C").collect();
+                    let left_segment = segments[0];
 
-        let caps = match position {
-            HeaderImagePosition::Left => LEFT.captures(string),
-            HeaderImagePosition::Right => RIGHT.captures(string),
-            HeaderImagePosition::Center => CENTER.captures(string),
-        };
+                    let segments: Vec<&str> = left_segment.split("&R").collect();
+                    let left_segment = segments[0];
 
-        match caps {
-            Some(caps) => {
-                let segment = caps.get(1).unwrap().as_str();
-                segment.contains("&[Picture]") || segment.contains("&G")
+                    left_segment.contains("&[Picture]") || left_segment.contains("&G")
+                } else {
+                    false
+                }
             }
-            None => false,
+            HeaderImagePosition::Right => {
+                let segments: Vec<&str> = string.split("&R").collect();
+                if segments.len() == 2 {
+                    let right_segment = segments[1];
+                    let segments: Vec<&str> = right_segment.split("&C").collect();
+                    let left_segment = segments[0];
+
+                    let segments: Vec<&str> = left_segment.split("&L").collect();
+                    let left_segment = segments[0];
+
+                    left_segment.contains("&[Picture]") || left_segment.contains("&G")
+                } else {
+                    false
+                }
+            }
+            HeaderImagePosition::Center => {
+                let segments: Vec<&str> = string.split("&C").collect();
+                if segments.len() == 2 {
+                    let right_segment = segments[1];
+                    let segments: Vec<&str> = right_segment.split("&L").collect();
+                    let left_segment = segments[0];
+
+                    let segments: Vec<&str> = left_segment.split("&R").collect();
+                    let left_segment = segments[0];
+
+                    left_segment.contains("&[Picture]") || left_segment.contains("&G")
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -11159,30 +14853,6 @@ impl Worksheet {
         headers
     }
 
-    // Update a format index in an existing cell. Ignores non-existing cells.
-    fn update_cell_format(&mut self, row: RowNum, col: ColNum, format_id: u32) -> &mut Worksheet {
-        if let Some(columns) = self.data_table.get_mut(&row) {
-            if let Some(cell) = columns.get_mut(&col) {
-                match cell {
-                    CellType::Blank { xf_index, .. }
-                    | CellType::String { xf_index, .. }
-                    | CellType::Number { xf_index, .. }
-                    | CellType::Boolean { xf_index, .. }
-                    | CellType::Formula { xf_index, .. }
-                    | CellType::DateTime { xf_index, .. }
-                    | CellType::RichString { xf_index, .. }
-                    | CellType::ArrayFormula { xf_index, .. } => {
-                        if *xf_index == 0 {
-                            *xf_index = format_id;
-                        }
-                    }
-                }
-            }
-        }
-
-        self
-    }
-
     // -----------------------------------------------------------------------
     // XML assembly methods.
     // -----------------------------------------------------------------------
@@ -11237,6 +14907,11 @@ impl Worksheet {
             self.write_conditional_formats();
         }
 
+        // Write the <dataValidations element.
+        if !self.data_validations.is_empty() {
+            self.write_data_validations();
+        }
+
         // Write the hyperlinks elements.
         if !self.hyperlinks.is_empty() {
             self.write_hyperlinks();
@@ -11273,6 +14948,11 @@ impl Worksheet {
         // Write the drawing element.
         if !self.drawing.drawings.is_empty() {
             self.write_drawing();
+        }
+
+        // Write the legacyDrawing element.
+        if self.has_vml {
+            self.write_legacy_drawing();
         }
 
         // Write the legacyDrawingHF element.
@@ -11327,11 +15007,15 @@ impl Worksheet {
         if self.filter_conditions.is_empty()
             && !self.fit_to_page
             && (self.tab_color == Color::Default || self.tab_color == Color::Automatic)
+            && self.vba_codename.is_none()
         {
             return;
         }
 
         let mut attributes = vec![];
+        if let Some(codename) = &self.vba_codename {
+            attributes.push(("codeName", codename.clone()));
+        }
         if !self.filter_conditions.is_empty() {
             attributes.push(("filterMode", "1".to_string()));
         }
@@ -11380,7 +15064,16 @@ impl Worksheet {
         let mut attributes = vec![];
         let mut range = "A1".to_string();
 
-        if self.dimensions.first_row != ROW_MAX
+        // Special case where all cols have been formatted but no row data.
+        if self.dimensions.first_row == 0
+            && self.dimensions.first_col == 0
+            && self.dimensions.last_row == 0
+            && self.dimensions.last_col == COL_MAX - 1
+        {
+            range = "A1".to_string();
+        }
+        // Must common case: some cells have been formatted.
+        else if self.dimensions.first_row != ROW_MAX
             || self.dimensions.first_col != COL_MAX
             || self.dimensions.last_row != 0
             || self.dimensions.last_col != 0
@@ -11411,6 +15104,10 @@ impl Worksheet {
     // Write the <sheetView> element.
     fn write_sheet_view(&mut self) {
         let mut attributes = vec![];
+
+        if !self.screen_gridlines {
+            attributes.push(("showGridLines", "0".to_string()));
+        }
 
         if self.right_to_left {
             attributes.push(("rightToLeft", "1".to_string()));
@@ -11548,10 +15245,18 @@ impl Worksheet {
 
     // Write the <sheetFormatPr> element.
     fn write_sheet_format_pr(&mut self) {
-        let mut attributes = vec![("defaultRowHeight", "15")];
+        let mut attributes = vec![("defaultRowHeight", self.user_default_row_height.to_string())];
+
+        if self.user_default_row_height != DEFAULT_ROW_HEIGHT {
+            attributes.push(("customHeight", "1".to_string()));
+        }
+
+        if self.hide_unused_rows {
+            attributes.push(("zeroHeight", "1".to_string()));
+        }
 
         if self.use_x14_extensions {
-            attributes.push(("x14ac:dyDescent", "0.25"));
+            attributes.push(("x14ac:dyDescent", "0.25".to_string()));
         }
 
         self.writer.xml_empty_tag("sheetFormatPr", &attributes);
@@ -11559,7 +15264,7 @@ impl Worksheet {
 
     // Write the <sheetData> element.
     fn write_sheet_data(&mut self) {
-        if self.data_table.is_empty() && self.changed_rows.is_empty() {
+        if self.data_table.is_empty() && self.notes.is_empty() && self.changed_rows.is_empty() {
             self.writer.xml_empty_tag_only("sheetData");
         } else {
             self.writer.xml_start_tag_only("sheetData");
@@ -11593,13 +15298,13 @@ impl Worksheet {
     fn write_hyperlinks(&mut self) {
         self.writer.xml_start_tag_only("hyperlinks");
 
-        let mut ref_id = 1u16;
+        let mut rel_id = 1u32;
         for (cell, hyperlink) in &mut self.hyperlinks.clone() {
-            ref_id = hyperlink.increment_ref_id(ref_id);
+            rel_id = hyperlink.increment_rel_id(rel_id);
             self.write_hyperlink(cell.0, cell.1, hyperlink);
         }
 
-        self.rel_count = ref_id - 1;
+        self.rel_count = rel_id - 1;
 
         self.writer.xml_end_tag("hyperlinks");
     }
@@ -11701,39 +15406,184 @@ impl Worksheet {
         self.writer.xml_end_tag("x14:conditionalFormattings");
     }
 
+    // Write the <dataValidations> element.
+    fn write_data_validations(&mut self) {
+        let attributes = [("count", self.data_validations.len().to_string())];
+
+        self.writer.xml_start_tag("dataValidations", &attributes);
+
+        for (range, data_validation) in &self.data_validations.clone() {
+            // Write the dataValidation element.
+            self.write_data_validation(range, data_validation);
+        }
+
+        self.writer.xml_end_tag("dataValidations");
+    }
+
+    // Write the <dataValidation> element.
+    fn write_data_validation(&mut self, range: &String, data_validation: &DataValidation) {
+        // The Any type doesn't have a rule or values so handle that separately.
+        if data_validation.validation_type == DataValidationType::Any {
+            self.write_data_validation_any(range, data_validation);
+            return;
+        }
+
+        // Start the attributes.
+        let mut attributes = vec![("type", data_validation.validation_type.to_string())];
+
+        match data_validation.error_style {
+            DataValidationErrorStyle::Warning | DataValidationErrorStyle::Information => {
+                attributes.push(("errorStyle", data_validation.error_style.to_string()));
+            }
+            DataValidationErrorStyle::Stop => {}
+        }
+
+        match &data_validation.rule {
+            &DataValidationRuleInternal::Between(_, _)
+            | DataValidationRuleInternal::CustomFormula(_)
+            | DataValidationRuleInternal::ListSource(_) => {
+                // Excel doesn't use an operator for these types.
+            }
+            _ => {
+                attributes.push(("operator", data_validation.rule.to_string()));
+            }
+        };
+
+        if data_validation.ignore_blank {
+            attributes.push(("allowBlank", "1".to_string()));
+        }
+
+        if !data_validation.show_dropdown {
+            attributes.push(("showDropDown", "1".to_string()));
+        }
+
+        if data_validation.show_input_message {
+            attributes.push(("showInputMessage", "1".to_string()));
+        }
+
+        if data_validation.show_error_message {
+            attributes.push(("showErrorMessage", "1".to_string()));
+        }
+
+        if !data_validation.error_title.is_empty() {
+            attributes.push(("errorTitle", data_validation.error_title.clone()));
+        }
+
+        if !data_validation.error_message.is_empty() {
+            attributes.push(("error", data_validation.error_message.clone()));
+        }
+
+        if !data_validation.input_title.is_empty() {
+            attributes.push(("promptTitle", data_validation.input_title.clone()));
+        }
+
+        if !data_validation.input_message.is_empty() {
+            attributes.push(("prompt", data_validation.input_message.clone()));
+        }
+
+        attributes.push(("sqref", range.to_string()));
+
+        self.writer.xml_start_tag("dataValidation", &attributes);
+
+        // Write the <formula1>/<formula2> elements.
+        match &data_validation.rule {
+            DataValidationRuleInternal::EqualTo(value)
+            | DataValidationRuleInternal::NotEqualTo(value)
+            | DataValidationRuleInternal::LessThan(value)
+            | DataValidationRuleInternal::LessThanOrEqualTo(value)
+            | DataValidationRuleInternal::GreaterThan(value)
+            | DataValidationRuleInternal::GreaterThanOrEqualTo(value)
+            | DataValidationRuleInternal::ListSource(value)
+            | DataValidationRuleInternal::CustomFormula(value) => {
+                self.writer.xml_data_element_only("formula1", value);
+            }
+            DataValidationRuleInternal::Between(min, max)
+            | DataValidationRuleInternal::NotBetween(min, max) => {
+                self.writer.xml_data_element_only("formula1", min);
+                self.writer.xml_data_element_only("formula2", max);
+            }
+        }
+        self.writer.xml_end_tag("dataValidation");
+    }
+
+    // Write the <dataValidation> element.
+    fn write_data_validation_any(&mut self, range: &String, data_validation: &DataValidation) {
+        let mut attributes = vec![];
+
+        if data_validation.ignore_blank {
+            attributes.push(("allowBlank", "1".to_string()));
+        }
+
+        if !data_validation.show_dropdown {
+            attributes.push(("showDropDown", "1".to_string()));
+        }
+
+        if data_validation.show_input_message {
+            attributes.push(("showInputMessage", "1".to_string()));
+        }
+
+        if data_validation.show_error_message {
+            attributes.push(("showErrorMessage", "1".to_string()));
+        }
+
+        if !data_validation.error_title.is_empty() {
+            attributes.push(("errorTitle", data_validation.error_title.clone()));
+        }
+
+        if !data_validation.error_message.is_empty() {
+            attributes.push(("error", data_validation.error_message.clone()));
+        }
+
+        if !data_validation.input_title.is_empty() {
+            attributes.push(("promptTitle", data_validation.input_title.clone()));
+        }
+
+        if !data_validation.input_message.is_empty() {
+            attributes.push(("prompt", data_validation.input_message.clone()));
+        }
+
+        attributes.push(("sqref", range.to_string()));
+
+        self.writer.xml_empty_tag("dataValidation", &attributes);
+    }
+
     // Write the <hyperlink> element.
-    fn write_hyperlink(&mut self, row: RowNum, col: ColNum, hyperlink: &Hyperlink) {
+    fn write_hyperlink(&mut self, row: RowNum, col: ColNum, hyperlink: &Url) {
         let mut attributes = vec![("ref", utility::row_col_to_cell(row, col))];
 
         match hyperlink.link_type {
             HyperlinkType::Url | HyperlinkType::File => {
-                let ref_id = hyperlink.ref_id;
-                attributes.push(("r:id", format!("rId{ref_id}")));
+                let rel_id = hyperlink.rel_id;
+                attributes.push(("r:id", format!("rId{rel_id}")));
 
-                if !hyperlink.location.is_empty() {
-                    attributes.push(("location", hyperlink.location.to_string()));
+                if !hyperlink.rel_anchor.is_empty() {
+                    attributes.push(("location", hyperlink.rel_anchor.to_string()));
                 }
 
-                if !hyperlink.tip.is_empty() {
-                    attributes.push(("tooltip", hyperlink.tip.to_string()));
+                if hyperlink.rel_display {
+                    attributes.push(("display", hyperlink.url_link.to_string()));
+                }
+
+                if !hyperlink.tool_tip.is_empty() {
+                    attributes.push(("tooltip", hyperlink.tool_tip.to_string()));
                 }
 
                 // Store the linkage to the worksheets rels file.
                 self.hyperlink_relationships.push((
                     "hyperlink".to_string(),
-                    hyperlink.url.to_string(),
+                    hyperlink.url_link.to_string(),
                     "External".to_string(),
                 ));
             }
             HyperlinkType::Internal => {
                 // Internal links don't use the rel file reference id.
-                attributes.push(("location", hyperlink.location.to_string()));
+                attributes.push(("location", hyperlink.rel_anchor.to_string()));
 
-                if !hyperlink.tip.is_empty() {
-                    attributes.push(("tooltip", hyperlink.tip.to_string()));
+                if !hyperlink.tool_tip.is_empty() {
+                    attributes.push(("tooltip", hyperlink.tool_tip.to_string()));
                 }
 
-                attributes.push(("display", hyperlink.text.to_string()));
+                attributes.push(("display", hyperlink.user_text.to_string()));
             }
             HyperlinkType::Unknown => {}
         }
@@ -11953,7 +15803,7 @@ impl Worksheet {
     fn write_data_table(&mut self) {
         let spans = self.calculate_spans();
 
-        // Swap out the worksheet data structures so we can iterate over it and
+        // Swap out the worksheet data structures so we can iterate over them and
         // still call self.write_xml() methods.
         let mut temp_table: BTreeMap<RowNum, BTreeMap<ColNum, CellType>> = BTreeMap::new();
         let mut temp_changed_rows: HashMap<RowNum, RowOptions> = HashMap::new();
@@ -11965,14 +15815,17 @@ impl Worksheet {
             let span = spans.get(&span_index).map(AsRef::as_ref);
 
             let row_options = temp_changed_rows.get(&row_num);
+            let row_has_notes = self.notes.contains_key(&row_num);
 
+            // If there is no column data then only the <row> metadata needs updating.
             let Some(columns) = temp_table.get(&row_num) else {
-                if row_options.is_some() {
+                if row_options.is_some() || row_has_notes {
                     self.write_table_row(row_num, span, row_options, false);
                 }
                 continue;
             };
 
+            // The row has data. Write it out cell by cell.
             self.write_table_row(row_num, span, row_options, true);
             for (&col_num, cell) in columns {
                 match cell {
@@ -12028,6 +15881,11 @@ impl Worksheet {
                         let xf_index = self.get_cell_xf_index(*xf_index, row_options, col_num);
                         self.write_boolean_cell(row_num, col_num, *boolean, xf_index);
                     }
+                    CellType::Error { value, xf_index } => {
+                        let xf_index = self.get_cell_xf_index(*xf_index, row_options, col_num);
+                        let image_id = self.global_embedded_image_indices[*value as usize];
+                        self.write_error_cell(row_num, col_num, image_id, xf_index);
+                    }
                 }
             }
             self.writer.xml_end_tag("row");
@@ -12048,6 +15906,18 @@ impl Worksheet {
 
         for row_num in self.dimensions.first_row..=self.dimensions.last_row {
             if let Some(columns) = self.data_table.get(&row_num) {
+                for &col_num in columns.keys() {
+                    if span_min == COL_MAX {
+                        span_min = col_num;
+                        span_max = col_num;
+                    } else {
+                        span_min = cmp::min(span_min, col_num);
+                        span_max = cmp::max(span_max, col_num);
+                    }
+                }
+            }
+
+            if let Some(columns) = self.notes.get(&row_num) {
                 for &col_num in columns.keys() {
                     if span_min == COL_MAX {
                         span_min = col_num;
@@ -12090,6 +15960,10 @@ impl Worksheet {
             attributes.push(("spans", span_range.to_string()));
         }
 
+        if self.use_x14_extensions {
+            attributes.push(("x14ac:dyDescent", "0.25".to_string()));
+        }
+
         if let Some(row_options) = row_options {
             let xf_index = row_options.xf_index;
 
@@ -12110,6 +15984,9 @@ impl Worksheet {
             if row_options.height != DEFAULT_ROW_HEIGHT {
                 attributes.push(("customHeight", "1".to_string()));
             }
+        } else if self.user_default_row_height != DEFAULT_ROW_HEIGHT {
+            attributes.push(("ht", self.user_default_row_height.to_string()));
+            attributes.push(("customHeight", "1".to_string()));
         }
 
         if has_data {
@@ -12122,6 +15999,15 @@ impl Worksheet {
     // Write the <c> element for a number.
     fn write_number_cell(&mut self, row: RowNum, col: ColNum, number: f64, xf_index: u32) {
         let col_name = Self::col_to_name(&mut self.col_names, col);
+
+        // Use the optional ryu crate to format f64 cell number data as a
+        // string. Note, the the slightly faster `format_finite()` buffer
+        // function is safe to use here since nan/inf numbers are filtered out
+        // at the `store_number()` level and written as strings.
+        #[cfg(feature = "ryu")]
+        let mut buffer = ryu::Buffer::new();
+        #[cfg(feature = "ryu")]
+        let number = buffer.format_finite(number);
 
         if xf_index > 0 {
             write!(
@@ -12290,6 +16176,33 @@ impl Worksheet {
                 col_name,
                 row + 1,
                 boolean
+            )
+            .expect(XML_WRITE_ERROR);
+        }
+    }
+
+    // Write the <c> element for an error cell. We currently only support the
+    // #VALUE! error type which is used for embedded images.
+    fn write_error_cell(&mut self, row: RowNum, col: ColNum, value: u32, xf_index: u32) {
+        let col_name = Self::col_to_name(&mut self.col_names, col);
+
+        if xf_index > 0 {
+            write!(
+                &mut self.writer.xmlfile,
+                r#"<c r="{}{}" s="{}" t="e" vm="{}"><v>#VALUE!</v></c>"#,
+                col_name,
+                row + 1,
+                xf_index,
+                value
+            )
+            .expect(XML_WRITE_ERROR);
+        } else {
+            write!(
+                &mut self.writer.xmlfile,
+                r#"<c r="{}{}" t="e" vm="{}"><v>#VALUE!</v></c>"#,
+                col_name,
+                row + 1,
+                value
             )
             .expect(XML_WRITE_ERROR);
         }
@@ -12469,6 +16382,14 @@ impl Worksheet {
         self.writer.xml_empty_tag("drawing", &attributes);
     }
 
+    // Write the <legacyDrawing> element.
+    fn write_legacy_drawing(&mut self) {
+        self.rel_count += 1;
+        let attributes = [("r:id", format!("rId{}", self.rel_count))];
+
+        self.writer.xml_empty_tag("legacyDrawing", &attributes);
+    }
+
     // Write the <legacyDrawingHF> element.
     fn write_legacy_drawing_hf(&mut self) {
         self.rel_count += 1;
@@ -12496,7 +16417,7 @@ impl Worksheet {
     }
 
     // Write the <tablePart> element.
-    fn write_table_part(&mut self, index: u16) {
+    fn write_table_part(&mut self, index: u32) {
         let attributes = [("r:id", format!("rId{index}"))];
 
         self.writer.xml_empty_tag("tablePart", &attributes);
@@ -12658,25 +16579,187 @@ impl Worksheet {
 
     // Write the <extLst> element.
     fn write_extensions(&mut self) {
-        let attributes = [
-            (
-                "xmlns:x14",
-                "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main",
-            ),
-            ("uri", "{78C0D931-6437-407d-A8EE-F0AAD7539E65}"),
-        ];
-
         self.writer.xml_start_tag_only("extLst");
-        self.writer.xml_start_tag("ext", &attributes);
 
+        // Write the x14:conditionalFormattings element.
         if self.has_x14_conditional_formats {
-            // Write the x14:conditionalFormattings element.
+            let attributes = [
+                (
+                    "xmlns:x14",
+                    "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main",
+                ),
+                ("uri", "{78C0D931-6437-407d-A8EE-F0AAD7539E65}"),
+            ];
+            self.writer.xml_start_tag("ext", &attributes);
             self.write_conditional_formattings();
+        }
+
+        // Write the x14:sparklineGroups element.
+        if self.has_sparklines {
+            let attributes = [
+                (
+                    "xmlns:x14",
+                    "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main",
+                ),
+                ("uri", "{05C60535-1F16-4fd2-B633-F4F36F0B64E0}"),
+            ];
+            self.writer.xml_start_tag("ext", &attributes);
+            self.write_sparkline_groups();
         }
 
         self.writer.xml_end_tag("ext");
 
         self.writer.xml_end_tag("extLst");
+    }
+
+    // Write the <x14:sparklineGroups> element.
+    fn write_sparkline_groups(&mut self) {
+        let attributes = [(
+            "xmlns:xm",
+            "http://schemas.microsoft.com/office/excel/2006/main",
+        )];
+
+        self.writer
+            .xml_start_tag("x14:sparklineGroups", &attributes);
+
+        let sparklines = self.sparklines.clone();
+        for sparkline in sparklines.into_iter().rev() {
+            // Write the x14:sparklineGroup element.
+            self.write_sparkline_group(&sparkline);
+        }
+
+        self.writer.xml_end_tag("x14:sparklineGroups");
+    }
+
+    // Write the <x14:sparklineGroup> element.
+    fn write_sparkline_group(&mut self, sparkline: &Sparkline) {
+        let mut attributes = vec![];
+
+        if let Some(max) = sparkline.custom_max {
+            attributes.push(("manualMax", max.to_string()));
+        }
+
+        if let Some(min) = sparkline.custom_min {
+            attributes.push(("manualMin", min.to_string()));
+        }
+
+        match sparkline.sparkline_type {
+            SparklineType::Column => {
+                attributes.push(("type", "column".to_string()));
+            }
+            SparklineType::WinLose => {
+                attributes.push(("type", "stacked".to_string()));
+            }
+            SparklineType::Line => {}
+        }
+
+        if let Some(weight) = sparkline.line_weight {
+            attributes.push(("lineWeight", weight.to_string()));
+        }
+
+        if sparkline.date_range.has_data() {
+            attributes.push(("dateAxis", "1".to_string()));
+        }
+
+        match sparkline.show_empty_cells_as {
+            ChartEmptyCells::Gaps | ChartEmptyCells::Connected => {
+                attributes.push((
+                    "displayEmptyCellsAs",
+                    sparkline.show_empty_cells_as.to_string(),
+                ));
+            }
+            ChartEmptyCells::Zero => {}
+        }
+
+        if sparkline.show_markers {
+            attributes.push(("markers", "1".to_string()));
+        }
+
+        if sparkline.show_high_point {
+            attributes.push(("high", "1".to_string()));
+        }
+
+        if sparkline.show_low_point {
+            attributes.push(("low", "1".to_string()));
+        }
+
+        if sparkline.show_first_point {
+            attributes.push(("first", "1".to_string()));
+        }
+
+        if sparkline.show_last_point {
+            attributes.push(("last", "1".to_string()));
+        }
+
+        if sparkline.show_negative_points {
+            attributes.push(("negative", "1".to_string()));
+        }
+
+        if sparkline.show_axis {
+            attributes.push(("displayXAxis", "1".to_string()));
+        }
+
+        if sparkline.show_hidden_data {
+            attributes.push(("displayHidden", "1".to_string()));
+        }
+
+        if sparkline.custom_min.is_some() {
+            attributes.push(("minAxisType", "custom".to_string()));
+        } else if sparkline.group_min {
+            attributes.push(("minAxisType", "group".to_string()));
+        }
+
+        if sparkline.custom_max.is_some() {
+            attributes.push(("maxAxisType", "custom".to_string()));
+        } else if sparkline.group_max {
+            attributes.push(("maxAxisType", "group".to_string()));
+        }
+
+        if sparkline.show_right_to_left {
+            attributes.push(("rightToLeft", "1".to_string()));
+        }
+
+        self.writer.xml_start_tag("x14:sparklineGroup", &attributes);
+
+        // Write the sparkline color elements.
+        self.write_sparkline_color("x14:colorSeries", sparkline.series_color);
+        self.write_sparkline_color("x14:colorNegative", sparkline.negative_points_color);
+        self.write_sparkline_color("x14:colorAxis", sparkline.axis_color);
+        self.write_sparkline_color("x14:colorMarkers", sparkline.markers_color);
+        self.write_sparkline_color("x14:colorFirst", sparkline.first_point_color);
+        self.write_sparkline_color("x14:colorLast", sparkline.last_point_color);
+        self.write_sparkline_color("x14:colorHigh", sparkline.high_point_color);
+        self.write_sparkline_color("x14:colorLow", sparkline.low_point_color);
+
+        if sparkline.date_range.has_data() {
+            self.writer
+                .xml_data_element_only("xm:f", &sparkline.date_range.formula());
+        }
+
+        // Write the x14:sparklines element.
+        self.write_sparklines(sparkline);
+
+        self.writer.xml_end_tag("x14:sparklineGroup");
+    }
+
+    // Write a sparkline <x14:color*> element.
+    fn write_sparkline_color(&mut self, name: &str, color: Color) {
+        self.writer.xml_empty_tag(name, &color.attributes());
+    }
+
+    // Write the <x14:sparklines> element.
+    fn write_sparklines(&mut self, sparkline: &Sparkline) {
+        self.writer.xml_start_tag_only("x14:sparklines");
+
+        for range in &sparkline.ranges {
+            self.writer.xml_start_tag_only("x14:sparkline");
+
+            self.writer.xml_data_element_only("xm:f", &range.1);
+            self.writer.xml_data_element_only("xm:sqref", &range.0);
+
+            self.writer.xml_end_tag("x14:sparkline");
+        }
+        self.writer.xml_end_tag("x14:sparklines");
     }
 }
 
@@ -12687,15 +16770,15 @@ impl Worksheet {
 /// Trait to map user defined types to one of the supported Excel native types.
 ///
 /// This trait allows you to map user defined types into a type that Excel
-/// supports and to write it via [`worksheet.write()`](Worksheet::write) and
-/// [`worksheet.write_with_format()`](Worksheet::write_with_format). Both of
-/// these methods need to be implemented for the trait. See the example below.
+/// supports and to write it via [`Worksheet::write()`] and
+/// [`Worksheet::write_with_format()`]. Both of these methods need to be
+/// implemented for the trait. See the example below.
 ///
 /// # Examples
 ///
-/// Example of how to extend the the `rust_xlsxwriter` `write()` method using the
-/// `IntoExcelData` trait to handle arbitrary user data that can be mapped to
-/// one of the main Excel data types.
+/// Example of how to extend the the `rust_xlsxwriter` `write()` method using
+/// the `IntoExcelData` trait to handle arbitrary user data that can be mapped
+/// to one of the main Excel data types.
 ///
 /// ```
 /// # // This code is available in examples/app_write_generic_data.rs
@@ -12771,7 +16854,7 @@ impl Worksheet {
 ///         worksheet: &'a mut Worksheet,
 ///         row: RowNum,
 ///         col: ColNum,
-///         format: &'a Format,
+///         format: &Format,
 ///     ) -> Result<&'a mut Worksheet, XlsxError> {
 ///         // Convert the Unix time to an Excel datetime.
 ///         let datetime = 25569.0 + (self.seconds as f64 / (24.0 * 60.0 * 60.0));
@@ -12791,9 +16874,9 @@ pub trait IntoExcelData {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     fn write(
@@ -12807,9 +16890,9 @@ pub trait IntoExcelData {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
+    /// - [`XlsxError::RowColumnLimitError`] - Row or column exceeds Excel's
     ///   worksheet limits.
-    /// * [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
+    /// - [`XlsxError::MaxStringLengthExceeded`] - String exceeds Excel's limit
     ///   of 32,767 characters.
     ///
     fn write_with_format<'a>(
@@ -12817,7 +16900,7 @@ pub trait IntoExcelData {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError>;
 }
 
@@ -12838,7 +16921,7 @@ macro_rules! write_string_trait_impl {
                 worksheet: &'a mut Worksheet,
                 row: RowNum,
                 col: ColNum,
-                format: &'a Format,
+                format: &Format,
             ) -> Result<&'a mut Worksheet, XlsxError> {
                 worksheet.store_string(row, col, self.into(), Some(format))
             }
@@ -12864,7 +16947,7 @@ macro_rules! write_number_trait_impl {
                 worksheet: &'a mut Worksheet,
                 row: RowNum,
                 col: ColNum,
-                format: &'a Format,
+                format: &Format,
             ) -> Result<&'a mut Worksheet, XlsxError> {
                 worksheet.store_number(row, col, self, Some(format))
             }
@@ -12873,7 +16956,8 @@ macro_rules! write_number_trait_impl {
 }
 write_number_trait_impl!(u8 i8 u16 i16 u32 i32 f32 f64);
 
-// Note: Excel doesn't support saving the full range of i64/u64 in f64.
+// Note: Excel doesn't support saving the full range of i64/u64 in f64 so this
+// is documented as a loss of precision.
 macro_rules! write_number_trait_impl {
     ($($t:ty)*) => ($(
         impl IntoExcelData for $t {
@@ -12883,6 +16967,7 @@ macro_rules! write_number_trait_impl {
                 row: RowNum,
                 col: ColNum,
             ) -> Result<&mut Worksheet, XlsxError> {
+                #[allow(clippy::cast_precision_loss)]
                 worksheet.store_number(row, col, self as f64, None)
             }
 
@@ -12891,8 +16976,9 @@ macro_rules! write_number_trait_impl {
                 worksheet: &'a mut Worksheet,
                 row: RowNum,
                 col: ColNum,
-                format: &'a Format,
+                format: &Format,
             ) -> Result<&'a mut Worksheet, XlsxError> {
+                #[allow(clippy::cast_precision_loss)]
                 worksheet.store_number(row, col, self as f64, Some(format))
             }
         }
@@ -12915,7 +17001,7 @@ impl IntoExcelData for bool {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         worksheet.store_boolean(row, col, self, Some(format))
     }
@@ -12937,7 +17023,7 @@ impl IntoExcelData for &ExcelDateTime {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         let number = self.to_excel();
         worksheet.store_datetime(row, col, number, Some(format))
@@ -12960,7 +17046,7 @@ impl IntoExcelData for ExcelDateTime {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         let number = self.to_excel_serial_date();
         worksheet.store_datetime(row, col, number, Some(format))
@@ -12985,7 +17071,7 @@ impl IntoExcelData for &NaiveDateTime {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         let number = ExcelDateTime::chrono_datetime_to_excel(self);
         worksheet.store_datetime(row, col, number, Some(format))
@@ -13010,7 +17096,7 @@ impl IntoExcelData for &NaiveDate {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         let number = ExcelDateTime::chrono_date_to_excel(self);
         worksheet.store_datetime(row, col, number, Some(format))
@@ -13035,7 +17121,7 @@ impl IntoExcelData for &NaiveTime {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         let number = ExcelDateTime::chrono_time_to_excel(self);
         worksheet.store_datetime(row, col, number, Some(format))
@@ -13057,7 +17143,7 @@ impl IntoExcelData for Formula {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         worksheet.store_formula(row, col, self, Some(format))
     }
@@ -13078,13 +17164,34 @@ impl IntoExcelData for &Formula {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         worksheet.store_formula(row, col, (*self).clone(), Some(format))
     }
 }
 
 impl IntoExcelData for Url {
+    fn write(
+        self,
+        worksheet: &mut Worksheet,
+        row: RowNum,
+        col: ColNum,
+    ) -> Result<&mut Worksheet, XlsxError> {
+        worksheet.store_url(row, col, &self, None)
+    }
+
+    fn write_with_format<'a>(
+        self,
+        worksheet: &'a mut Worksheet,
+        row: RowNum,
+        col: ColNum,
+        format: &Format,
+    ) -> Result<&'a mut Worksheet, XlsxError> {
+        worksheet.store_url(row, col, &self, Some(format))
+    }
+}
+
+impl IntoExcelData for &Url {
     fn write(
         self,
         worksheet: &mut Worksheet,
@@ -13099,7 +17206,7 @@ impl IntoExcelData for Url {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         worksheet.store_url(row, col, self, Some(format))
     }
@@ -13123,7 +17230,7 @@ impl<T: IntoExcelData> IntoExcelData for Option<T> {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         match self {
             Some(data) => worksheet.write_with_format(row, col, data, format),
@@ -13150,7 +17257,7 @@ impl<T: IntoExcelData, E: IntoExcelData> IntoExcelData for Result<T, E> {
         worksheet: &'a mut Worksheet,
         row: RowNum,
         col: ColNum,
-        format: &'a Format,
+        format: &Format,
     ) -> Result<&'a mut Worksheet, XlsxError> {
         match self {
             Ok(data) => worksheet.write_with_format(row, col, data, format),
@@ -13250,6 +17357,10 @@ enum CellType {
         boolean: bool,
         xf_index: u32,
     },
+    Error {
+        xf_index: u32,
+        value: u32,
+    },
     Formula {
         formula: Box<str>,
         xf_index: u32,
@@ -13301,129 +17412,6 @@ impl Panes {
             utility::row_col_to_cell(self.top_cell.0, self.top_cell.1)
         }
     }
-}
-
-#[derive(Clone)]
-// Simple struct for handling different Excel hyperlinks types.
-struct Hyperlink {
-    url: String,
-    text: String,
-    tip: String,
-    location: String,
-    link_type: HyperlinkType,
-    ref_id: u16,
-}
-
-impl Hyperlink {
-    fn new(url: Url) -> Result<Hyperlink, XlsxError> {
-        let mut hyperlink = Hyperlink {
-            url: url.link,
-            text: url.text,
-            tip: url.tip,
-            location: String::new(),
-            link_type: HyperlinkType::Unknown,
-            ref_id: 0,
-        };
-
-        Self::initialize(&mut hyperlink);
-
-        // Check the hyperlink string lengths are within Excel's limits. The text
-        // length is checked by write_string_with_format().
-        if hyperlink.url.chars().count() > MAX_URL_LEN
-            || hyperlink.location.chars().count() > MAX_URL_LEN
-            || hyperlink.tip.chars().count() > MAX_PARAMETER_LEN
-        {
-            return Err(XlsxError::MaxUrlLengthExceeded);
-        }
-
-        Ok(hyperlink)
-    }
-
-    // This method handles a variety of different string processing that needs
-    // to be done for links and targets associated with Excel hyperlinks.
-    fn initialize(&mut self) {
-        lazy_static! {
-            static ref URL: Regex = Regex::new(r"^(ftp|http)s?://").unwrap();
-            static ref URL_ESCAPE: Regex = Regex::new(r"%[0-9a-fA-F]{2}").unwrap();
-            static ref REMOTE_FILE: Regex = Regex::new(r"^(\\\\|\w:)").unwrap();
-        }
-
-        if URL.is_match(&self.url) {
-            // Handle web links like http://.
-            self.link_type = HyperlinkType::Url;
-
-            if self.text.is_empty() {
-                self.text = self.url.clone();
-            }
-
-            // Split the url into url + #anchor if that exists.
-            let parts: Vec<&str> = self.url.splitn(2, '#').collect();
-            if parts.len() == 2 {
-                self.location = parts[1].to_string();
-                self.url = parts[0].to_string();
-            }
-        } else if self.url.starts_with("mailto:") {
-            // Handle mail address links.
-            self.link_type = HyperlinkType::Url;
-
-            if self.text.is_empty() {
-                self.text = self.url.replacen("mailto:", "", 1);
-            }
-        } else if self.url.starts_with("internal:") {
-            // Handle links to cells within the workbook.
-            self.link_type = HyperlinkType::Internal;
-            self.location = self.url.replacen("internal:", "", 1);
-
-            if self.text.is_empty() {
-                self.text = self.location.clone();
-            }
-        } else if self.url.starts_with("file://") {
-            // Handle links to other files or cells in other Excel files.
-            self.link_type = HyperlinkType::File;
-            let bare_link = self.url.replacen("file:///", "", 1);
-            let bare_link = bare_link.replacen("file://", "", 1);
-
-            // Links to local files aren't prefixed with file:///.
-            if !REMOTE_FILE.is_match(&bare_link) {
-                self.url = bare_link.clone();
-            }
-
-            if self.text.is_empty() {
-                self.text = bare_link;
-            }
-
-            // Split the url into url + #anchor if that exists.
-            let parts: Vec<&str> = self.url.splitn(2, '#').collect();
-            if parts.len() == 2 {
-                self.location = parts[1].to_string();
-                self.url = parts[0].to_string();
-            }
-        }
-
-        // Escape any url characters in the url string.
-        if !URL_ESCAPE.is_match(&self.url) {
-            self.url = crate::xmlwriter::escape_url(&self.url).into();
-        }
-    }
-
-    // Increment the ref id
-    fn increment_ref_id(&mut self, ref_id: u16) -> u16 {
-        match self.link_type {
-            HyperlinkType::Url | HyperlinkType::File => {
-                self.ref_id = ref_id;
-                ref_id + 1
-            }
-            _ => ref_id,
-        }
-    }
-}
-
-#[derive(Clone)]
-enum HyperlinkType {
-    Unknown,
-    Url,
-    Internal,
-    File,
 }
 
 // Struct to hold and transform data for the various defined names variants:
@@ -13490,14 +17478,6 @@ impl DefinedName {
             DefinedNameType::Autofilter => "_xlnm._FilterDatabase".to_string(),
             DefinedNameType::PrintTitles => "_xlnm.Print_Titles".to_string(),
             _ => self.name.clone(),
-        }
-    }
-
-    pub(crate) fn unquoted_sheet_name(&self) -> String {
-        if self.quoted_sheet_name.starts_with('\'') && self.quoted_sheet_name.ends_with('\'') {
-            self.quoted_sheet_name[1..self.quoted_sheet_name.len() - 1].to_string()
-        } else {
-            self.quoted_sheet_name.clone()
         }
     }
 
@@ -13596,4 +17576,23 @@ pub(crate) enum Visible {
     Default,
     Hidden,
     VeryHidden,
+}
+
+pub(crate) enum BorderPosition {
+    All,
+    RowLeft,
+    RowCenter,
+    RowRight,
+    ColTop,
+    ColCenter,
+    ColBottom,
+    TopLeft,
+    TopCenter,
+    TopRight,
+    CenterLeft,
+    CenterCenter,
+    CenterRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
 }

@@ -1,4 +1,4 @@
-// image - A module to represent Excel conditional formats.
+// conditional_format - A module to represent Excel conditional formats.
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
@@ -45,9 +45,7 @@
 //! #     worksheet.write_row_matrix(2, 1, data)?;
 //! #
 //! #     // Set the column widths for clarity.
-//! #     for col_num in 1..=10u16 {
-//! #         worksheet.set_column_width(col_num, 6)?;
-//! #     }
+//! #     worksheet.set_column_range_width(1, 10, 6)?;
 //! #
 //! #     // Add a format. Light red fill with dark red text.
 //! #     let format1 = Format::new()
@@ -224,9 +222,7 @@
 //! #     worksheet.write_row_matrix(2, 1, data)?;
 //! #
 //! #     // Set the column widths for clarity.
-//! #     for col_num in 1..=10u16 {
-//! #         worksheet.set_column_width(col_num, 6)?;
-//! #     }
+//! #     worksheet.set_column_range_width(1, 10, 6)?;
 //! #
 //! #     // Add a format. Light red fill with dark red text.
 //! #     let format1 = Format::new()
@@ -913,8 +909,9 @@ mod tests;
 #[cfg(feature = "chrono")]
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
-use crate::{xmlwriter::XMLWriter, Color, ExcelDateTime, Format, Formula, IntoColor, XlsxError};
 use std::{borrow::Cow, fmt};
+
+use crate::{xmlwriter::XMLWriter, Color, ExcelDateTime, Format, Formula, XlsxError};
 
 // -----------------------------------------------------------------------
 // ConditionalFormat trait
@@ -927,7 +924,7 @@ pub trait ConditionalFormat {
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::ConditionalFormatError`] - A general error that is raised
+    /// - [`XlsxError::ConditionalFormatError`] - A general error that is raised
     ///   when a conditional formatting parameter is incorrect or missing.
     ///
     fn validate(&self) -> Result<(), XlsxError>;
@@ -1065,9 +1062,7 @@ generate_conditional_format_impls!(
 /// #     worksheet.write_row_matrix(2, 1, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -1142,9 +1137,7 @@ generate_conditional_format_impls!(
 /// #     worksheet.write_row_matrix(2, 1, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -1222,7 +1215,7 @@ impl ConditionalFormatCell {
     ///
     /// # Parameters
     ///
-    /// * `rule` - A [`ConditionalFormatCellRule`] enum value.
+    /// - `rule`: A [`ConditionalFormatCellRule`] enum value.
     ///
     /// # Examples
     ///
@@ -1257,7 +1250,7 @@ impl ConditionalFormatCell {
     ///         .set_format(format);
     ///
     ///     worksheet.add_conditional_format(0, 0, 9, 0, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -1301,7 +1294,7 @@ impl ConditionalFormatCell {
     ///         .set_format(format);
     ///
     ///     worksheet.add_conditional_format(0, 0, 9, 0, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -1380,7 +1373,7 @@ impl ConditionalFormatCell {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatCell {
         self.format = Some(format.into());
@@ -1499,9 +1492,7 @@ impl ConditionalFormatCell {
 /// #     worksheet.write_column(0, 0, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -1586,7 +1577,7 @@ impl ConditionalFormatBlank {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatBlank {
         self.format = Some(format.into());
@@ -1702,9 +1693,7 @@ impl ConditionalFormatBlank {
 /// #     worksheet.write(11, 0, Formula::new("=1/1"))?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -1789,7 +1778,7 @@ impl ConditionalFormatError {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatError {
         self.format = Some(format.into());
@@ -1906,9 +1895,7 @@ impl ConditionalFormatError {
 /// #     worksheet.write_row_matrix(2, 1, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -1993,7 +1980,7 @@ impl ConditionalFormatDuplicate {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatDuplicate {
         self.format = Some(format.into());
@@ -2099,9 +2086,7 @@ impl ConditionalFormatDuplicate {
 /// #     worksheet.write_row_matrix(2, 1, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -2185,7 +2170,7 @@ impl ConditionalFormatFormula {
     ///
     /// # Parameters
     ///
-    /// * `value` - A [`Formula`] value or type that converts "into" a `Formula`
+    /// - `value`: A [`Formula`] value or type that converts "into" a `Formula`
     ///   such as a `&str` or `&Formula`.
     ///
     /// # Examples
@@ -2220,9 +2205,7 @@ impl ConditionalFormatFormula {
     /// #     worksheet.write_row_matrix(2, 1, data)?;
     /// #
     /// #     // Set the column widths for clarity.
-    /// #     for col_num in 1..=10u16 {
-    /// #         worksheet.set_column_width(col_num, 6)?;
-    /// #     }
+    /// #     worksheet.set_column_range_width(1, 10, 6)?;
     /// #
     /// #     // Add a format. Light red fill with dark red text.
     /// #     let format1 = Format::new()
@@ -2247,7 +2230,7 @@ impl ConditionalFormatFormula {
     ///         .set_format(format2);
     ///
     ///     worksheet.add_conditional_format(2, 1, 11, 10, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -2277,7 +2260,7 @@ impl ConditionalFormatFormula {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatFormula {
         self.format = Some(format.into());
@@ -2286,7 +2269,7 @@ impl ConditionalFormatFormula {
 
     // Validate the conditional format.
     pub(crate) fn validate(&self) -> Result<(), XlsxError> {
-        if self.formula.expand_formula(true).is_empty() {
+        if self.formula.formula_string.is_empty() {
             return Err(XlsxError::ConditionalFormatError(
                 "Formula value must be set".to_string(),
             ));
@@ -2323,7 +2306,7 @@ impl ConditionalFormatFormula {
 
         // Write the rule.
         writer.xml_start_tag("cfRule", &attributes);
-        writer.xml_data_element_only("formula", &self.formula.expand_formula(true));
+        writer.xml_data_element_only("formula", &self.formula.formula_string);
         writer.xml_end_tag("cfRule");
 
         writer.read_to_string()
@@ -2385,9 +2368,7 @@ impl ConditionalFormatFormula {
 /// #     worksheet.write_row_matrix(2, 1, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -2456,7 +2437,7 @@ impl ConditionalFormatAverage {
     ///
     /// # Parameters
     ///
-    /// * `rule` - A [`ConditionalFormatAverageRule`] enum value.
+    /// - `rule`: A [`ConditionalFormatAverageRule`] enum value.
     ///
     pub fn set_rule(mut self, criteria: ConditionalFormatAverageRule) -> ConditionalFormatAverage {
         self.criteria = criteria;
@@ -2475,7 +2456,7 @@ impl ConditionalFormatAverage {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatAverage {
         self.format = Some(format.into());
@@ -2626,9 +2607,7 @@ impl ConditionalFormatAverage {
 /// #     worksheet.write_row_matrix(2, 1, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 1..=10u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(1, 10, 6)?;
 /// #
 /// #     // Add a format. Light red fill with dark red text.
 /// #     let format1 = Format::new()
@@ -2698,6 +2677,10 @@ impl ConditionalFormatTop {
 
     /// Set the top/bottom rank of the conditional format.
     ///
+    /// # Parameters
+    ///
+    /// - `rule`: A [`ConditionalFormatTextRule`] enum value.
+    ///
     /// See the example above.
     ///
     pub fn set_rule(mut self, rule: ConditionalFormatTopRule) -> ConditionalFormatTop {
@@ -2717,7 +2700,7 @@ impl ConditionalFormatTop {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatTop {
         self.format = Some(format.into());
@@ -2952,7 +2935,7 @@ impl ConditionalFormatText {
     ///
     /// # Parameters
     ///
-    /// * `rule` - A [`ConditionalFormatTextRule`] enum value.
+    /// - `rule`: A [`ConditionalFormatTextRule`] enum value.
     ///
     pub fn set_rule(mut self, rule: ConditionalFormatTextRule) -> ConditionalFormatText {
         self.rule = Some(rule);
@@ -2971,7 +2954,7 @@ impl ConditionalFormatText {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatText {
         self.format = Some(format.into());
@@ -3217,7 +3200,7 @@ impl ConditionalFormatDate {
     ///
     /// # Parameters
     ///
-    /// * `rule` - A [`ConditionalFormatDateRule`] enum value.
+    /// - `rule`: A [`ConditionalFormatDateRule`] enum value.
     ///
     pub fn set_rule(mut self, criteria: ConditionalFormatDateRule) -> ConditionalFormatDate {
         self.rule = criteria;
@@ -3236,7 +3219,7 @@ impl ConditionalFormatDate {
     ///
     /// # Parameters
     ///
-    /// * `format` - The [`Format`] property for the conditional format.
+    /// - `format`: The [`Format`] property for the conditional format.
     ///
     pub fn set_format(mut self, format: impl Into<Format>) -> ConditionalFormatDate {
         self.format = Some(format.into());
@@ -3375,9 +3358,7 @@ impl ConditionalFormatDate {
 /// #     worksheet.write_column(2, 11, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 0..=12u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(0, 12, 6)?;
 /// #
 ///     // Write 2 color scale formats with standard Excel colors.
 ///     let conditional_format = ConditionalFormat2ColorScale::new()
@@ -3478,8 +3459,8 @@ impl ConditionalFormat2ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -3575,8 +3556,8 @@ impl ConditionalFormat2ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -3623,8 +3604,8 @@ impl ConditionalFormat2ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -3672,11 +3653,8 @@ impl ConditionalFormat2ColorScale {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/conditional_format_2color_set_color.png">
     ///
-    pub fn set_minimum_color<T>(mut self, color: T) -> ConditionalFormat2ColorScale
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_minimum_color(mut self, color: impl Into<Color>) -> ConditionalFormat2ColorScale {
+        let color = color.into();
         if color.is_valid() {
             self.min_color = color;
         }
@@ -3691,14 +3669,11 @@ impl ConditionalFormat2ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_maximum_color<T>(mut self, color: T) -> ConditionalFormat2ColorScale
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_maximum_color(mut self, color: impl Into<Color>) -> ConditionalFormat2ColorScale {
+        let color = color.into();
         if color.is_valid() {
             self.max_color = color;
         }
@@ -3837,9 +3812,7 @@ impl ConditionalFormat2ColorScale {
 /// #     worksheet.write_column(2, 11, data)?;
 /// #
 /// #     // Set the column widths for clarity.
-/// #     for col_num in 0..=12u16 {
-/// #         worksheet.set_column_width(col_num, 6)?;
-/// #     }
+/// #     worksheet.set_column_range_width(0, 12, 6)?;
 /// #
 ///     // Write 3 color scale formats with standard Excel colors.
 ///     let conditional_format = ConditionalFormat3ColorScale::new()
@@ -3952,8 +3925,8 @@ impl ConditionalFormat3ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -4049,8 +4022,8 @@ impl ConditionalFormat3ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -4098,8 +4071,8 @@ impl ConditionalFormat3ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -4146,8 +4119,8 @@ impl ConditionalFormat3ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -4196,11 +4169,8 @@ impl ConditionalFormat3ColorScale {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/conditional_format_3color_set_color.png">
     ///
-    pub fn set_minimum_color<T>(mut self, color: T) -> ConditionalFormat3ColorScale
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_minimum_color(mut self, color: impl Into<Color>) -> ConditionalFormat3ColorScale {
+        let color = color.into();
         if color.is_valid() {
             self.min_color = color;
         }
@@ -4215,14 +4185,11 @@ impl ConditionalFormat3ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_midpoint_color<T>(mut self, color: T) -> ConditionalFormat3ColorScale
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_midpoint_color(mut self, color: impl Into<Color>) -> ConditionalFormat3ColorScale {
+        let color = color.into();
         if color.is_valid() {
             self.mid_color = color;
         }
@@ -4237,14 +4204,11 @@ impl ConditionalFormat3ColorScale {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_maximum_color<T>(mut self, color: T) -> ConditionalFormat3ColorScale
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_maximum_color(mut self, color: impl Into<Color>) -> ConditionalFormat3ColorScale {
+        let color = color.into();
         if color.is_valid() {
             self.max_color = color;
         }
@@ -4499,8 +4463,8 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -4593,8 +4557,8 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -4638,8 +4602,8 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -4670,7 +4634,7 @@ impl ConditionalFormatDataBar {
     ///     let conditional_format = ConditionalFormatDataBar::new().set_fill_color("009933");
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -4683,11 +4647,8 @@ impl ConditionalFormatDataBar {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/conditional_format_databar_set_fill_color.png">
     ///
-    pub fn set_fill_color<T>(mut self, color: T) -> ConditionalFormatDataBar
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_fill_color(mut self, color: impl Into<Color>) -> ConditionalFormatDataBar {
+        let color = color.into();
         if color.is_valid() {
             self.fill_color = color;
             self.border_color = color;
@@ -4703,8 +4664,8 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -4735,7 +4696,7 @@ impl ConditionalFormatDataBar {
     ///     let conditional_format = ConditionalFormatDataBar::new().set_border_color("FF0000");
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -4748,11 +4709,8 @@ impl ConditionalFormatDataBar {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/conditional_format_databar_set_border_color.png">
     ///
-    pub fn set_border_color<T>(mut self, color: T) -> ConditionalFormatDataBar
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_border_color(mut self, color: impl Into<Color>) -> ConditionalFormatDataBar {
+        let color = color.into();
         if color.is_valid() {
             self.border_color = color;
         }
@@ -4767,8 +4725,8 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -4799,7 +4757,7 @@ impl ConditionalFormatDataBar {
     ///     let conditional_format = ConditionalFormatDataBar::new().set_negative_fill_color("009933");
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -4812,11 +4770,8 @@ impl ConditionalFormatDataBar {
     /// <img
     /// src="https://rustxlsxwriter.github.io/images/conditional_format_databar_set_negative_fill_color.png">
     ///
-    pub fn set_negative_fill_color<T>(mut self, color: T) -> ConditionalFormatDataBar
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_negative_fill_color(mut self, color: impl Into<Color>) -> ConditionalFormatDataBar {
+        let color = color.into();
         if color.is_valid() {
             self.negative_fill_color = color;
             self.negative_border_color = color;
@@ -4833,8 +4788,8 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -4866,7 +4821,7 @@ impl ConditionalFormatDataBar {
     ///         .set_negative_border_color("000000");
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -4878,11 +4833,11 @@ impl ConditionalFormatDataBar {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/conditional_format_databar_set_negative_border_color.png">
     ///
-    pub fn set_negative_border_color<T>(mut self, color: T) -> ConditionalFormatDataBar
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_negative_border_color(
+        mut self,
+        color: impl Into<Color>,
+    ) -> ConditionalFormatDataBar {
+        let color = color.into();
         if color.is_valid() {
             self.negative_border_color = color;
         }
@@ -4897,7 +4852,7 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -4928,7 +4883,7 @@ impl ConditionalFormatDataBar {
     ///     let conditional_format = ConditionalFormatDataBar::new().set_solid_fill(true);
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -4950,7 +4905,7 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     /// # Examples
     ///
@@ -4981,7 +4936,7 @@ impl ConditionalFormatDataBar {
     ///     let conditional_format = ConditionalFormatDataBar::new().set_border_off(true);
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5005,7 +4960,7 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `direction`- A [`ConditionalFormatDataBarDirection`] enum value.
+    /// - `direction`: A [`ConditionalFormatDataBarDirection`] enum value.
     ///
     /// # Examples
     ///
@@ -5039,7 +4994,7 @@ impl ConditionalFormatDataBar {
     ///         .set_direction(ConditionalFormatDataBarDirection::RightToLeft);
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5064,7 +5019,7 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -5095,7 +5050,7 @@ impl ConditionalFormatDataBar {
     ///     let conditional_format = ConditionalFormatDataBar::new().set_bar_only(true);
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5120,7 +5075,7 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `position`- A [`ConditionalFormatDataBarAxisPosition`] enum value.
+    /// - `position`: A [`ConditionalFormatDataBarAxisPosition`] enum value.
     ///
     /// # Examples
     ///
@@ -5168,7 +5123,7 @@ impl ConditionalFormatDataBar {
     ///         .set_axis_position(ConditionalFormatDataBarAxisPosition::None);
     ///
     ///     worksheet.add_conditional_format(2, 7, 11, 7, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5196,8 +5151,8 @@ impl ConditionalFormatDataBar {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or a
-    ///   type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or a
+    ///   type that can convert [`Into`] a [`Color`].
     ///
     ///
     /// # Examples
@@ -5229,7 +5184,7 @@ impl ConditionalFormatDataBar {
     ///     let conditional_format = ConditionalFormatDataBar::new().set_axis_color("FF0000");
     ///
     ///     worksheet.add_conditional_format(2, 3, 11, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5241,11 +5196,8 @@ impl ConditionalFormatDataBar {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/conditional_format_databar_set_axis_color.png">
     ///
-    pub fn set_axis_color<T>(mut self, color: T) -> ConditionalFormatDataBar
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_axis_color(mut self, color: impl Into<Color>) -> ConditionalFormatDataBar {
+        let color = color.into();
         if color.is_valid() {
             self.axis_color = color;
         }
@@ -5773,7 +5725,7 @@ impl ConditionalFormatIconSet {
     ///
     /// # Parameters
     ///
-    /// * `icon_type` - A [`ConditionalFormatIconType`] enum value.
+    /// - `icon_type`: A [`ConditionalFormatIconType`] enum value.
     ///
     pub fn set_icon_type(
         mut self,
@@ -5841,7 +5793,7 @@ impl ConditionalFormatIconSet {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -5881,7 +5833,7 @@ impl ConditionalFormatIconSet {
     ///         .reverse_icons(true);
     ///
     ///     worksheet.add_conditional_format(2, 1, 2, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5902,7 +5854,7 @@ impl ConditionalFormatIconSet {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -5942,7 +5894,7 @@ impl ConditionalFormatIconSet {
     ///         .show_icons_only(true);
     ///
     ///     worksheet.add_conditional_format(2, 1, 2, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -5974,14 +5926,14 @@ impl ConditionalFormatIconSet {
     /// # #[allow(unused_variables)]
     /// # fn main() {
     ///     // Default rules for three symbol icon sets.
-    ///     let icons3 = vec![
+    ///     let icons3 = [
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 0),
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 33),
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 67),
     ///     ];
     ///
     ///     // Default rules for four symbol icon sets.
-    ///     let icons4 = vec![
+    ///     let icons4 = [
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 0),
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 25),
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 50),
@@ -5989,7 +5941,7 @@ impl ConditionalFormatIconSet {
     ///     ];
     ///
     ///     // Default rules for five symbol icon sets.
-    ///     let icons5 = vec![
+    ///     let icons5 = [
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 0),
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 20),
     ///         ConditionalFormatCustomIcon::new().set_rule(ConditionalFormatType::Percent, 40),
@@ -6047,7 +5999,7 @@ impl ConditionalFormatIconSet {
     ///         .set_icons(&icons);
     ///
     ///     worksheet.add_conditional_format(2, 1, 2, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -6402,8 +6354,8 @@ impl ConditionalFormatCustomIcon {
     ///
     /// # Parameters
     ///
-    /// * `rule_type`- A [`ConditionalFormatType`] enum value.
-    /// * `value` - Any type that can convert into a [`ConditionalFormatValue`]
+    /// - `rule_type`: A [`ConditionalFormatType`] enum value.
+    /// - `value`: Any type that can convert into a [`ConditionalFormatValue`]
     ///   such as numbers, dates, times and formula ranges. String values are
     ///   ignored in this type of conditional format.
     ///
@@ -6459,8 +6411,8 @@ impl ConditionalFormatCustomIcon {
     ///
     /// # Parameters
     ///
-    /// * `icon_type`- A [`ConditionalFormatIconType`] enum value.
-    /// * `index` - Index to the icon within the type. See the indexes shown in
+    /// - `icon_type`: A [`ConditionalFormatIconType`] enum value.
+    /// - `index`: Index to the icon within the type. See the indexes shown in
     ///   the images for [`ConditionalFormatIconType`].
     ///
     ///
@@ -6510,7 +6462,7 @@ impl ConditionalFormatCustomIcon {
     ///         .set_icons(&icons);
     ///
     ///     worksheet.add_conditional_format(2, 1, 2, 3, &conditional_format)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("conditional_format.xlsx")?;
     /// #
@@ -6582,7 +6534,7 @@ impl ConditionalFormatCustomIcon {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_no_icon(mut self, enable: bool) -> ConditionalFormatCustomIcon {
         self.no_icon = enable;
@@ -6596,7 +6548,7 @@ impl ConditionalFormatCustomIcon {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_greater_than(mut self, enable: bool) -> ConditionalFormatCustomIcon {
         self.greater_than = enable;
@@ -6691,7 +6643,7 @@ conditional_format_value_from_number!(u8 i8 u16 i16 u32 i32 f32 f64);
 
 impl From<Formula> for ConditionalFormatValue {
     fn from(value: Formula) -> ConditionalFormatValue {
-        ConditionalFormatValue::new_from_string(value.expand_formula(true))
+        ConditionalFormatValue::new_from_string(value.formula_string)
     }
 }
 
@@ -6784,7 +6736,7 @@ conditional_format_value_from_type!(&NaiveDate & NaiveDateTime & NaiveTime);
 /// [`ConditionalFormatCell`].
 ///
 ///
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum ConditionalFormatCellRule<T: IntoConditionalFormatValue> {
     /// Show the conditional format for cells that are equal to the target value.
     EqualTo(T),
@@ -6834,7 +6786,7 @@ impl<T: IntoConditionalFormatValue> fmt::Display for ConditionalFormatCellRule<T
 /// [`ConditionalFormatCell`].
 ///
 ///
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum ConditionalFormatTopRule {
     /// Show the conditional format for cells that are in the top X.
     Top(u16),
@@ -6856,7 +6808,7 @@ pub enum ConditionalFormatTopRule {
 /// The `ConditionalFormatAverageRule` enum defines the conditional format
 /// criteria for [`ConditionalFormatCell`].
 ///
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum ConditionalFormatAverageRule {
     /// Show the conditional format for cells above the average for the range.
     /// This is the default.
@@ -6939,7 +6891,7 @@ impl fmt::Display for ConditionalFormatTextRule {
 /// The `ConditionalFormatDateRule` enum defines the conditional format
 /// criteria for [`ConditionalFormatDate`].
 ///
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum ConditionalFormatDateRule {
     /// Show the conditional format for dates occurring yesterday. This is the
     /// default.
@@ -7099,7 +7051,7 @@ pub enum ConditionalFormatType {
 ///
 /// # Parameters
 ///
-/// * `direction`- A [`ConditionalFormatDataBarDirection`] enum value.
+/// - `direction`: A [`ConditionalFormatDataBarDirection`] enum value.
 ///
 /// # Examples
 ///
@@ -7146,7 +7098,7 @@ pub enum ConditionalFormatType {
 /// <img
 /// src="https://rustxlsxwriter.github.io/images/conditional_format_databar_set_direction.png">
 ///
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum ConditionalFormatDataBarDirection {
     /// The bars go "Right to left" or "Left to right" depending on the context.
     /// This is the default.
@@ -7225,7 +7177,7 @@ pub enum ConditionalFormatDataBarDirection {
 ///
 /// <img src="https://rustxlsxwriter.github.io/images/conditional_format_databar_set_axis_position.png">
 ///
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ConditionalFormatDataBarAxisPosition {
     /// The axis is set automatically depending on whether the data contains
     /// negative values. This is the default.
@@ -7416,7 +7368,7 @@ macro_rules! generate_conditional_common_methods {
         ///
         /// # Parameters
         ///
-        /// * `range` - A string like type representing an Excel range.
+        /// - `range`: A string like type representing an Excel range.
         ///
         ///   Note, you can use an Excel range like `"$B$3:$D$6,$I$3:$K$6"` or
         ///   omit the `$` anchors and replace the commas with spaces to have a
@@ -7440,7 +7392,7 @@ macro_rules! generate_conditional_common_methods {
         ///
         /// # Parameters
         ///
-        /// * `enable` - Turn the property on/off. It is off by default.
+        /// - `enable`: Turn the property on/off. It is off by default.
         ///
         pub fn set_stop_if_true(mut self, enable: bool) -> $t {
             self.stop_if_true = enable;
@@ -7503,7 +7455,7 @@ impl ConditionalFormatCell {
     ///
     /// # Parameters
     ///
-    /// * `range` - A string like type representing an Excel range.
+    /// - `range`: A string like type representing an Excel range.
     ///
     ///   Note, you can use an Excel range like `"$B$3:$D$6,$I$3:$K$6"` or
     ///   omit the `$` anchors and replace the commas with spaces to have a
@@ -7527,7 +7479,7 @@ impl ConditionalFormatCell {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_stop_if_true(mut self, enable: bool) -> ConditionalFormatCell {
         self.stop_if_true = enable;

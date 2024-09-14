@@ -362,18 +362,390 @@
 //! properties can only be set for value axes (and date axes). The documentation
 //! calls out the type of axis to which properties apply.
 //!
+//! ## Secondary Axes
 //!
+//! It is possible to add a secondary axis of the same type to a chart by
+//! setting the [`ChartSeries::set_secondary_axis()`] property of the series:
+//!
+//! ```
+//! # // This code is available in examples/doc_chart_series_set_secondary_axis.rs
+//! #
+//! # use rust_xlsxwriter::{Chart, ChartLegendPosition, ChartType, Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #     let worksheet = workbook.add_worksheet();
+//! #
+//! #     // Add the worksheet data that the charts will refer to.
+//! #     worksheet.write_column(0, 0, [2, 3, 4, 5, 6, 7])?;
+//! #     worksheet.write_column(0, 1, [10, 40, 50, 20, 10, 50])?;
+//! #
+//!     // Create a new line chart.
+//!     let mut chart = Chart::new(ChartType::Line);
+//!
+//!     // Configure a series that defaults to the primary axis.
+//!     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+//!
+//!     // Configure another series with a secondary axis.
+//!     chart
+//!         .add_series()
+//!         .set_values("Sheet1!$B$1:$B$6")
+//!         .set_secondary_axis(true);
+//!
+//!     // Add some axis labels.
+//!     chart.y_axis().set_name("Y axis");
+//!     chart.y2_axis().set_name("Y2 axis");
+//!
+//!     // Move the legend to the bottom for clarity.
+//!     chart.legend().set_position(ChartLegendPosition::Bottom);
+//!
+//!     // Add the chart to the worksheet.
+//!     worksheet.insert_chart_with_offset(0, 2, &chart, 5, 5)?;
+//!
+//! #     workbook.save("chart.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Output file:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/chart_series_set_secondary_axis.png">
+//!
+//! In general secondary axes are used for displaying different Y values for the
+//! same category range. However it is also possible to display a secondary X
+//! axis for series that use a different category range. See the example below.
+//!
+//! ```
+//! # // This code is available in examples/doc_chart_series_set_secondary_axis2.rs
+//! #
+//! # use rust_xlsxwriter::{
+//! #     Chart, ChartAxisCrossing, ChartAxisLabelPosition, ChartLegendPosition, ChartType, Workbook,
+//! #     XlsxError,
+//! # };
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #     let worksheet = workbook.add_worksheet();
+//! #
+//! #     // Add the worksheet data that the charts will refer to.
+//! #     worksheet.write_column(0, 0, [1, 2, 3, 4, 5])?;
+//! #     worksheet.write_column(0, 1, [10, 40, 50, 20, 10])?;
+//! #     worksheet.write_column(0, 2, [1, 2, 3, 4, 5, 6, 7])?;
+//! #     worksheet.write_column(0, 3, [30, 10, 20, 40, 30, 10, 20])?;
+//! #
+//!     // Create a new line chart.
+//!     let mut chart = Chart::new(ChartType::Line);
+//!
+//!     // Configure a series that defaults to the primary axis.
+//!     chart
+//!         .add_series()
+//!         .set_categories(("Sheet1", 0, 0, 4, 0))
+//!         .set_values(("Sheet1", 0, 1, 4, 1));
+//!
+//!     // Configure another series with a secondary axis. Note that the category
+//!     // range is different to the primary axes series.
+//!     chart
+//!         .add_series()
+//!         .set_categories(("Sheet1", 0, 2, 6, 2))
+//!         .set_values(("Sheet1", 0, 3, 6, 3))
+//!         .set_secondary_axis(true);
+//!
+//!     // Make the secondary X axis visible (it is hidden by default) and also
+//!     // position the labels so they are next to the axis and therefore visible.
+//!     chart
+//!         .x2_axis()
+//!         .set_hidden(false)
+//!         .set_label_position(ChartAxisLabelPosition::NextTo);
+//!
+//!     // Set the X2 axis to cross the Y2 axis at the max value so it appears at
+//!     // the top of the chart.
+//!     chart.y2_axis().set_crossing(ChartAxisCrossing::Max);
+//!
+//!     // Add some axis labels.
+//!     chart.x_axis().set_name("X axis");
+//!     chart.y_axis().set_name("Y axis");
+//!     chart.x2_axis().set_name("X2 axis");
+//!     chart.y2_axis().set_name("Y2 axis");
+//!
+//!     // Move the legend to the bottom for clarity.
+//!     chart.legend().set_position(ChartLegendPosition::Bottom);
+//!
+//!     // Add the chart to the worksheet.
+//!     worksheet.insert_chart_with_offset(0, 4, &chart, 5, 5)?;
+//! #
+//! #     workbook.save("chart.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Output file:
+//!
+//! <img
+//! src="https://rustxlsxwriter.github.io/images/chart_series_set_secondary_axis2.png">
+//!
+//!
+//! It is also possible to have a secondary, combined, chart either with a
+//! shared or secondary axis, see below.
+//!
+//!
+//! ## Combined Charts
+//!
+//! In Excel is also possible to combine two different chart types, for example
+//! a column and line chart to create a Pareto chart. In `rust_xlsxwriter` you
+//! can replicate this by creating a new chart instance as the primary chart and
+//! then create a secondary chart of a different type and combine it with the
+//! primary chart using the [`Chart::combine()`] method.
+//!
+//! The combined secondary chart can share the same Y axis as the primary chart
+//! or it can use a secondary Y2 axis. An example of each is shown below.
+//!
+//! Combined Column and Line chart with the same Y axis.
+//!
+//! ```
+//! # // This code is available in examples/doc_chart_combine1.rs
+//! #
+//! # use rust_xlsxwriter::{Chart, ChartType, Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #     let worksheet = workbook.add_worksheet();
+//! #
+//! #     // Add the worksheet data that the charts will refer to.
+//! #     let data = [
+//! #         [2, 3, 4, 5, 6, 7],
+//! #         [10, 40, 50, 20, 10, 50],
+//! #         [30, 60, 70, 50, 40, 30],
+//! #     ];
+//! #     worksheet.write_column_matrix(0, 0, data)?;
+//! #
+//!     // Create a new Column chart. This will be the primary chart.
+//!     let mut column_chart = Chart::new(ChartType::Column);
+//!
+//!     // Configure the data series for the primary chart.
+//!     column_chart
+//!         .add_series()
+//!         .set_categories("Sheet1!$A$1:$A$6")
+//!         .set_values("Sheet1!$B$1:$B$6");
+//!
+//!     // Create a new line chart. This will use this as the secondary chart.
+//!     let mut line_chart = Chart::new(ChartType::Line);
+//!
+//!     // Configure the data series for the secondary chart.
+//!     line_chart
+//!         .add_series()
+//!         .set_categories("Sheet1!$A$1:$A$6")
+//!         .set_values("Sheet1!$C$1:$C$6");
+//!
+//!     // Combine the charts.
+//!     column_chart.combine(&line_chart);
+//!
+//!     // Add some axis labels. Note, this is done via the primary chart.
+//!     column_chart.x_axis().set_name("X axis");
+//!     column_chart.y_axis().set_name("Y axis");
+//!
+//!     // Add the primary chart to the worksheet.
+//!     worksheet.insert_chart_with_offset(0, 3, &column_chart, 5, 5)?;
+//!
+//! #     // Save the file to disk.
+//! #     workbook.save("chart.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Output file:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/chart_combine1.png">
+//!
+//!
+//! Combined Column and Line chart with the Column values are on the primary Y
+//! axis and the Line chart values on the secondary Y2 axis.
+//!
+//! ```
+//! # // This code is available in examples/doc_chart_combine2.rs
+//! #
+//! # use rust_xlsxwriter::{Chart, ChartType, Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//! #     let mut workbook = Workbook::new();
+//! #     let worksheet = workbook.add_worksheet();
+//! #
+//! #     // Add the worksheet data that the charts will refer to.
+//! #     let data = [
+//! #         [2, 3, 4, 5, 6, 7],
+//! #         [10, 40, 50, 20, 10, 50],
+//! #         [30, 60, 70, 50, 40, 30],
+//! #     ];
+//! #     worksheet.write_column_matrix(0, 0, data)?;
+//! #
+//! #     // Create a new Column chart. This will be the primary chart.
+//!     let mut column_chart = Chart::new(ChartType::Column);
+//!
+//!     // Configure the data series for the primary chart.
+//!     column_chart
+//!         .add_series()
+//!         .set_categories("Sheet1!$A$1:$A$6")
+//!         .set_values("Sheet1!$B$1:$B$6");
+//!
+//!     // Create a new line chart. This will use this as the secondary chart.
+//!     let mut line_chart = Chart::new(ChartType::Line);
+//!
+//!     // Configure the data series for the secondary chart. This series is also
+//!     // assigned to the secondary Y2 axis.
+//!     line_chart
+//!         .add_series()
+//!         .set_categories("Sheet1!$A$1:$A$6")
+//!         .set_values("Sheet1!$C$1:$C$6")
+//!         .set_secondary_axis(true);
+//!
+//!     // Combine the charts.
+//!     column_chart.combine(&line_chart);
+//!
+//!     // Add some axis labels. Note, this is done via the primary chart.
+//!     column_chart.x_axis().set_name("X axis");
+//!     column_chart.y_axis().set_name("Y axis");
+//!
+//!     // The y2 axis properties are set also via the primary chart.
+//!     column_chart.y2_axis().set_name("Y2 axis");
+//!
+//!     // Add the primary chart to the worksheet.
+//!     worksheet.insert_chart_with_offset(0, 3, &column_chart, 5, 5)?;
+//!
+//! #     // Save the file to disk.
+//! #     workbook.save("chart.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Output file:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/chart_combine2.png">
+//!
+//! The following is a slightly more realistic example of combining chart types
+//! to create a [Pareto Chart](https://en.wikipedia.org/wiki/Pareto_chart).
+//!
+//! ```
+//! # // This code is available in examples/app_chart_pareto.rs
+//! #
+//! use rust_xlsxwriter::{Chart, ChartType, Format, Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     let mut workbook = Workbook::new();
+//!     let worksheet = workbook.add_worksheet();
+//!
+//!     // Formats used in the workbook.
+//!     let bold = Format::new().set_bold();
+//!     let percent_format = Format::new().set_num_format("0%");
+//!
+//!     // Add the worksheet data that the charts will refer to.
+//!     let headings = ["Reason", "Number", "Percentage"];
+//!
+//!     let reasons = [
+//!         "Traffic",
+//!         "Child care",
+//!         "Public Transport",
+//!         "Weather",
+//!         "Overslept",
+//!         "Emergency",
+//!     ];
+//!
+//!     let numbers = [60, 40, 20, 15, 10, 5];
+//!     let percents = [0.440, 0.667, 0.800, 0.900, 0.967, 1.00];
+//!
+//!     worksheet.write_row_with_format(0, 0, headings, &bold)?;
+//!     worksheet.write_column(1, 0, reasons)?;
+//!     worksheet.write_column(1, 1, numbers)?;
+//!     worksheet.write_column_with_format(1, 2, percents, &percent_format)?;
+//!
+//!     // Widen the columns for visibility.
+//!     worksheet.set_column_width(0, 15)?;
+//!     worksheet.set_column_width(1, 10)?;
+//!     worksheet.set_column_width(2, 10)?;
+//!
+//!     //
+//!     // Create a new Column chart. This will be the primary chart.
+//!     //
+//!     let mut column_chart = Chart::new(ChartType::Column);
+//!
+//!     // Configure a series on the primary axis.
+//!     column_chart
+//!         .add_series()
+//!         .set_categories("Sheet1!$A$2:$A$7")
+//!         .set_values("Sheet1!$B$2:$B$7");
+//!
+//!     // Add a chart title.
+//!     column_chart.title().set_name("Reasons for lateness");
+//!
+//!     // Turn off the chart legend.
+//!     column_chart.legend().set_hidden();
+//!
+//!     // Set the  name and scale of the Y axes. Note, the secondary axis is set
+//!     // from the primary chart.
+//!     column_chart
+//!         .y_axis()
+//!         .set_name("Respondents (number)")
+//!         .set_min(0)
+//!         .set_max(120);
+//!
+//!     column_chart.y2_axis().set_max(1);
+//!
+//!     //
+//!     // Create a new Line chart. This will be the secondary chart.
+//!     //
+//!     let mut line_chart = Chart::new(ChartType::Line);
+//!
+//!     // Add a series on the secondary axis.
+//!     line_chart
+//!         .add_series()
+//!         .set_categories("Sheet1!$A$2:$A$7")
+//!         .set_values("Sheet1!$C$2:$C$7")
+//!         .set_secondary_axis(true);
+//!
+//!     // Combine the charts.
+//!     column_chart.combine(&line_chart);
+//!
+//!     // Add the chart to the worksheet.
+//!     worksheet.insert_chart(1, 5, &column_chart)?;
+//!
+//!     workbook.save("chart_pareto.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Chart from the output file:
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/app_chart_pareto.png">
+//!
+//! The examples above use the concept of a *primary* and *secondary* chart. The
+//! primary chart is the chart that defines the primary X and Y axis. It is also
+//! used for setting all chart properties apart from the secondary data series.
+//! For instance the chart title and axes properties should be set via the
+//! primary chart.
+//!
+//! There are some limitations in the `rust_xlsxwriter` implementation of
+//! combined charts:
+//!
+//! - Only two charts can be combined.
+//! - Scatter charts cannot currently be used as a primary chart but they can be
+//!   used as a secondary chart.
+//! - Bar charts can only combine secondary charts on a secondary axis. This is
+//!   an Excel limitation.
 //!
 //!
 //! ## Future work
 //!
 //! Future additions to chart support in `rust_xlsxwriter` include:
 //!
-//! - Combined charts to allow x2/y2 axes.
 //! - Chartsheets - Worksheets that only display a chart.
 //! - Some chart element layout options.
 //!
-//! See the [Chart Roadmap] on the `rust_xlsxwriter` GitHub for more information.
+//! See the [Chart Roadmap] on the `rust_xlsxwriter` GitHub for more
+//! information.
 //!
 //! [Chart Roadmap]: https://github.com/jmcnamara/rust_xlsxwriter/issues/19
 //!
@@ -381,15 +753,14 @@
 
 mod tests;
 
-use regex::Regex;
-use std::fmt;
+use std::{fmt, mem, sync::OnceLock};
+
+use crate::drawing::{DrawingObject, DrawingType};
+use crate::utility::{self, ToXmlBoolean};
 
 use crate::{
-    drawing::{DrawingObject, DrawingType},
-    utility::{self, ToXmlBoolean},
-    xmlwriter::XMLWriter,
-    ColNum, Color, IntoColor, IntoExcelDateTime, ObjectMovement, RowNum, XlsxError, COL_MAX,
-    ROW_MAX,
+    xmlwriter::XMLWriter, ColNum, Color, IntoExcelDateTime, ObjectMovement, RowNum, XlsxError,
+    COL_MAX, ROW_MAX,
 };
 
 #[derive(Clone)]
@@ -403,8 +774,8 @@ use crate::{
 /// [`ChartTitle`].
 ///
 /// Charts are added to the worksheets using the the
-/// [`worksheet.insert_chart()`](crate::Worksheet::insert_chart) or
-/// [`worksheet.insert_chart_with_offset()`](crate::Worksheet::insert_chart_with_offset)
+/// [`Worksheet::insert_chart()`](crate::Worksheet::insert_chart) or
+/// [`Worksheet::insert_chart_with_offset()`](crate::Worksheet::insert_chart_with_offset)
 /// methods.
 ///
 /// See also [Working with Charts](crate::chart) for a general introduction to
@@ -460,22 +831,25 @@ pub struct Chart {
     scale_width: f64,
     scale_height: f64,
     axis_ids: (u32, u32),
+    axis2_ids: (u32, u32),
     category_has_num_format: bool,
     chart_type: ChartType,
     chart_group_type: ChartType,
     pub(crate) title: ChartTitle,
     pub(crate) x_axis: ChartAxis,
     pub(crate) y_axis: ChartAxis,
-    pub(crate) legend: ChartLegend,
-    pub(crate) chart_area_format: ChartFormat,
-    pub(crate) plot_area_format: ChartFormat,
+    pub(crate) x2_axis: ChartAxis,
+    pub(crate) y2_axis: ChartAxis,
+    pub(crate) combined_chart: Option<Box<Chart>>,
+    pub(crate) chart_area: ChartArea,
+    pub(crate) plot_area: ChartPlotArea,
+    legend: ChartLegend,
     grouping: ChartGrouping,
-    show_empty_cells_as: ChartEmptyCells,
+    show_empty_cells_as: Option<ChartEmptyCells>,
     show_hidden_data: bool,
     show_na_as_empty: bool,
     default_num_format: String,
-    has_overlap: bool,
-    overlap: i8,
+    overlap: Option<i8>,
     gap: u16,
     style: u8,
     hole_size: u8,
@@ -488,6 +862,9 @@ pub struct Chart {
     has_drop_lines: bool,
     drop_lines_format: ChartFormat,
     table: Option<ChartDataTable>,
+    series_index: usize,
+    has_secondary_axis: bool,
+    has_crosses: bool,
 }
 
 impl Chart {
@@ -499,12 +876,11 @@ impl Chart {
     ///
     /// Create a new [`Chart`] object that can be configured and inserted into a
     /// worksheet using the
-    /// [`worksheet.insert_chart()`][crate::Worksheet::insert_chart].
+    /// [`Worksheet::insert_chart()`][crate::Worksheet::insert_chart].
     ///
     /// Once you have create a chart you will need to add at least one data
-    /// series via [`chart.add_series()`](Chart::add_series) and set a value
-    /// range for that series using
-    /// [`series.set_values()`][ChartSeries::set_values]. See the example below.
+    /// series via [`Chart::add_series()`] and set a value range for that series
+    /// using [`ChartSeries::set_values()`]. See the example below.
     ///
     /// There are some shortcut versions of `new()` such as [`Chart::new_pie()`]
     /// that are more useful/succinct for charts that don't have subtypes.
@@ -571,6 +947,7 @@ impl Chart {
             drawing_type: DrawingType::Chart,
 
             axis_ids: (0, 0),
+            axis2_ids: (0, 0),
             series: vec![],
             category_has_num_format: false,
             chart_type,
@@ -578,16 +955,17 @@ impl Chart {
             title: ChartTitle::new(),
             x_axis: ChartAxis::new(),
             y_axis: ChartAxis::new(),
+            x2_axis: ChartAxis::new(),
+            y2_axis: ChartAxis::new(),
             legend: ChartLegend::new(),
-            chart_area_format: ChartFormat::default(),
-            plot_area_format: ChartFormat::default(),
+            chart_area: ChartArea::default(),
+            plot_area: ChartPlotArea::default(),
             grouping: ChartGrouping::Standard,
-            show_empty_cells_as: ChartEmptyCells::Gaps,
+            show_empty_cells_as: None,
             show_hidden_data: false,
             show_na_as_empty: false,
             default_num_format: "General".to_string(),
-            has_overlap: false,
-            overlap: 0,
+            overlap: None,
             gap: 150,
             style: 2,
             hole_size: 50,
@@ -601,6 +979,10 @@ impl Chart {
             has_drop_lines: false,
             drop_lines_format: ChartFormat::default(),
             table: None,
+            combined_chart: None,
+            series_index: 0,
+            has_secondary_axis: false,
+            has_crosses: true,
         };
 
         match chart_type {
@@ -746,8 +1128,8 @@ impl Chart {
     ///
     /// A chart series is usually created via this `add_series()` method.
     /// However, if required you can create a standalone `ChartSeries` object
-    /// and add it to a chart via the
-    /// [`chart.push_series()`](Chart::push_series) method, see below.
+    /// and add it to a chart via the [`Chart::push_series()`] method, see
+    /// below.
     ///
     /// # Examples
     ///
@@ -820,7 +1202,7 @@ impl Chart {
     /// represented by a [`ChartSeries`] struct.
     ///
     /// A chart series is usually created via the
-    /// [`chart.add_series()`](Chart::add_series) method, see above. However, if
+    /// [`Chart::add_series()`] method, see above. However, if
     /// required you can create a standalone `ChartSeries` object and add it to
     /// a chart via this `chart.push_series()` method.
     ///
@@ -1003,10 +1385,32 @@ impl Chart {
     /// Get a reference to the chart's Y-Axis [`ChartAxis`] object in order to
     /// set its properties.
     ///
-    /// See the [`chart.x_axis()`][Chart::x_axis] method above.
+    /// See the [`Chart::x_axis()`][Chart::x_axis] method above.
     ///
     pub fn y_axis(&mut self) -> &mut ChartAxis {
         &mut self.y_axis
+    }
+
+    /// Get the chart X2-Axis object in order to set its properties.
+    ///
+    /// Get a reference to the chart's X2-Axis [`ChartAxis`] object in order to
+    /// set its properties.
+    ///
+    /// See the [`Chart::x_axis()`][Chart::x_axis] method above.
+    ///
+    pub fn x2_axis(&mut self) -> &mut ChartAxis {
+        &mut self.x2_axis
+    }
+
+    /// Get the chart Y2-Axis object in order to set its properties.
+    ///
+    /// Get a reference to the chart's Y2-Axis [`ChartAxis`] object in order to
+    /// set its properties.
+    ///
+    /// See the [`Chart::x_axis()`][Chart::x_axis] method above.
+    ///
+    pub fn y2_axis(&mut self) -> &mut ChartAxis {
+        &mut self.y2_axis
     }
 
     /// Get the chart legend object in order to set its properties.
@@ -1064,6 +1468,282 @@ impl Chart {
         &mut self.legend
     }
 
+    /// Get the chart area object in order to set its properties.
+    ///
+    /// Get a reference to the chart's [`ChartArea`] object in order to set its
+    /// properties. The `ChartArea` is a representation of the background area
+    /// object of an Excel chart.
+    ///
+    /// # Examples
+    ///
+    /// An example of getting a reference to and formatting the chart area of a
+    /// chart. In Excel the chart area is the background area behind the chart.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_set_chart_area_format.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add some data for the chart.
+    /// #     worksheet.write(0, 0, 10)?;
+    /// #     worksheet.write(1, 0, 40)?;
+    /// #     worksheet.write(2, 0, 50)?;
+    /// #     worksheet.write(3, 0, 20)?;
+    /// #     worksheet.write(4, 0, 10)?;
+    /// #     worksheet.write(5, 0, 50)?;
+    /// #
+    /// #     // Create a new chart.
+    /// #     let mut chart = Chart::new(ChartType::Column);
+    /// #
+    /// #     // Add a data series with formatting.
+    /// #     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+    /// #
+    ///         chart.chart_area()
+    ///             .set_format(
+    ///                 ChartFormat::new().set_solid_fill(
+    ///                     ChartSolidFill::new().set_color("#FFFFB3")
+    ///                 ),
+    ///         );
+    /// #
+    /// #     // Add the chart to the worksheet.
+    /// #     worksheet.insert_chart(0, 2, &chart)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("chart.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_set_chart_area_format.png">
+    ///
+    pub fn chart_area(&mut self) -> &mut ChartArea {
+        &mut self.chart_area
+    }
+
+    /// Get the chart plot area object in order to set its properties.
+    ///
+    /// Get a reference to the chart's [`ChartPlotArea`] object in order to set
+    /// its properties. The `ChartPlotArea` struct is a representation of the
+    /// plotting area an Excel chart.
+    ///
+    /// # Examples
+    ///
+    /// An example of getting a reference to and formatting the chart plot area
+    /// of a chart.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_set_plot_area_format.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add some data for the chart.
+    /// #     worksheet.write(0, 0, 10)?;
+    /// #     worksheet.write(1, 0, 40)?;
+    /// #     worksheet.write(2, 0, 50)?;
+    /// #     worksheet.write(3, 0, 20)?;
+    /// #     worksheet.write(4, 0, 10)?;
+    /// #     worksheet.write(5, 0, 50)?;
+    /// #
+    /// #     // Create a new chart.
+    /// #     let mut chart = Chart::new(ChartType::Column);
+    /// #
+    /// #     // Add a data series with formatting.
+    /// #     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+    /// #
+    ///         chart.plot_area()
+    ///             .set_format(
+    ///                 ChartFormat::new().set_solid_fill(
+    ///                     ChartSolidFill::new()
+    ///                         .set_color("#FFFFB3")
+    ///                 ),
+    ///         );
+    /// #
+    /// #     // Add the chart to the worksheet.
+    /// #     worksheet.insert_chart(0, 2, &chart)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("chart.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_set_plot_area_format.png">
+    ///
+    ///
+    pub fn plot_area(&mut self) -> &mut ChartPlotArea {
+        &mut self.plot_area
+    }
+
+    /// Create a combined chart from two different chart types.
+    ///
+    /// In Excel is also possible to combine two different chart types, for
+    /// example a column and line chart to create a Pareto chart. In
+    /// `rust_xlsxwriter` you can replicate this by creating a new chart
+    /// instance as the primary chart and then create a secondary chart of a
+    /// different type and combine it with the primary chart using the
+    /// `Chart::combine()` method.
+    ///
+    /// The combined secondary chart can share the same Y axis as the primary
+    /// chart or it can use a secondary Y2 axis. An example of each is shown
+    /// below.
+    ///
+    /// See [Combined Charts](crate::chart#combined-charts) for additional
+    /// information on combined charts and also some limitations.
+    ///
+    /// # Parameters
+    ///
+    /// - `chart`: The [`Chart`] to insert into the cell.
+    ///
+    /// # Examples
+    ///
+    /// An example of creating a combined Column and Line chart. In this example
+    /// they share the same primary Y axis.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_combine1.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add the worksheet data that the charts will refer to.
+    /// #     let data = [
+    /// #         [2, 3, 4, 5, 6, 7],
+    /// #         [10, 40, 50, 20, 10, 50],
+    /// #         [30, 60, 70, 50, 40, 30],
+    /// #     ];
+    /// #     worksheet.write_column_matrix(0, 0, data)?;
+    /// #
+    ///     // Create a new Column chart. This will be the primary chart.
+    ///     let mut column_chart = Chart::new(ChartType::Column);
+    ///
+    ///     // Configure the data series for the primary chart.
+    ///     column_chart
+    ///         .add_series()
+    ///         .set_categories("Sheet1!$A$1:$A$6")
+    ///         .set_values("Sheet1!$B$1:$B$6");
+    ///
+    ///     // Create a new line chart. This will use this as the secondary chart.
+    ///     let mut line_chart = Chart::new(ChartType::Line);
+    ///
+    ///     // Configure the data series for the secondary chart.
+    ///     line_chart
+    ///         .add_series()
+    ///         .set_categories("Sheet1!$A$1:$A$6")
+    ///         .set_values("Sheet1!$C$1:$C$6");
+    ///
+    ///     // Combine the charts.
+    ///     column_chart.combine(&line_chart);
+    ///
+    ///     // Add some axis labels. Note, this is done via the primary chart.
+    ///     column_chart.x_axis().set_name("X axis");
+    ///     column_chart.y_axis().set_name("Y axis");
+    ///
+    ///     // Add the primary chart to the worksheet.
+    ///     worksheet.insert_chart_with_offset(0, 3, &column_chart, 5, 5)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("chart.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/chart_combine1.png">
+    ///
+    ///
+    /// An example of creating a combined Column and Line chart. In this example
+    /// the Column values are on the primary Y axis and the Line chart values
+    /// are on the secondary Y2 axis.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_combine2.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add the worksheet data that the charts will refer to.
+    /// #     let data = [
+    /// #         [2, 3, 4, 5, 6, 7],
+    /// #         [10, 40, 50, 20, 10, 50],
+    /// #         [30, 60, 70, 50, 40, 30],
+    /// #     ];
+    /// #     worksheet.write_column_matrix(0, 0, data)?;
+    /// #
+    /// #     // Create a new Column chart. This will be the primary chart.
+    ///     let mut column_chart = Chart::new(ChartType::Column);
+    ///
+    ///     // Configure the data series for the primary chart.
+    ///     column_chart
+    ///         .add_series()
+    ///         .set_categories("Sheet1!$A$1:$A$6")
+    ///         .set_values("Sheet1!$B$1:$B$6");
+    ///
+    ///     // Create a new line chart. This will use this as the secondary chart.
+    ///     let mut line_chart = Chart::new(ChartType::Line);
+    ///
+    ///     // Configure the data series for the secondary chart. This series is also
+    ///     // assigned to the secondary Y2 axis.
+    ///     line_chart
+    ///         .add_series()
+    ///         .set_categories("Sheet1!$A$1:$A$6")
+    ///         .set_values("Sheet1!$C$1:$C$6")
+    ///         .set_secondary_axis(true);
+    ///
+    ///     // Combine the charts.
+    ///     column_chart.combine(&line_chart);
+    ///
+    ///     // Add some axis labels. Note, this is done via the primary chart.
+    ///     column_chart.x_axis().set_name("X axis");
+    ///     column_chart.y_axis().set_name("Y axis");
+    ///
+    ///     // The y2 axis properties are set also via the primary chart.
+    ///     column_chart.y2_axis().set_name("Y2 axis");
+    ///
+    ///     // Add the primary chart to the worksheet.
+    ///     worksheet.insert_chart_with_offset(0, 3, &column_chart, 5, 5)?;
+    /// #
+    /// #     // Save the file to disk.
+    /// #     workbook.save("chart.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/chart_combine2.png">
+    ///
+    ///
+    pub fn combine(&mut self, chart: &Chart) -> &mut Chart {
+        self.combined_chart = Some(Box::new(chart.clone()));
+
+        self
+    }
+
     /// Set the chart style type.
     ///
     /// The `set_style()` method is used to set the style of the chart to one of
@@ -1078,7 +1758,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `style` - A integer value in the range 1-48.
+    /// - `style`: A integer value in the range 1-48.
     ///
     /// # Examples
     ///
@@ -1148,170 +1828,6 @@ impl Chart {
         self
     }
 
-    /// Set the formatting properties for the chart area.
-    ///
-    /// Set the formatting properties for a chart area via a [`ChartFormat`]
-    /// object or a sub struct that implements [`IntoChartFormat`]. In Excel the
-    /// chart area is the background area behind the chart.
-    ///
-    /// The formatting that can be applied via a [`ChartFormat`] object are:
-    ///
-    /// - [`ChartFormat::set_solid_fill()`]: Set the [`ChartSolidFill`] properties.
-    /// - [`ChartFormat::set_pattern_fill()`]: Set the [`ChartPatternFill`] properties.
-    /// - [`ChartFormat::set_gradient_fill()`]: Set the [`ChartGradientFill`] properties.
-    /// - [`ChartFormat::set_no_fill()`]: Turn off the fill for the chart object.
-    /// - [`ChartFormat::set_line()`]: Set the [`ChartLine`] properties.
-    /// - [`ChartFormat::set_border()`]: Set the [`ChartBorder`] properties.
-    ///   A synonym for [`ChartLine`] depending on context.
-    /// - [`ChartFormat::set_no_line()`]: Turn off the line for the chart object.
-    /// - [`ChartFormat::set_no_border()`]: Turn off the border for the chart object.
-    ///
-    /// # Parameters
-    ///
-    /// `format`: A [`ChartFormat`] struct reference or a sub struct that will
-    /// convert into a `ChartFormat` instance. See the docs for
-    /// [`IntoChartFormat`] for details.
-    ///
-    /// # Examples
-    ///
-    /// An example of formatting the chart "area" of a chart. In Excel the chart
-    /// area is the background area behind the chart.
-    ///
-    /// ```
-    /// # // This code is available in examples/doc_chart_set_chart_area_format.rs
-    /// #
-    /// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
-    /// #
-    /// # fn main() -> Result<(), XlsxError> {
-    /// #     let mut workbook = Workbook::new();
-    /// #     let worksheet = workbook.add_worksheet();
-    /// #
-    /// #     // Add some data for the chart.
-    /// #     worksheet.write(0, 0, 10)?;
-    /// #     worksheet.write(1, 0, 40)?;
-    /// #     worksheet.write(2, 0, 50)?;
-    /// #     worksheet.write(3, 0, 20)?;
-    /// #     worksheet.write(4, 0, 10)?;
-    /// #     worksheet.write(5, 0, 50)?;
-    /// #
-    /// #     // Create a new chart.
-    ///     let mut chart = Chart::new(ChartType::Column);
-    ///
-    ///     // Add a data series with formatting.
-    ///     chart.add_series().set_values("Sheet1!$A$1:$A$6");
-    ///
-    ///         chart.set_chart_area_format(
-    ///             ChartFormat::new().set_solid_fill(
-    ///                 ChartSolidFill::new()
-    ///                     .set_color("#FFFFB3")
-    ///             ),
-    ///         );
-    ///
-    ///     // Add the chart to the worksheet.
-    ///     worksheet.insert_chart(0, 2, &chart)?;
-    /// #
-    /// #     // Save the file.
-    /// #     workbook.save("chart.xlsx")?;
-    /// #
-    /// #     Ok(())
-    /// # }
-    /// ```
-    ///
-    /// Output file:
-    ///
-    /// <img
-    /// src="https://rustxlsxwriter.github.io/images/chart_set_chart_area_format.png">
-    ///
-    pub fn set_chart_area_format<T>(&mut self, format: T) -> &mut Chart
-    where
-        T: IntoChartFormat,
-    {
-        self.chart_area_format = format.new_chart_format();
-        self
-    }
-
-    /// Set the formatting properties for the plot area.
-    ///
-    /// Set the formatting properties for a chart plot area via a
-    /// [`ChartFormat`] object. In Excel the plot area is the area between the
-    /// axes on which the chart series are plotted.
-    ///
-    /// The formatting that can be applied via a [`ChartFormat`] object are:
-    ///
-    /// - [`ChartFormat::set_solid_fill()`]: Set the [`ChartSolidFill`] properties.
-    /// - [`ChartFormat::set_pattern_fill()`]: Set the [`ChartPatternFill`] properties.
-    /// - [`ChartFormat::set_gradient_fill()`]: Set the [`ChartGradientFill`] properties.
-    /// - [`ChartFormat::set_no_fill()`]: Turn off the fill for the chart object.
-    /// - [`ChartFormat::set_line()`]: Set the [`ChartLine`] properties.
-    /// - [`ChartFormat::set_border()`]: Set the [`ChartBorder`] properties.
-    ///   A synonym for [`ChartLine`] depending on context.
-    /// - [`ChartFormat::set_no_line()`]: Turn off the line for the chart object.
-    /// - [`ChartFormat::set_no_border()`]: Turn off the border for the chart object.
-    ///
-    /// # Parameters
-    ///
-    /// `format`: A [`ChartFormat`] struct reference or a sub struct that will
-    /// convert into a `ChartFormat` instance. See the docs for
-    /// [`IntoChartFormat`] for details.
-    ///
-    /// # Examples
-    ///
-    /// An example of formatting the chart "area" of a chart. In Excel the plot
-    /// area is the area between the axes on which the chart series are plotted.
-    ///
-    /// ```
-    /// # // This code is available in examples/doc_chart_set_plot_area_format.rs
-    /// #
-    /// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
-    /// #
-    /// # fn main() -> Result<(), XlsxError> {
-    /// #     let mut workbook = Workbook::new();
-    /// #     let worksheet = workbook.add_worksheet();
-    /// #
-    /// #     // Add some data for the chart.
-    /// #     worksheet.write(0, 0, 10)?;
-    /// #     worksheet.write(1, 0, 40)?;
-    /// #     worksheet.write(2, 0, 50)?;
-    /// #     worksheet.write(3, 0, 20)?;
-    /// #     worksheet.write(4, 0, 10)?;
-    /// #     worksheet.write(5, 0, 50)?;
-    /// #
-    /// #     // Create a new chart.
-    ///     let mut chart = Chart::new(ChartType::Column);
-    ///
-    ///     // Add a data series with formatting.
-    ///     chart.add_series().set_values("Sheet1!$A$1:$A$6");
-    ///
-    ///         chart.set_plot_area_format(
-    ///             ChartFormat::new().set_solid_fill(
-    ///                 ChartSolidFill::new()
-    ///                     .set_color("#FFFFB3")
-    ///             ),
-    ///         );
-    ///
-    ///     // Add the chart to the worksheet.
-    ///     worksheet.insert_chart(0, 2, &chart)?;
-    /// #
-    /// #     // Save the file.
-    /// #     workbook.save("chart.xlsx")?;
-    /// #
-    /// #     Ok(())
-    /// # }
-    /// ```
-    ///
-    /// Output file:
-    ///
-    /// <img
-    /// src="https://rustxlsxwriter.github.io/images/chart_set_plot_area_format.png">
-    ///
-    pub fn set_plot_area_format<T>(&mut self, format: T) -> &mut Chart
-    where
-        T: IntoChartFormat,
-    {
-        self.plot_area_format = format.new_chart_format();
-        self
-    }
-
     /// Set the Pie/Doughnut chart rotation.
     ///
     /// The `set_rotation()` method is used to set the rotation of the first
@@ -1320,8 +1836,8 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `rotation`: The rotation of the first segment of a Pie/Doughnut chart.
-    /// The range is 0 <= rotation <= 360 and the default is 0.
+    /// - `rotation`: The rotation of the first segment of a Pie/Doughnut chart.
+    ///   The range is 0 <= rotation <= 360 and the default is 0.
     ///
     ///
     /// # Examples
@@ -1363,7 +1879,8 @@ impl Chart {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/chart_set_rotation.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_set_rotation.png">
     ///
     pub fn set_rotation(&mut self, rotation: u16) -> &mut Chart {
         if (0..=360).contains(&rotation) {
@@ -1378,8 +1895,8 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `hole_size`: The hole size for a Doughnut chart. The range is 0 <=
-    /// `hole_size` <= 90 and the default is 50.
+    /// - `hole_size`: The hole size for a Doughnut chart. The range is 0 <=
+    ///   `hole_size` <= 90 and the default is 50.
     ///
     ///
     /// # Examples
@@ -1421,7 +1938,8 @@ impl Chart {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/chart_set_hole_size.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_set_hole_size.png">
     ///
     pub fn set_hole_size(&mut self, hole_size: u8) -> &mut Chart {
         if (0..=90).contains(&hole_size) {
@@ -1437,7 +1955,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -1478,7 +1996,7 @@ impl Chart {
     ///     chart.set_up_down_bars(true);
     ///
     ///     worksheet.insert_chart(0, 4, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -1557,7 +2075,7 @@ impl Chart {
     ///         );
     ///
     ///     worksheet.insert_chart(0, 4, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -1583,6 +2101,11 @@ impl Chart {
     ///
     /// Set the formatting for negative "Down" bars on an "Up-Down" chart
     /// element. See the documentation for [`Chart::set_up_bar_format()`].
+    /// # Parameters
+    ///
+    /// - `format`: A [`ChartFormat`] struct reference or a sub struct that will
+    ///   convert into a `ChartFormat` instance. See the docs for
+    ///   [`IntoChartFormat`] for details.
     ///
     pub fn set_down_bar_format<T>(&mut self, format: T) -> &mut Chart
     where
@@ -1601,7 +2124,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -1642,7 +2165,7 @@ impl Chart {
     ///     chart.set_high_low_lines(true);
     ///
     ///     worksheet.insert_chart(0, 4, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -1669,7 +2192,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `format`: A [`ChartFormat`] struct reference or a sub struct that will
+    /// - `format`: A [`ChartFormat`] struct reference or a sub struct that will
     ///   convert into a `ChartFormat` instance. See the docs for
     ///   [`IntoChartFormat`] for details.
     ///
@@ -1714,7 +2237,7 @@ impl Chart {
     ///         .set_high_low_lines_format(ChartLine::new().set_color("#FF0000"));
     ///
     ///     worksheet.insert_chart(0, 4, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -1744,7 +2267,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     /// # Examples
     ///
     /// An example of setting drop lines for a chart.
@@ -1784,7 +2307,7 @@ impl Chart {
     ///     chart.set_drop_lines(true);
     ///
     ///     worksheet.insert_chart(0, 4, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -1811,7 +2334,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `format`: A [`ChartFormat`] struct reference or a sub struct that will
+    /// - `format`: A [`ChartFormat`] struct reference or a sub struct that will
     ///   convert into a `ChartFormat` instance. See the docs for
     ///   [`IntoChartFormat`] for details.
     ///
@@ -1856,7 +2379,7 @@ impl Chart {
     ///         .set_drop_lines_format(ChartLine::new().set_color("#FF0000"));
     ///
     ///     worksheet.insert_chart(0, 4, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -1893,7 +2416,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `table`: A [`ChartDataTable`] reference.
+    /// - `table`: A [`ChartDataTable`] reference.
     ///
     /// # Examples
     ///
@@ -1928,7 +2451,7 @@ impl Chart {
     ///
     ///     // Add the chart to the worksheet.
     ///     worksheet.insert_chart(0, 4, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -1953,7 +2476,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `width` - The chart width in pixels.
+    /// - `width`: The chart width in pixels.
     ///
     /// # Examples
     ///
@@ -2016,7 +2539,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `height` - The chart height in pixels.
+    /// - `height`: The chart height in pixels.
     ///
     pub fn set_height(&mut self, height: u32) -> &mut Chart {
         if height == 0 {
@@ -2029,12 +2552,12 @@ impl Chart {
 
     /// Set the height scale for the chart.
     ///
-    /// Set the height scale for the chart relative to 1.0/100%. This is a
-    /// syntactic alternative to [`chart.set_height()`](Chart::set_height).
+    /// Set the height scale for the chart relative to 1.0 (i.e. 100%). This is
+    /// a syntactic alternative to [`Chart::set_height()`].
     ///
     /// # Parameters
     ///
-    /// * `scale` - The scale ratio.
+    /// - `scale`: The scale ratio.
     ///
     pub fn set_scale_height(&mut self, scale: f64) -> &mut Chart {
         if scale <= 0.0 {
@@ -2047,12 +2570,12 @@ impl Chart {
 
     /// Set the width scale for the chart.
     ///
-    /// Set the width scale for the chart relative to 1.0/100%. This is a
-    /// syntactic alternative to [`chart.set_width()`](Chart::set_width).
+    /// Set the width scale for the chart relative to 1.0 (i.e. 100%). This is a
+    /// syntactic alternative to [`Chart::set_width()`].
     ///
     /// # Parameters
     ///
-    /// * `scale` - The scale ratio.
+    /// - `scale`: The scale ratio.
     ///
     pub fn set_scale_width(&mut self, scale: f64) -> &mut Chart {
         if scale <= 0.0 {
@@ -2074,7 +2597,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `name` - A user defined name for the chart.
+    /// - `name`: A user defined name for the chart.
     ///
     pub fn set_name(&mut self, name: impl Into<String>) -> &mut Chart {
         self.name = name.into();
@@ -2092,10 +2615,16 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `alt_text` - The alt text string to add to the chart.
+    /// - `alt_text`: The alt text string to add to the chart.
     ///
     pub fn set_alt_text(&mut self, alt_text: impl Into<String>) -> &mut Chart {
-        self.alt_text = alt_text.into();
+        let alt_text = alt_text.into();
+        if alt_text.chars().count() > 255 {
+            eprintln!("Alternative text is greater than Excel's limit of 255 characters.");
+            return self;
+        }
+
+        self.alt_text = alt_text;
         self
     }
 
@@ -2108,7 +2637,7 @@ impl Chart {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_decorative(&mut self, enable: bool) -> &mut Chart {
         self.decorative = enable;
@@ -2142,21 +2671,21 @@ impl Chart {
     ///
     /// Charts are validated using this methods when they are added to a
     /// worksheet using the
-    /// [`worksheet.insert_chart()`](crate::Worksheet::insert_chart) or
-    /// [`worksheet.insert_chart_with_offset()`](crate::Worksheet::insert_chart_with_offset)
+    /// [`Worksheet::insert_chart()`](crate::Worksheet::insert_chart) or
+    /// [`Worksheet::insert_chart_with_offset()`](crate::Worksheet::insert_chart_with_offset)
     /// methods. However, you can also call `chart.validate()` directly.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::ChartError`] - A general error that is raised when a
+    /// - [`XlsxError::ChartError`] - A general error that is raised when a
     ///   chart parameter is incorrect or a chart is configured incorrectly.
-    /// * [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name in chart range
+    /// - [`XlsxError::SheetnameCannotBeBlank`] - Worksheet name in chart range
     ///   cannot be blank.
-    /// * [`XlsxError::SheetnameLengthExceeded`] - Worksheet name in chart range
+    /// - [`XlsxError::SheetnameLengthExceeded`] - Worksheet name in chart range
     ///   exceeds Excel's limit of 31 characters.
-    /// * [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name in
+    /// - [`XlsxError::SheetnameContainsInvalidCharacter`] - Worksheet name in
     ///   chart range cannot contain invalid characters: `[ ] : * ? / \`
-    /// * [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name in
+    /// - [`XlsxError::SheetnameStartsOrEndsWithApostrophe`] - Worksheet name in
     ///   chart range cannot start or end with an apostrophe.
     ///
     pub fn validate(&mut self) -> Result<&mut Chart, XlsxError> {
@@ -2217,13 +2746,20 @@ impl Chart {
 
     /// Set the option for displaying empty cells in a chart.
     ///
+    /// The options are:
+    ///
+    /// - [`ChartEmptyCells::Gaps`]: Show empty cells in the chart as gaps. The
+    ///   default.
+    /// - [`ChartEmptyCells::Zero`]: Show empty cells in the chart as zeroes.
+    /// - [`ChartEmptyCells::Connected`]: Show empty cells in the chart
+    ///   connected by a line to the previous point.
     ///
     /// # Parameters
     ///
     /// `option` - A [`ChartEmptyCells`] enum value.
     ///
     pub fn show_empty_cells_as(&mut self, option: ChartEmptyCells) -> &mut Chart {
-        self.show_empty_cells_as = option;
+        self.show_empty_cells_as = Some(option);
 
         self
     }
@@ -2244,19 +2780,34 @@ impl Chart {
         self
     }
 
-    /// Set default values for the chart axis ids.
+    /// Set default values for the primary chart axis ids.
     ///
-    /// This is mainly used to ensure that the axis ids used in testing match
-    /// the semi-randomized values in the target Excel file.
+    /// This is mainly used to ensure that the primary axis ids used in testing
+    /// match the semi-randomized values in the target Excel file.
     ///
     /// # Parameters
     ///
-    /// `axis_id1` - X-axis id.
-    /// `axis_id2` - Y-axis id.
+    /// - `axis_id1`: X-axis id.
+    /// - `axis_id2`: Y-axis id.
     ///
     #[doc(hidden)]
     pub fn set_axis_ids(&mut self, axis_id1: u32, axis_id2: u32) {
         self.axis_ids = (axis_id1, axis_id2);
+    }
+
+    /// Set default values for the secondary chart axis ids.
+    ///
+    /// This is mainly used to ensure that the secondary axis ids used in
+    /// testing match the semi-randomized values in the target Excel file.
+    ///
+    /// # Parameters
+    ///
+    /// - `axis_id1`: X-axis id.
+    /// - `axis_id2`: Y-axis id.
+    ///
+    #[doc(hidden)]
+    pub fn set_axis2_ids(&mut self, axis_id1: u32, axis_id2: u32) {
+        self.axis2_ids = (axis_id1, axis_id2);
     }
 
     // -----------------------------------------------------------------------
@@ -2264,15 +2815,19 @@ impl Chart {
     // -----------------------------------------------------------------------
 
     // Set chart unique axis ids.
-    pub(crate) fn add_axis_ids(&mut self) {
+    pub(crate) fn add_axis_ids(&mut self, chart_id: u32) {
         if self.axis_ids.0 != 0 {
             return;
         }
 
-        let axis_id_1 = (5000 + self.id) * 10000 + 1;
-        let axis_id_2 = axis_id_1 + 1;
+        let axis_id = (5000 + chart_id) * 10000 + 1;
+        self.axis_ids = (axis_id, axis_id + 1);
 
-        self.axis_ids = (axis_id_1, axis_id_2);
+        if self.combined_chart.is_none() {
+            self.axis2_ids = (axis_id + 2, axis_id + 3);
+        } else {
+            self.axis2_ids = (axis_id + 10_000_000, axis_id + 10_000_001);
+        }
     }
 
     // Check for any legend entries that have been hidden/deleted via the
@@ -2313,12 +2868,33 @@ impl Chart {
         deleted_entries
     }
 
+    // Check if the primary chart or optional combined chart have a secondary
+    // data series.
+    fn check_for_secondary_axis(&mut self) {
+        if let Some(combined_chart) = &self.combined_chart {
+            for series in &combined_chart.series {
+                if series.secondary_axis {
+                    self.has_secondary_axis = true;
+                }
+            }
+        }
+
+        for series in &self.series {
+            if series.secondary_axis {
+                self.has_secondary_axis = true;
+                return;
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Chart specific methods.
     // -----------------------------------------------------------------------
 
     // Initialize area charts.
     fn initialize_area_chart(mut self) -> Chart {
+        self.has_crosses = false;
+
         self.x_axis.axis_type = ChartAxisType::Category;
         self.x_axis.axis_position = ChartAxisPosition::Bottom;
         self.x_axis.position_between_ticks = false;
@@ -2327,6 +2903,15 @@ impl Chart {
         self.y_axis.axis_position = ChartAxisPosition::Left;
         self.y_axis.title.is_horizontal = true;
         self.y_axis.major_gridlines = true;
+
+        self.x2_axis.axis_type = ChartAxisType::Category;
+        self.x2_axis.position_between_ticks = false;
+        self.x2_axis.crossing = ChartAxisCrossing::Max;
+        self.x2_axis.is_hidden = true;
+        self.x2_axis.label_position = ChartAxisLabelPosition::None;
+
+        self.y2_axis.axis_type = ChartAxisType::Value;
+        self.y2_axis.axis_position = ChartAxisPosition::Left;
 
         self.chart_group_type = ChartType::Area;
 
@@ -2347,6 +2932,8 @@ impl Chart {
     // Initialize bar charts. Bar chart category/value axes are reversed in
     // comparison to other charts. Some of the defaults reflect this.
     fn initialize_bar_chart(mut self) -> Chart {
+        self.has_crosses = false;
+
         self.x_axis.axis_type = ChartAxisType::Value;
         self.x_axis.axis_position = ChartAxisPosition::Bottom;
         self.x_axis.major_gridlines = true;
@@ -2355,19 +2942,27 @@ impl Chart {
         self.y_axis.axis_position = ChartAxisPosition::Left;
         self.y_axis.title.is_horizontal = true;
 
+        self.x2_axis.axis_type = ChartAxisType::Category;
+        self.x2_axis.axis_position = ChartAxisPosition::Bottom;
+        self.x2_axis.crossing = ChartAxisCrossing::Automatic;
+
+        self.y2_axis.axis_type = ChartAxisType::Value;
+        self.y2_axis.axis_position = ChartAxisPosition::Left;
+        self.y2_axis.crossing = ChartAxisCrossing::Max;
+        self.y2_axis.is_hidden = true;
+        self.y2_axis.label_position = ChartAxisLabelPosition::None;
+
         self.chart_group_type = ChartType::Bar;
 
         if self.chart_type == ChartType::Bar {
             self.grouping = ChartGrouping::Clustered;
         } else if self.chart_type == ChartType::BarStacked {
             self.grouping = ChartGrouping::Stacked;
-            self.has_overlap = true;
-            self.overlap = 100;
+            self.overlap = Some(100);
         } else if self.chart_type == ChartType::BarPercentStacked {
             self.grouping = ChartGrouping::PercentStacked;
             self.default_num_format = "0%".to_string();
-            self.has_overlap = true;
-            self.overlap = 100;
+            self.overlap = Some(100);
         }
 
         self.default_label_position = ChartDataLabelPosition::OutsideEnd;
@@ -2384,19 +2979,25 @@ impl Chart {
         self.y_axis.axis_position = ChartAxisPosition::Left;
         self.y_axis.major_gridlines = true;
 
+        self.x2_axis.axis_type = ChartAxisType::Category;
+        self.x2_axis.crossing = ChartAxisCrossing::Max;
+        self.x2_axis.is_hidden = true;
+        self.x2_axis.label_position = ChartAxisLabelPosition::None;
+
+        self.y2_axis.axis_type = ChartAxisType::Value;
+        self.y2_axis.axis_position = ChartAxisPosition::Left;
+
         self.chart_group_type = ChartType::Column;
 
         if self.chart_type == ChartType::Column {
             self.grouping = ChartGrouping::Clustered;
         } else if self.chart_type == ChartType::ColumnStacked {
             self.grouping = ChartGrouping::Stacked;
-            self.has_overlap = true;
-            self.overlap = 100;
+            self.overlap = Some(100);
         } else if self.chart_type == ChartType::ColumnPercentStacked {
             self.grouping = ChartGrouping::PercentStacked;
             self.default_num_format = "0%".to_string();
-            self.has_overlap = true;
-            self.overlap = 100;
+            self.overlap = Some(100);
         }
 
         self.default_label_position = ChartDataLabelPosition::OutsideEnd;
@@ -2422,6 +3023,14 @@ impl Chart {
         self.y_axis.axis_position = ChartAxisPosition::Left;
         self.y_axis.title.is_horizontal = true;
         self.y_axis.major_gridlines = true;
+
+        self.x2_axis.axis_type = ChartAxisType::Category;
+        self.x2_axis.crossing = ChartAxisCrossing::Max;
+        self.x2_axis.is_hidden = true;
+        self.x2_axis.label_position = ChartAxisLabelPosition::None;
+
+        self.y2_axis.axis_type = ChartAxisType::Value;
+        self.y2_axis.axis_position = ChartAxisPosition::Left;
 
         self.chart_group_type = ChartType::Line;
 
@@ -2478,6 +3087,16 @@ impl Chart {
         self.y_axis.title.is_horizontal = true;
         self.y_axis.major_gridlines = true;
 
+        self.x2_axis.axis_type = ChartAxisType::Value;
+        self.x2_axis.position_between_ticks = false;
+        self.x2_axis.crossing = ChartAxisCrossing::Max;
+        self.x2_axis.is_hidden = true;
+        self.x2_axis.label_position = ChartAxisLabelPosition::None;
+
+        self.y2_axis.axis_type = ChartAxisType::Value;
+        self.y2_axis.axis_position = ChartAxisPosition::Left;
+        self.y2_axis.position_between_ticks = false;
+
         self.chart_group_type = ChartType::Scatter;
 
         self.default_label_position = ChartDataLabelPosition::Right;
@@ -2487,6 +3106,8 @@ impl Chart {
 
     // Initialize stock charts.
     fn initialize_stock_chart(mut self) -> Chart {
+        self.has_crosses = false;
+
         self.x_axis.axis_type = ChartAxisType::Date;
         self.x_axis.axis_position = ChartAxisPosition::Bottom;
         self.x_axis.automatic = true;
@@ -2496,6 +3117,15 @@ impl Chart {
         self.y_axis.title.is_horizontal = true;
         self.y_axis.major_gridlines = true;
 
+        self.x2_axis.axis_type = ChartAxisType::Date;
+        self.x2_axis.crossing = ChartAxisCrossing::Max;
+        self.x2_axis.is_hidden = true;
+        self.x2_axis.label_position = ChartAxisLabelPosition::None;
+        self.x2_axis.automatic = true;
+
+        self.y2_axis.axis_type = ChartAxisType::Value;
+        self.y2_axis.axis_position = ChartAxisPosition::Left;
+
         self.chart_group_type = ChartType::Stock;
         self.default_label_position = ChartDataLabelPosition::Right;
 
@@ -2503,14 +3133,20 @@ impl Chart {
     }
 
     // Write the <c:areaChart> element for Column charts.
-    fn write_area_chart(&mut self) {
+    fn write_area_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:areaChart");
 
         // Write the c:grouping element.
         self.write_grouping();
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         if self.has_drop_lines {
             // Write the c:dropLines element.
@@ -2518,13 +3154,19 @@ impl Chart {
         }
 
         // Write the c:axId elements.
-        self.write_ax_ids();
+        self.write_ax_ids(primary_axis);
 
         self.writer.xml_end_tag("c:areaChart");
     }
 
     // Write the <c:barChart> element for Bar charts.
-    fn write_bar_chart(&mut self) {
+    fn write_bar_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:barChart");
 
         // Write the c:barDir element.
@@ -2534,26 +3176,30 @@ impl Chart {
         self.write_grouping();
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         if self.gap != 150 {
             // Write the c:gapWidth element.
             self.write_gap_width(self.gap);
         }
 
-        if self.has_overlap {
-            // Write the c:overlap element.
-            self.write_overlap();
-        }
+        // Write the c:overlap element.
+        self.write_overlap();
 
         // Write the c:axId elements.
-        self.write_ax_ids();
+        self.write_ax_ids(primary_axis);
 
         self.writer.xml_end_tag("c:barChart");
     }
 
     // Write the <c:barChart> element for Column charts.
-    fn write_column_chart(&mut self) {
+    fn write_column_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:barChart");
 
         // Write the c:barDir element.
@@ -2563,33 +3209,37 @@ impl Chart {
         self.write_grouping();
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         if self.gap != 150 {
             // Write the c:gapWidth element.
             self.write_gap_width(self.gap);
         }
 
-        if self.overlap != 0 {
-            // Write the c:overlap element.
-            self.write_overlap();
-        }
+        // Write the c:overlap element.
+        self.write_overlap();
 
         // Write the c:axId elements.
-        self.write_ax_ids();
+        self.write_ax_ids(primary_axis);
 
         self.writer.xml_end_tag("c:barChart");
     }
 
     // Write the <c:doughnutChart> element for Column charts.
-    fn write_doughnut_chart(&mut self) {
+    fn write_doughnut_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:doughnutChart");
 
         // Write the c:varyColors element.
         self.write_vary_colors();
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         // Write the c:firstSliceAng element.
         self.write_first_slice_ang();
@@ -2601,14 +3251,20 @@ impl Chart {
     }
 
     // Write the <c:lineChart>element.
-    fn write_line_chart(&mut self) {
+    fn write_line_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:lineChart");
 
         // Write the c:grouping element.
         self.write_grouping();
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         if self.has_drop_lines {
             // Write the c:dropLines element.
@@ -2629,20 +3285,26 @@ impl Chart {
         self.write_marker_value();
 
         // Write the c:axId elements.
-        self.write_ax_ids();
+        self.write_ax_ids(primary_axis);
 
         self.writer.xml_end_tag("c:lineChart");
     }
 
     // Write the <c:pieChart> element for Column charts.
-    fn write_pie_chart(&mut self) {
+    fn write_pie_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:pieChart");
 
         // Write the c:varyColors element.
         self.write_vary_colors();
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         // Write the c:firstSliceAng element.
         self.write_first_slice_ang();
@@ -2651,50 +3313,68 @@ impl Chart {
     }
 
     // Write the <c:radarChart>element.
-    fn write_radar_chart(&mut self) {
+    fn write_radar_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:radarChart");
 
         // Write the c:radarStyle element.
         self.write_radar_style();
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         // Write the c:axId elements.
-        self.write_ax_ids();
+        self.write_ax_ids(primary_axis);
 
         self.writer.xml_end_tag("c:radarChart");
     }
 
     // Write the <c:scatterChart>element.
-    fn write_scatter_chart(&mut self) {
+    fn write_scatter_chart(&mut self, primary_axis: bool) {
+        let mut series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:scatterChart");
 
         // Write the c:scatterStyle element.
         self.write_scatter_style();
 
         // Write the c:ser elements.
-        self.write_scatter_series();
+        self.write_scatter_series(&mut series);
 
         // Write the c:axId elements.
-        self.write_ax_ids();
+        self.write_ax_ids(primary_axis);
 
         self.writer.xml_end_tag("c:scatterChart");
     }
 
     // Write the <c:stockChart>element.
-    fn write_stock_chart(&mut self) {
+    fn write_stock_chart(&mut self, primary_axis: bool) {
+        let series = self.get_series(primary_axis);
+
+        if series.is_empty() {
+            return;
+        }
+
         self.writer.xml_start_tag_only("c:stockChart");
 
         // Write the c:ser elements.
-        self.write_series();
+        self.write_series(&series);
 
         if self.has_drop_lines {
             // Write the c:dropLines element.
             self.write_drop_lines();
         }
 
-        if self.has_high_low_lines {
+        if primary_axis && self.has_high_low_lines {
             // Write the c:hiLowLines element.
             self.write_hi_low_lines();
         }
@@ -2705,7 +3385,7 @@ impl Chart {
         }
 
         // Write the c:axId elements.
-        self.write_ax_ids();
+        self.write_ax_ids(primary_axis);
 
         self.writer.xml_end_tag("c:stockChart");
     }
@@ -2733,7 +3413,7 @@ impl Chart {
         self.write_chart();
 
         // Write the c:spPr element.
-        self.write_sp_pr(&self.chart_area_format.clone());
+        self.write_sp_pr(&self.chart_area.format.clone());
 
         // Write the c:printSettings element.
         self.write_print_settings();
@@ -2824,50 +3504,32 @@ impl Chart {
 
     // Write the <c:plotArea> element.
     fn write_plot_area(&mut self) {
+        self.series_index = 0;
         self.writer.xml_start_tag_only("c:plotArea");
 
         // Write the c:layout element.
-        self.write_layout();
+        self.write_layout(&self.plot_area.layout.clone());
 
-        match self.chart_type {
-            ChartType::Area | ChartType::AreaStacked | ChartType::AreaPercentStacked => {
-                self.write_area_chart();
-            }
+        // Write the <c:xxxChart> element for each chart type.
+        self.write_chart_type();
 
-            ChartType::Bar | ChartType::BarStacked | ChartType::BarPercentStacked => {
-                self.write_bar_chart();
-            }
+        // Write the combined chart.
+        if let Some(combined_chart) = &mut self.combined_chart {
+            combined_chart.axis_ids = self.axis_ids;
+            combined_chart.axis2_ids = self.axis2_ids;
+            combined_chart.series_index = self.series.len();
 
-            ChartType::Column | ChartType::ColumnStacked | ChartType::ColumnPercentStacked => {
-                self.write_column_chart();
-            }
-
-            ChartType::Doughnut => self.write_doughnut_chart(),
-
-            ChartType::Line | ChartType::LineStacked | ChartType::LinePercentStacked => {
-                self.write_line_chart();
-            }
-
-            ChartType::Pie => self.write_pie_chart(),
-
-            ChartType::Radar | ChartType::RadarWithMarkers | ChartType::RadarFilled => {
-                self.write_radar_chart();
-            }
-
-            ChartType::Scatter
-            | ChartType::ScatterStraight
-            | ChartType::ScatterStraightWithMarkers
-            | ChartType::ScatterSmooth
-            | ChartType::ScatterSmoothWithMarkers => self.write_scatter_chart(),
-
-            ChartType::Stock => {
-                self.write_stock_chart();
-            }
+            mem::swap(&mut combined_chart.writer, &mut self.writer);
+            combined_chart.write_chart_type();
+            mem::swap(&mut combined_chart.writer, &mut self.writer);
         }
+
+        let mut x_axis = self.x_axis.clone();
+        let mut y_axis = self.y_axis.clone();
 
         // Reverse the X and Y axes for Bar charts.
         if self.chart_group_type == ChartType::Bar {
-            std::mem::swap(&mut self.x_axis, &mut self.y_axis);
+            std::mem::swap(&mut x_axis, &mut y_axis);
         }
 
         match self.chart_group_type {
@@ -2875,28 +3537,69 @@ impl Chart {
 
             ChartType::Scatter => {
                 // Write the c:valAx element.
-                self.write_cat_val_ax();
+                self.write_cat_val_ax(&x_axis, &y_axis, self.axis_ids);
 
                 // Write the c:valAx element.
-                self.write_val_ax();
+                self.write_val_ax(&x_axis, &y_axis, self.axis_ids);
             }
             _ => {
                 if self.x_axis.axis_type == ChartAxisType::Date {
                     // Write the c:dateAx element.
-                    self.write_date_ax();
+                    self.write_date_ax(&x_axis, &y_axis, self.axis_ids);
                 } else {
                     // Write the c:catAx element.
-                    self.write_cat_ax();
+                    self.write_cat_ax(&x_axis, &y_axis, self.axis_ids);
                 }
 
                 // Write the c:valAx element.
-                self.write_val_ax();
+                self.write_val_ax(&x_axis, &y_axis, self.axis_ids);
             }
         }
 
-        // Reset the X and Y axes for Bar charts.
-        if self.chart_group_type == ChartType::Bar {
-            std::mem::swap(&mut self.x_axis, &mut self.y_axis);
+        // Handle any secondary axes due to secondary data series.
+        self.check_for_secondary_axis();
+        if self.has_secondary_axis {
+            let mut x_axis = self.x2_axis.clone();
+            let mut y_axis = self.y2_axis.clone();
+            let mut chart_group_type = self.chart_group_type;
+            let mut is_combined = false;
+
+            if let Some(combined_chart) = &self.combined_chart {
+                chart_group_type = combined_chart.chart_group_type;
+                is_combined = true;
+            }
+
+            // Reverse the X and Y axes for Bar charts.
+            if chart_group_type == ChartType::Bar {
+                std::mem::swap(&mut x_axis, &mut y_axis);
+            }
+
+            match chart_group_type {
+                ChartType::Pie | ChartType::Doughnut => {}
+
+                ChartType::Scatter => {
+                    // The Cat and Value axes order changes depending on type.
+                    if is_combined {
+                        self.write_val_ax(&x_axis, &y_axis, self.axis2_ids);
+                        self.write_cat_val_ax(&x_axis, &y_axis, self.axis2_ids);
+                    } else {
+                        self.write_cat_val_ax(&x_axis, &y_axis, self.axis2_ids);
+                        self.write_val_ax(&x_axis, &y_axis, self.axis2_ids);
+                    }
+                }
+                _ => {
+                    // Write the c:valAx element.
+                    self.write_val_ax(&x_axis, &y_axis, self.axis2_ids);
+
+                    if self.x_axis.axis_type == ChartAxisType::Date {
+                        // Write the c:dateAx element.
+                        self.write_date_ax(&x_axis, &y_axis, self.axis2_ids);
+                    } else {
+                        // Write the c:catAx element.
+                        self.write_cat_ax(&x_axis, &y_axis, self.axis2_ids);
+                    }
+                }
+            }
         }
 
         // Write the c:dTable element.
@@ -2905,14 +3608,114 @@ impl Chart {
         }
 
         // Write the c:spPr element.
-        self.write_sp_pr(&self.plot_area_format.clone());
+        self.write_sp_pr(&self.plot_area.format.clone());
 
         self.writer.xml_end_tag("c:plotArea");
     }
 
+    // Write the <c:xxxChart> element.
+    fn write_chart_type(&mut self) {
+        match self.chart_type {
+            ChartType::Area | ChartType::AreaStacked | ChartType::AreaPercentStacked => {
+                self.write_area_chart(true);
+                self.write_area_chart(false);
+            }
+
+            ChartType::Bar | ChartType::BarStacked | ChartType::BarPercentStacked => {
+                self.write_bar_chart(true);
+                self.write_bar_chart(false);
+            }
+
+            ChartType::Column | ChartType::ColumnStacked | ChartType::ColumnPercentStacked => {
+                self.write_column_chart(true);
+                self.write_column_chart(false);
+            }
+
+            ChartType::Doughnut => {
+                self.write_doughnut_chart(true);
+                self.write_doughnut_chart(false);
+            }
+
+            ChartType::Line | ChartType::LineStacked | ChartType::LinePercentStacked => {
+                self.write_line_chart(true);
+                self.write_line_chart(false);
+            }
+
+            ChartType::Pie => {
+                self.write_pie_chart(true);
+                self.write_pie_chart(false);
+            }
+
+            ChartType::Radar | ChartType::RadarWithMarkers | ChartType::RadarFilled => {
+                self.write_radar_chart(true);
+                self.write_radar_chart(false);
+            }
+
+            ChartType::Scatter
+            | ChartType::ScatterStraight
+            | ChartType::ScatterStraightWithMarkers
+            | ChartType::ScatterSmooth
+            | ChartType::ScatterSmoothWithMarkers => {
+                self.write_scatter_chart(true);
+                self.write_scatter_chart(false);
+            }
+
+            ChartType::Stock => {
+                self.write_stock_chart(true);
+                self.write_stock_chart(false);
+            }
+        }
+    }
+
     // Write the <c:layout> element.
-    fn write_layout(&mut self) {
-        self.writer.xml_empty_tag_only("c:layout");
+    fn write_layout(&mut self, layout: &ChartLayout) {
+        if layout.is_not_default() {
+            self.writer.xml_start_tag_only("c:layout");
+
+            // Write the c:manualLayout element.
+            self.write_manual_layout(layout);
+
+            self.writer.xml_end_tag("c:layout");
+        } else {
+            self.writer.xml_empty_tag_only("c:layout");
+        }
+    }
+
+    // Write the <c:manualLayout> element.
+    fn write_manual_layout(&mut self, layout: &ChartLayout) {
+        self.writer.xml_start_tag_only("c:manualLayout");
+
+        if layout.has_inner {
+            self.writer
+                .xml_empty_tag("c:layoutTarget", &[("val", "inner")]);
+        }
+
+        self.writer.xml_empty_tag("c:xMode", &[("val", "edge")]);
+        self.writer.xml_empty_tag("c:yMode", &[("val", "edge")]);
+
+        if let Some(value) = layout.x_offset {
+            let attributes = [("val", value.to_string())];
+            self.writer.xml_empty_tag("c:x", &attributes);
+        }
+
+        if let Some(value) = layout.y_offset {
+            let attributes = [("val", value.to_string())];
+            self.writer.xml_empty_tag("c:y", &attributes);
+        }
+
+        if layout.has_dimensions {
+            if let Some(value) = layout.width {
+                let attributes = [("val", value.to_string())];
+                self.writer.xml_empty_tag("c:w", &attributes);
+            }
+
+            if let Some(value) = layout.height {
+                let attributes = [("val", value.to_string())];
+                self.writer.xml_empty_tag("c:h", &attributes);
+            }
+        }
+
+        self.writer.xml_end_tag("c:manualLayout");
     }
 
     // Write the <c:barDir> element.
@@ -2944,15 +3747,28 @@ impl Chart {
         self.writer.xml_empty_tag("c:scatterStyle", &attributes);
     }
 
+    // Get the primary/secondary series for the chart.
+    fn get_series(&self, primary_axis: bool) -> Vec<ChartSeries> {
+        let mut series_copy = vec![];
+
+        for each_series in &self.series {
+            if each_series.secondary_axis != primary_axis {
+                series_copy.push(each_series.clone());
+            }
+        }
+
+        series_copy
+    }
+
     // Write the <c:ser> element.
-    fn write_series(&mut self) {
-        for (index, series) in self.series.clone().iter_mut().enumerate() {
+    fn write_series(&mut self, series: &Vec<ChartSeries>) {
+        for series in series {
             let max_points = series.value_range.number_of_points();
 
             self.writer.xml_start_tag_only("c:ser");
 
             // Copy a series overlap to the parent chart.
-            if series.overlap != 0 {
+            if series.overlap.is_some() {
                 self.overlap = series.overlap;
             }
 
@@ -2962,10 +3778,10 @@ impl Chart {
             }
 
             // Write the c:idx element.
-            self.write_idx(index);
+            self.write_idx(self.series_index);
 
             // Write the c:order element.
-            self.write_order(index);
+            self.write_order(self.series_index);
 
             self.write_series_title(&series.title);
 
@@ -3039,22 +3855,24 @@ impl Chart {
                 }
             }
 
+            self.series_index += 1;
+
             self.writer.xml_end_tag("c:ser");
         }
     }
 
     // Write the <c:ser> element for scatter charts.
-    fn write_scatter_series(&mut self) {
-        for (index, series) in self.series.clone().iter_mut().enumerate() {
+    fn write_scatter_series(&mut self, series: &mut Vec<ChartSeries>) {
+        for series in series {
             let max_points = series.value_range.number_of_points();
 
             self.writer.xml_start_tag_only("c:ser");
 
             // Write the c:idx element.
-            self.write_idx(index);
+            self.write_idx(self.series_index);
 
             // Write the c:order element.
-            self.write_order(index);
+            self.write_order(self.series_index);
 
             self.write_series_title(&series.title);
 
@@ -3119,6 +3937,8 @@ impl Chart {
                     self.write_smooth();
                 }
             }
+
+            self.series_index += 1;
 
             self.writer.xml_end_tag("c:ser");
         }
@@ -3254,7 +4074,7 @@ impl Chart {
         self.writer.xml_start_tag_only("c:numRef");
 
         // Write the c:f element.
-        self.write_range_formula(&range.formula());
+        self.write_range_formula(&range.formula_abs());
 
         // Write the c:numCache element.
         if range.cache.has_data() {
@@ -3269,7 +4089,7 @@ impl Chart {
         self.writer.xml_start_tag_only("c:strRef");
 
         // Write the c:f element.
-        self.write_range_formula(&range.formula());
+        self.write_range_formula(&range.formula_abs());
 
         // Write the c:strCache element.
         if range.cache.has_data() {
@@ -3352,9 +4172,14 @@ impl Chart {
     }
 
     // Write both <c:axId> elements.
-    fn write_ax_ids(&mut self) {
-        self.write_ax_id(self.axis_ids.0);
-        self.write_ax_id(self.axis_ids.1);
+    fn write_ax_ids(&mut self, primary_axis: bool) {
+        if primary_axis {
+            self.write_ax_id(self.axis_ids.0);
+            self.write_ax_id(self.axis_ids.1);
+        } else {
+            self.write_ax_id(self.axis2_ids.0);
+            self.write_ax_id(self.axis2_ids.1);
+        }
     }
 
     // Write the <c:axId> element.
@@ -3369,101 +4194,95 @@ impl Chart {
     // -----------------------------------------------------------------------
 
     // Write the <c:catAx> element.
-    fn write_cat_ax(&mut self) {
+    fn write_cat_ax(&mut self, x_axis: &ChartAxis, y_axis: &ChartAxis, axis_ids: (u32, u32)) {
         self.writer.xml_start_tag_only("c:catAx");
 
-        self.write_ax_id(self.axis_ids.0);
+        self.write_ax_id(axis_ids.0);
 
         // Write the c:scaling element.
-        self.write_scaling(&self.x_axis.clone());
+        self.write_scaling(x_axis);
 
-        if self.x_axis.is_hidden {
+        if x_axis.is_hidden {
             self.write_delete();
         }
 
         // Write the c:axPos element.
-        self.write_ax_pos(
-            self.x_axis.axis_position,
-            self.y_axis.reverse,
-            self.y_axis.crossing,
-        );
+        self.write_ax_pos(x_axis.axis_position, y_axis.reverse, y_axis.crossing);
 
-        self.write_major_gridlines(self.x_axis.clone());
-        self.write_minor_gridlines(self.x_axis.clone());
+        self.write_major_gridlines(x_axis);
+        self.write_minor_gridlines(x_axis);
 
         // Write the c:title element.
-        self.write_chart_title(&self.x_axis.title.clone());
+        self.write_chart_title(&x_axis.title);
 
         // Write the c:numFmt element.
-        if !self.x_axis.num_format.is_empty() {
-            self.write_number_format(
-                &self.x_axis.num_format.clone(),
-                self.x_axis.num_format_linked_to_source,
-            );
+        if !x_axis.num_format.is_empty() {
+            self.write_number_format(&x_axis.num_format, x_axis.num_format_linked_to_source);
         } else if self.category_has_num_format {
             self.write_number_format("General", true);
         }
 
         // Write the c:majorTickMark element.
-        if let Some(tick_type) = self.x_axis.major_tick_type {
+        if let Some(tick_type) = x_axis.major_tick_type {
             self.write_major_tick_mark(tick_type);
         }
 
         // Write the c:minorTickMark element.
-        if let Some(tick_type) = self.x_axis.minor_tick_type {
+        if let Some(tick_type) = x_axis.minor_tick_type {
             self.write_minor_tick_mark(tick_type);
         }
 
         // Write the c:tickLblPos element.
-        self.write_tick_label_position(self.x_axis.label_position);
+        self.write_tick_label_position(x_axis.label_position);
 
-        if self.x_axis.format.has_formatting() {
+        if x_axis.format.has_formatting() {
             // Write the c:spPr formatting element.
-            self.write_sp_pr(&self.x_axis.format.clone());
+            self.write_sp_pr(&x_axis.format);
         }
 
         // Write the axis font elements.
-        if let Some(font) = &self.x_axis.font {
-            self.write_axis_font(&font.clone());
+        if let Some(font) = &x_axis.font {
+            self.write_axis_font(font);
         }
 
         // Write the c:crossAx element.
-        self.write_cross_ax(self.axis_ids.1);
+        self.write_cross_ax(axis_ids.1);
 
-        // Write the c:crosses element. Note, the X crossing comes from the Y
-        // axis.
-        match self.y_axis.crossing {
-            ChartAxisCrossing::Automatic | ChartAxisCrossing::Min | ChartAxisCrossing::Max => {
-                self.write_crosses(&self.y_axis.crossing.to_string());
-            }
-            ChartAxisCrossing::AxisValue(_) => {
-                self.write_crosses_at(&self.y_axis.crossing.to_string());
-            }
-            ChartAxisCrossing::CategoryNumber(_) => {
-                // Ignore Category crossing on a Value axis.
-                self.write_crosses(&ChartAxisCrossing::Automatic.to_string());
+        // Write the c:crosses element. Note, the X crossing comes from the Y axis.
+        if self.has_crosses || !x_axis.is_hidden {
+            match y_axis.crossing {
+                ChartAxisCrossing::Automatic | ChartAxisCrossing::Min | ChartAxisCrossing::Max => {
+                    self.write_crosses(&y_axis.crossing.to_string());
+                }
+                ChartAxisCrossing::AxisValue(_) => {
+                    self.write_crosses_at(&y_axis.crossing.to_string());
+                }
+                ChartAxisCrossing::CategoryNumber(_) => {
+                    // Ignore Category crossing on a Value axis.
+                    self.write_crosses(&ChartAxisCrossing::Automatic.to_string());
+                }
             }
         }
 
         // Write the c:auto element.
-        if !self.x_axis.automatic {
+        if !x_axis.automatic {
             self.write_auto();
         }
 
         // Write the c:lblAlgn element.
-        self.write_lbl_algn(&self.x_axis.label_alignment.to_string());
+        self.write_lbl_algn(&x_axis.label_alignment.to_string());
 
         // Write the c:lblOffset element.
         self.write_lbl_offset();
 
         // Write the c:tickLblSkip element.
-        if self.x_axis.label_interval > 1 {
-            self.write_tick_lbl_skip(self.x_axis.label_interval);
+        if x_axis.label_interval > 1 {
+            self.write_tick_lbl_skip(x_axis.label_interval);
         }
 
         // Write the c:tickMarkSkip element.
-        if self.x_axis.tick_interval > 1 {
-            self.write_tick_mark_skip(self.x_axis.tick_interval);
+        if x_axis.tick_interval > 1 {
+            self.write_tick_mark_skip(x_axis.tick_interval);
         }
 
         self.writer.xml_end_tag("c:catAx");
@@ -3474,84 +4293,78 @@ impl Chart {
     // -----------------------------------------------------------------------
 
     // Write the <c:dateAx> element.
-    fn write_date_ax(&mut self) {
+    fn write_date_ax(&mut self, x_axis: &ChartAxis, y_axis: &ChartAxis, axis_ids: (u32, u32)) {
         self.writer.xml_start_tag_only("c:dateAx");
 
-        self.write_ax_id(self.axis_ids.0);
+        self.write_ax_id(axis_ids.0);
 
         // Write the c:scaling element.
-        self.write_scaling(&self.x_axis.clone());
+        self.write_scaling(x_axis);
 
-        if self.x_axis.is_hidden {
+        if x_axis.is_hidden {
             self.write_delete();
         }
 
         // Write the c:axPos element.
-        self.write_ax_pos(
-            self.x_axis.axis_position,
-            self.y_axis.reverse,
-            self.y_axis.crossing,
-        );
+        self.write_ax_pos(x_axis.axis_position, y_axis.reverse, y_axis.crossing);
 
-        self.write_major_gridlines(self.x_axis.clone());
-        self.write_minor_gridlines(self.x_axis.clone());
+        self.write_major_gridlines(x_axis);
+        self.write_minor_gridlines(x_axis);
 
         // Write the c:title element.
-        self.write_chart_title(&self.x_axis.title.clone());
+        self.write_chart_title(&x_axis.title);
 
         // Write the c:numFmt element.
-        if !self.x_axis.num_format.is_empty() {
-            self.write_number_format(
-                &self.x_axis.num_format.clone(),
-                self.x_axis.num_format_linked_to_source,
-            );
+        if !x_axis.num_format.is_empty() {
+            self.write_number_format(&x_axis.num_format, x_axis.num_format_linked_to_source);
         } else if self.category_has_num_format {
             self.write_number_format("dd/mm/yyyy", true);
         }
 
         // Write the c:majorTickMark element.
-        if let Some(tick_type) = self.x_axis.major_tick_type {
+        if let Some(tick_type) = x_axis.major_tick_type {
             self.write_major_tick_mark(tick_type);
         }
 
         // Write the c:minorTickMark element.
-        if let Some(tick_type) = self.x_axis.minor_tick_type {
+        if let Some(tick_type) = x_axis.minor_tick_type {
             self.write_minor_tick_mark(tick_type);
         }
 
         // Write the c:tickLblPos element.
-        self.write_tick_label_position(self.x_axis.label_position);
+        self.write_tick_label_position(x_axis.label_position);
 
-        if self.x_axis.format.has_formatting() {
+        if x_axis.format.has_formatting() {
             // Write the c:spPr formatting element.
-            self.write_sp_pr(&self.x_axis.format.clone());
+            self.write_sp_pr(&x_axis.format);
         }
 
         // Write the axis font elements.
-        if let Some(font) = &self.x_axis.font {
+        if let Some(font) = &x_axis.font {
             self.write_axis_font(&font.clone());
         }
 
         // Write the c:crossAx element.
-        self.write_cross_ax(self.axis_ids.1);
+        self.write_cross_ax(axis_ids.1);
 
-        // Write the c:crosses element. Note, the X crossing comes from the Y
-        // axis.
-        match self.y_axis.crossing {
-            ChartAxisCrossing::Automatic | ChartAxisCrossing::Min | ChartAxisCrossing::Max => {
-                self.write_crosses(&self.y_axis.crossing.to_string());
-            }
-            ChartAxisCrossing::AxisValue(_) => {
-                self.write_crosses_at(&self.y_axis.crossing.to_string());
-            }
-            ChartAxisCrossing::CategoryNumber(_) => {
-                // Ignore Category crossing on a Value axis.
-                self.write_crosses(&ChartAxisCrossing::Automatic.to_string());
+        // Write the c:crosses element. Note, the X crossing comes from the Y axis.
+        if self.has_crosses || !x_axis.is_hidden {
+            match y_axis.crossing {
+                ChartAxisCrossing::Automatic | ChartAxisCrossing::Min | ChartAxisCrossing::Max => {
+                    self.write_crosses(&y_axis.crossing.to_string());
+                }
+                ChartAxisCrossing::AxisValue(_) => {
+                    self.write_crosses_at(&y_axis.crossing.to_string());
+                }
+                ChartAxisCrossing::CategoryNumber(_) => {
+                    // Ignore Category crossing on a Value axis.
+                    self.write_crosses(&ChartAxisCrossing::Automatic.to_string());
+                }
             }
         }
 
         // Write the c:auto element.
-        if self.x_axis.automatic {
+        if x_axis.automatic {
             self.write_auto();
         }
 
@@ -3559,32 +4372,32 @@ impl Chart {
         self.write_lbl_offset();
 
         // Write the c:tickLblSkip element.
-        if self.x_axis.label_interval > 1 {
-            self.write_tick_lbl_skip(self.x_axis.label_interval);
+        if x_axis.label_interval > 1 {
+            self.write_tick_lbl_skip(x_axis.label_interval);
         }
 
         // Write the c:tickMarkSkip element.
-        if self.x_axis.tick_interval > 1 {
-            self.write_tick_mark_skip(self.x_axis.tick_interval);
+        if x_axis.tick_interval > 1 {
+            self.write_tick_mark_skip(x_axis.tick_interval);
         }
 
         // Write the c:majorUnit element.
-        if !self.x_axis.major_unit.is_empty() {
-            self.write_major_unit(self.x_axis.major_unit.clone());
+        if !x_axis.major_unit.is_empty() {
+            self.write_major_unit(&x_axis.major_unit);
         }
 
         // Write the c:majorTimeUnit element.
-        if let Some(unit) = self.x_axis.major_unit_date_type {
+        if let Some(unit) = x_axis.major_unit_date_type {
             self.write_major_time_unit(unit);
         }
 
         // Write the c:minorUnit element.
-        if !self.x_axis.minor_unit.is_empty() {
-            self.write_minor_unit(self.x_axis.minor_unit.clone());
+        if !x_axis.minor_unit.is_empty() {
+            self.write_minor_unit(&x_axis.minor_unit);
         }
 
         // Write the c:minorTimeUnit element.
-        if let Some(unit) = self.x_axis.minor_unit_date_type {
+        if let Some(unit) = x_axis.minor_unit_date_type {
             self.write_minor_time_unit(unit);
         }
 
@@ -3596,97 +4409,86 @@ impl Chart {
     // -----------------------------------------------------------------------
 
     // Write the <c:valAx> element.
-    fn write_val_ax(&mut self) {
+    fn write_val_ax(&mut self, x_axis: &ChartAxis, y_axis: &ChartAxis, axis_ids: (u32, u32)) {
         self.writer.xml_start_tag_only("c:valAx");
 
-        self.write_ax_id(self.axis_ids.1);
+        self.write_ax_id(axis_ids.1);
 
         // Write the c:scaling element.
-        self.write_scaling(&self.y_axis.clone());
+        self.write_scaling(y_axis);
 
-        if self.y_axis.is_hidden {
+        if y_axis.is_hidden {
             self.write_delete();
         }
         // Write the c:axPos element.
-        self.write_ax_pos(
-            self.y_axis.axis_position,
-            self.x_axis.reverse,
-            self.x_axis.crossing,
-        );
+        self.write_ax_pos(y_axis.axis_position, x_axis.reverse, x_axis.crossing);
 
         // Write the Gridlines elements.
-        self.write_major_gridlines(self.y_axis.clone());
-        self.write_minor_gridlines(self.y_axis.clone());
+        self.write_major_gridlines(y_axis);
+        self.write_minor_gridlines(y_axis);
 
         // Write the c:title element.
-        self.write_chart_title(&self.y_axis.title.clone());
+        self.write_chart_title(&y_axis.title);
 
         // Write the c:numFmt element.
-        if self.y_axis.num_format.is_empty() {
+        if y_axis.num_format.is_empty() {
             self.write_number_format(&self.default_num_format.clone(), true);
         } else {
-            self.write_number_format(
-                &self.y_axis.num_format.clone(),
-                self.y_axis.num_format_linked_to_source,
-            );
+            self.write_number_format(&y_axis.num_format, y_axis.num_format_linked_to_source);
         }
 
         // Write the c:majorTickMark element.
-        if let Some(position) = self.y_axis.major_tick_type {
+        if let Some(position) = y_axis.major_tick_type {
             self.write_major_tick_mark(position);
         }
 
         // Write the c:minorTickMark element.
-        if let Some(position) = self.y_axis.minor_tick_type {
+        if let Some(position) = y_axis.minor_tick_type {
             self.write_minor_tick_mark(position);
         }
 
         // Write the c:tickLblPos element.
-        self.write_tick_label_position(self.y_axis.label_position);
+        self.write_tick_label_position(y_axis.label_position);
 
-        if self.y_axis.format.has_formatting() {
+        if y_axis.format.has_formatting() {
             // Write the c:spPr formatting element.
-            self.write_sp_pr(&self.y_axis.format.clone());
+            self.write_sp_pr(&y_axis.format);
         }
 
         // Write the axis font elements.
-        if let Some(font) = &self.y_axis.font {
-            self.write_axis_font(&font.clone());
+        if let Some(font) = &y_axis.font {
+            self.write_axis_font(font);
         }
 
         // Write the c:crossAx element.
-        self.write_cross_ax(self.axis_ids.0);
+        self.write_cross_ax(axis_ids.0);
 
-        // Write the c:crosses element. Note, the Y crossing comes from the X
-        // axis.
-        match self.x_axis.crossing {
+        // Write the c:crosses element. Note, the Y crossing comes from the X axis.
+        match x_axis.crossing {
             ChartAxisCrossing::Automatic | ChartAxisCrossing::Min | ChartAxisCrossing::Max => {
-                self.write_crosses(&self.x_axis.crossing.to_string());
+                self.write_crosses(&x_axis.crossing.to_string());
             }
             ChartAxisCrossing::CategoryNumber(_) | ChartAxisCrossing::AxisValue(_) => {
-                self.write_crosses_at(&self.x_axis.crossing.to_string());
+                self.write_crosses_at(&x_axis.crossing.to_string());
             }
         }
 
         // Write the c:crossBetween element.
-        self.write_cross_between(self.x_axis.position_between_ticks);
+        self.write_cross_between(x_axis.position_between_ticks);
 
         // Write the c:majorUnit element.
-        if self.y_axis.axis_type != ChartAxisType::Category && !self.y_axis.major_unit.is_empty() {
-            self.write_major_unit(self.y_axis.major_unit.clone());
+        if y_axis.axis_type != ChartAxisType::Category && !y_axis.major_unit.is_empty() {
+            self.write_major_unit(&y_axis.major_unit);
         }
 
         // Write the c:minorUnit element.
-        if self.y_axis.axis_type != ChartAxisType::Category && !self.y_axis.minor_unit.is_empty() {
-            self.write_minor_unit(self.y_axis.minor_unit.clone());
+        if y_axis.axis_type != ChartAxisType::Category && !y_axis.minor_unit.is_empty() {
+            self.write_minor_unit(&y_axis.minor_unit);
         }
 
         // Write the c:dispUnits element.
-        if self.y_axis.display_units_type != ChartAxisDisplayUnitType::None {
-            self.write_disp_units(
-                self.y_axis.display_units_type,
-                self.y_axis.display_units_visible,
-            );
+        if y_axis.display_units_type != ChartAxisDisplayUnitType::None {
+            self.write_disp_units(y_axis.display_units_type, y_axis.display_units_visible);
         }
 
         self.writer.xml_end_tag("c:valAx");
@@ -3697,98 +4499,87 @@ impl Chart {
     // -----------------------------------------------------------------------
 
     // Write the category <c:valAx> element for scatter charts.
-    fn write_cat_val_ax(&mut self) {
+    fn write_cat_val_ax(&mut self, x_axis: &ChartAxis, y_axis: &ChartAxis, axis_ids: (u32, u32)) {
         self.writer.xml_start_tag_only("c:valAx");
 
-        self.write_ax_id(self.axis_ids.0);
+        self.write_ax_id(axis_ids.0);
 
         // Write the c:scaling element.
-        self.write_scaling(&self.x_axis.clone());
+        self.write_scaling(x_axis);
 
-        if self.x_axis.is_hidden {
+        if x_axis.is_hidden {
             self.write_delete();
         }
 
         // Write the c:axPos element.
-        self.write_ax_pos(
-            self.x_axis.axis_position,
-            self.y_axis.reverse,
-            self.y_axis.crossing,
-        );
+        self.write_ax_pos(x_axis.axis_position, y_axis.reverse, y_axis.crossing);
 
         // Write the Gridlines elements.
-        self.write_major_gridlines(self.x_axis.clone());
-        self.write_minor_gridlines(self.x_axis.clone());
+        self.write_major_gridlines(x_axis);
+        self.write_minor_gridlines(x_axis);
 
         // Write the c:title element.
-        self.write_chart_title(&self.x_axis.title.clone());
+        self.write_chart_title(&x_axis.title);
 
         // Write the c:numFmt element.
-        if self.x_axis.num_format.is_empty() {
+        if x_axis.num_format.is_empty() {
             self.write_number_format(&self.default_num_format.clone(), true);
         } else {
-            self.write_number_format(
-                &self.x_axis.num_format.clone(),
-                self.x_axis.num_format_linked_to_source,
-            );
+            self.write_number_format(&x_axis.num_format, x_axis.num_format_linked_to_source);
         }
 
         // Write the c:majorTickMark element.
-        if let Some(position) = self.x_axis.major_tick_type {
+        if let Some(position) = x_axis.major_tick_type {
             self.write_major_tick_mark(position);
         }
 
         // Write the c:minorTickMark element.
-        if let Some(position) = self.x_axis.minor_tick_type {
+        if let Some(position) = x_axis.minor_tick_type {
             self.write_minor_tick_mark(position);
         }
 
         // Write the c:tickLblPos element.
-        self.write_tick_label_position(self.x_axis.label_position);
+        self.write_tick_label_position(x_axis.label_position);
 
-        if self.x_axis.format.has_formatting() {
+        if x_axis.format.has_formatting() {
             // Write the c:spPr formatting element.
-            self.write_sp_pr(&self.x_axis.format.clone());
+            self.write_sp_pr(&x_axis.format);
         }
 
         // Write the axis font elements.
-        if let Some(font) = &self.x_axis.font {
-            self.write_axis_font(&font.clone());
+        if let Some(font) = &x_axis.font {
+            self.write_axis_font(font);
         }
 
         // Write the c:crossAx element.
-        self.write_cross_ax(self.axis_ids.1);
+        self.write_cross_ax(axis_ids.1);
 
-        // Write the c:crosses element. Note, the X crossing comes from the Y
-        // axis.
-        match self.y_axis.crossing {
+        // Write the c:crosses element. Note, the X crossing comes from the Y axis.
+        match y_axis.crossing {
             ChartAxisCrossing::Automatic | ChartAxisCrossing::Min | ChartAxisCrossing::Max => {
-                self.write_crosses(&self.y_axis.crossing.to_string());
+                self.write_crosses(&y_axis.crossing.to_string());
             }
             ChartAxisCrossing::CategoryNumber(_) | ChartAxisCrossing::AxisValue(_) => {
-                self.write_crosses_at(&self.y_axis.crossing.to_string());
+                self.write_crosses_at(&y_axis.crossing.to_string());
             }
         }
 
         // Write the c:crossBetween element.
-        self.write_cross_between(self.y_axis.position_between_ticks);
+        self.write_cross_between(y_axis.position_between_ticks);
 
         // Write the c:majorUnit element.
-        if self.x_axis.axis_type != ChartAxisType::Category && !self.x_axis.major_unit.is_empty() {
-            self.write_major_unit(self.x_axis.major_unit.clone());
+        if x_axis.axis_type != ChartAxisType::Category && !x_axis.major_unit.is_empty() {
+            self.write_major_unit(&x_axis.major_unit);
         }
 
         // Write the c:minorUnit element.
-        if self.x_axis.axis_type != ChartAxisType::Category && !self.x_axis.minor_unit.is_empty() {
-            self.write_minor_unit(self.x_axis.minor_unit.clone());
+        if x_axis.axis_type != ChartAxisType::Category && !x_axis.minor_unit.is_empty() {
+            self.write_minor_unit(&x_axis.minor_unit);
         }
 
         // Write the c:dispUnits element.
-        if self.x_axis.display_units_type != ChartAxisDisplayUnitType::None {
-            self.write_disp_units(
-                self.x_axis.display_units_type,
-                self.x_axis.display_units_visible,
-            );
+        if x_axis.display_units_type != ChartAxisDisplayUnitType::None {
+            self.write_disp_units(x_axis.display_units_type, x_axis.display_units_visible);
         }
 
         self.writer.xml_end_tag("c:valAx");
@@ -3880,7 +4671,7 @@ impl Chart {
     }
 
     // Write the <c:majorGridlines> element.
-    fn write_major_gridlines(&mut self, axis: ChartAxis) {
+    fn write_major_gridlines(&mut self, axis: &ChartAxis) {
         if axis.major_gridlines {
             if let Some(line) = &axis.major_gridlines_line {
                 self.writer.xml_start_tag_only("c:majorGridlines");
@@ -3898,7 +4689,7 @@ impl Chart {
     }
 
     // Write the <c:minorGridlines> element.
-    fn write_minor_gridlines(&mut self, axis: ChartAxis) {
+    fn write_minor_gridlines(&mut self, axis: &ChartAxis) {
         if axis.minor_gridlines {
             if let Some(line) = &axis.minor_gridlines_line {
                 self.writer.xml_start_tag_only("c:minorGridlines");
@@ -3990,15 +4781,15 @@ impl Chart {
     }
 
     // Write the <c:majorUnit> element.
-    fn write_major_unit(&mut self, value: String) {
-        let attributes = [("val", value)];
+    fn write_major_unit(&mut self, value: &String) {
+        let attributes = [("val", value.to_string())];
 
         self.writer.xml_empty_tag("c:majorUnit", &attributes);
     }
 
     // Write the <c:minorUnit> element.
-    fn write_minor_unit(&mut self, value: String) {
-        let attributes = [("val", value)];
+    fn write_minor_unit(&mut self, value: &String) {
+        let attributes = [("val", value.to_string())];
 
         self.writer.xml_empty_tag("c:minorUnit", &attributes);
     }
@@ -4044,7 +4835,8 @@ impl Chart {
         self.writer.xml_start_tag_only("c:dispUnitsLbl");
 
         // Write the c:layout element.
-        self.write_layout();
+        let layout = ChartLayout::default();
+        self.write_layout(&layout);
 
         self.writer.xml_end_tag("c:dispUnitsLbl");
     }
@@ -4072,13 +4864,15 @@ impl Chart {
         }
 
         // Write the c:layout element.
-        self.write_layout();
+        self.write_layout(&self.legend.layout.clone());
 
         // Write the c:spPr formatting element.
         self.write_sp_pr(&self.legend.format.clone());
 
         // Write the c:overlay element.
-        self.write_overlay();
+        if self.legend.has_overlay {
+            self.write_overlay();
+        }
 
         // Pie/Doughnut charts set the "rtl" flag to "0" in the legend font even
         // though "0" is implied. To match Excel output we set it if it hasn't
@@ -4128,13 +4922,7 @@ impl Chart {
 
     // Write the <c:overlay> element.
     fn write_overlay(&mut self) {
-        if !self.legend.has_overlay {
-            return;
-        }
-
-        let attributes = [("val", "1")];
-
-        self.writer.xml_empty_tag("c:overlay", &attributes);
+        self.writer.xml_empty_tag("c:overlay", &[("val", "1")]);
     }
 
     // Write the <c:plotVisOnly> element.
@@ -4285,7 +5073,8 @@ impl Chart {
 
                 if write_layout {
                     // Write the c:layout element.
-                    self.write_layout();
+                    let layout = ChartLayout::default();
+                    self.write_layout(&layout);
                 }
 
                 // Write the c:tx element.
@@ -4472,7 +5261,8 @@ impl Chart {
         self.writer.xml_start_tag_only("c:trendlineLbl");
 
         // Write the c:layout element.
-        self.write_layout();
+        let layout = ChartLayout::default();
+        self.write_layout(&layout);
 
         self.write_number_format("General", false);
 
@@ -5398,9 +6188,11 @@ impl Chart {
 
     // Write the <c:overlap> element.
     fn write_overlap(&mut self) {
-        let attributes = [("val", self.overlap.to_string())];
+        if let Some(overlap) = &self.overlap {
+            let attributes = [("val", overlap.to_string())];
 
-        self.writer.xml_empty_tag("c:overlap", &attributes);
+            self.writer.xml_empty_tag("c:overlap", &attributes);
+        }
     }
 
     // Write the <c:smooth> element.
@@ -5432,7 +6224,12 @@ impl Chart {
         self.write_tx_formula(title);
 
         // Write the c:layout element.
-        self.write_layout();
+        self.write_layout(&title.layout);
+
+        // Write the c:overlay element.
+        if title.has_overlay {
+            self.write_overlay();
+        }
 
         if title.format.has_formatting() {
             // Write the c:spPr formatting element.
@@ -5463,7 +6260,12 @@ impl Chart {
         self.write_tx_rich(title);
 
         // Write the c:layout element.
-        self.write_layout();
+        self.write_layout(&title.layout);
+
+        // Write the c:overlay element.
+        if title.has_overlay {
+            self.write_overlay();
+        }
 
         if title.format.has_formatting() {
             // Write the c:spPr element.
@@ -5478,7 +6280,12 @@ impl Chart {
         self.writer.xml_start_tag_only("c:title");
 
         // Write the c:layout element.
-        self.write_layout();
+        self.write_layout(&title.layout);
+
+        // Write the c:overlay element.
+        if title.has_overlay {
+            self.write_overlay();
+        }
 
         // Write the c:spPr element.
         self.write_sp_pr(&title.format.clone());
@@ -5567,13 +6374,11 @@ impl Chart {
 
     // Write the <c:dispBlanksAs> element.
     fn write_disp_blanks_as(&mut self) {
-        if self.show_empty_cells_as == ChartEmptyCells::Gaps {
-            return;
+        if let Some(show_empty_cells) = self.show_empty_cells_as {
+            let attributes = [("val", show_empty_cells.to_string())];
+
+            self.writer.xml_empty_tag("c:dispBlanksAs", &attributes);
         }
-
-        let attributes = [("val", self.show_empty_cells_as.to_string())];
-
-        self.writer.xml_empty_tag("c:dispBlanksAs", &attributes);
     }
 
     // Write the <dispNaAsBlank> element. This is an Excel 16 extension.
@@ -5668,6 +6473,7 @@ impl IntoChartRange for &String {
 ///
 /// - [`ChartLine`]
 /// - [`ChartSolidFill`]
+/// - [`ChartGradientFill`]
 /// - [`ChartPatternFill`]
 ///
 /// In order to pass one of these sub-structs as a parameter you would normally
@@ -5868,7 +6674,7 @@ pub struct ChartSeries {
     pub(crate) custom_data_labels: Vec<ChartDataLabel>,
     pub(crate) points: Vec<ChartPoint>,
     pub(crate) gap: u16,
-    pub(crate) overlap: i8,
+    pub(crate) overlap: Option<i8>,
     pub(crate) invert_if_negative: bool,
     pub(crate) inverted_color: Color,
     pub(crate) trendline: ChartTrendline,
@@ -5876,6 +6682,7 @@ pub struct ChartSeries {
     pub(crate) y_error_bars: Option<ChartErrorBars>,
     pub(crate) delete_from_legend: bool,
     pub(crate) smooth: Option<bool>,
+    pub(crate) secondary_axis: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -5888,17 +6695,14 @@ impl ChartSeries {
     ///
     /// It is used in conjunction with the [`Chart`] struct.
     ///
-    /// A chart series is usually created via the
-    /// [`chart.add_series()`](Chart::add_series) method, see the first example
-    /// below. However, if required you can create a standalone `ChartSeries`
-    /// object and add it to a chart via the
-    /// [`chart.push_series()`](Chart::push_series) method, see the second
-    /// example below.
+    /// A chart series is usually created via the [`Chart::add_series()`]
+    /// method, see the first example below. However, if required you can create
+    /// a standalone `ChartSeries` object and add it to a chart via the
+    /// [`Chart::push_series()`] method, see the second example below.
     ///
     /// # Examples
     ///
-    /// An example of creating a chart series via
-    /// [`chart.add_series()`](Chart::add_series).
+    /// An example of creating a chart series via [`Chart::add_series()`].
     ///
     /// ```
     /// # // This code is available in examples/doc_chart_add_series.rs
@@ -5931,8 +6735,7 @@ impl ChartSeries {
     /// ```
     ///
     /// An example of creating a chart series as a standalone object and then
-    /// adding it to a chart via the [`chart.push_series()`](Chart::add_series)
-    /// method.
+    /// adding it to a chart via the [`Chart::push_series()`] method.
     ///
     /// ```
     /// # // This code is available in examples/doc_chart_push_series.rs
@@ -5983,7 +6786,7 @@ impl ChartSeries {
             points: vec![],
             custom_data_labels: vec![],
             gap: 150,
-            overlap: 0,
+            overlap: None,
             invert_if_negative: false,
             inverted_color: Color::Default,
             trendline: ChartTrendline::new(),
@@ -5991,6 +6794,7 @@ impl ChartSeries {
             y_error_bars: None,
             delete_from_legend: false,
             smooth: None,
+            secondary_axis: false,
         }
     }
 
@@ -6008,7 +6812,7 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `range` - The range property which can be one of two generic types:
+    /// - `range`: The range property which can be one of two generic types:
     ///    - A string with an Excel like range formula such as
     ///      `"Sheet1!$A$1:$A$3"`.
     ///    - A tuple that can be used to create the range programmatically using
@@ -6084,7 +6888,7 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `range` - The range property which can be one of two generic types:
+    /// - `range`: The range property which can be one of two generic types:
     ///    - A string with an Excel like range formula such as
     ///      `"Sheet1!$A$1:$A$3"`.
     ///    - A tuple that can be used to create the range programmatically using
@@ -6157,6 +6961,72 @@ impl ChartSeries {
         self
     }
 
+    /// Plot the chart series on the secondary axis.
+    ///
+    /// It is possible to add a secondary axis of the same type to a chart by
+    /// setting the `secondary_axis` property of the series. See [Chart Secondary
+    /// Axes](crate::chart#secondary-axes)
+    ///
+    ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is off by default.
+    ///
+    /// # Examples
+    ///
+    /// A chart example demonstrating setting a secondary Y axis.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_series_set_secondary_axis.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartLegendPosition, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add the worksheet data that the charts will refer to.
+    /// #     worksheet.write_column(0, 0, [2, 3, 4, 5, 6, 7])?;
+    /// #     worksheet.write_column(0, 1, [10, 40, 50, 20, 10, 50])?;
+    /// #
+    /// #     // Create a new line chart.
+    ///     let mut chart = Chart::new(ChartType::Line);
+    ///
+    ///     // Configure a series that defaults to the primary axis.
+    ///     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+    ///
+    ///     // Configure another series with a secondary axis.
+    ///     chart
+    ///         .add_series()
+    ///         .set_values("Sheet1!$B$1:$B$6")
+    ///         .set_secondary_axis(true);
+    ///
+    ///     // Add some axis labels.
+    ///     chart.y_axis().set_name("Y axis");
+    ///     chart.y2_axis().set_name("Y2 axis");
+    ///
+    ///     // Move the legend to the bottom for clarity.
+    ///     chart.legend().set_position(ChartLegendPosition::Bottom);
+    ///
+    ///     // Add the chart to the worksheet.
+    ///     worksheet.insert_chart_with_offset(0, 2, &chart, 5, 5)?;
+    ///
+    ///     workbook.save("chart.xlsx")?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_series_set_secondary_axis.png">
+    ///
+    pub fn set_secondary_axis(&mut self, enable: bool) -> &mut ChartSeries {
+        self.secondary_axis = enable;
+        self
+    }
+
     /// Add a name for a chart series.
     ///
     /// Set the name for the series. The name is displayed in the formula bar.
@@ -6167,7 +7037,7 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `range` - The range property which can be one of the following generic
+    /// - `range`: The range property which can be one of the following generic
     ///   types:
     ///    - A simple string title.
     ///    - A string with an Excel like range formula such as `"Sheet1!$A$1"`.
@@ -6418,10 +7288,10 @@ impl ChartSeries {
 
     /// Set custom data labels for a data series.
     ///
-    /// The [`set_data_label()`](ChartSeries::set_data_label) sets the data
-    /// label properties for every label in a series but it is occasionally
-    /// required to set separate properties for individual data labels, or set a
-    /// custom display value, or format or hide some of the labels. This can be
+    /// The [`ChartSeries::set_data_label()`] method sets the data label
+    /// properties for every label in a series but it is occasionally required
+    /// to set separate properties for individual data labels, or set a custom
+    /// display value, or format or hide some of the labels. This can be
     /// achieved with the `set_custom_data_labels()` method, see the examples
     /// below.
     ///
@@ -6830,23 +7700,22 @@ impl ChartSeries {
 
     /// Set the colors for points in a chart series.
     ///
-    /// As explained above, in the section on
-    /// [`set_points`](ChartSeries::set_points), the most common use case for
-    /// point formatting is to set the formatting of individual segments of Pie
-    /// charts, or in particular to set the colors of pie segments. For this
-    /// simple use case the [`set_points`](ChartSeries::set_points) method can be
-    /// overly verbose.
+    /// As explained above, in the section on [`ChartSeries::set_points()`], the
+    /// most common use case for point formatting is to set the formatting of
+    /// individual segments of Pie charts, or in particular to set the colors of
+    /// pie segments. For this simple use case the [`ChartSeries::set_points()`]
+    /// method can be overly verbose.
     ///
-    /// As a syntactic shortcut the `set_point_colors()` method allows you to set
-    /// the colors of chart points with a simpler interface.
+    /// As a syntactic shortcut the `set_point_colors()` method allows you to
+    /// set the colors of chart points with a simpler interface.
     ///
     /// Compare the example below with the previous more general example which
     /// both produce the same result.
     ///
     /// # Parameters
     ///
-    /// `colors`: a slice of [`Color`] enum values or types that will
-    /// convert into [`Color`] via [`IntoColor`].
+    /// `colors`: a slice of [`Color`] enum values or types that will convert
+    /// into [`Color`].
     ///
     ///
     ///
@@ -6891,10 +7760,7 @@ impl ChartSeries {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/chart_set_points.png">
     ///
-    pub fn set_point_colors<T>(&mut self, colors: &[T]) -> &mut ChartSeries
-    where
-        T: IntoColor + Copy,
-    {
+    pub fn set_point_colors(&mut self, colors: &[impl Into<Color> + Copy]) -> &mut ChartSeries {
         self.points = colors
             .iter()
             .map(|color| ChartPoint::new().set_format(ChartSolidFill::new().set_color(*color)))
@@ -7028,7 +7894,7 @@ impl ChartSeries {
     ///
     ///     // Add the chart to the worksheet.
     ///     worksheet.insert_chart(0, 2, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -7075,13 +7941,13 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `overlap`: Overlap percentage of columns in Bar/Column charts. The
-    /// range is -100 <= overlap <= 100 and the default is 0.
+    /// - `overlap`: Overlap percentage of columns in Bar/Column charts. The
+    ///   range is -100 <= overlap <= 100 and the default is 0.
     ///
     /// # Examples
     ///
-    /// an example of setting the chart series gap and overlap. Note that it only
-    /// needs to be applied to one of the series in the chart.
+    /// an example of setting the chart series gap and overlap. Note that it
+    /// only needs to be applied to one of the series in the chart.
     ///
     /// ```
     /// # // This code is available in examples/doc_chart_series_set_overlap.rs
@@ -7129,7 +7995,7 @@ impl ChartSeries {
     ///
     pub fn set_overlap(&mut self, overlap: i8) -> &mut ChartSeries {
         if (-100..=100).contains(&overlap) {
-            self.overlap = overlap;
+            self.overlap = Some(overlap);
         }
         self
     }
@@ -7145,11 +8011,10 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `gap`: Gap percentage of columns in Bar/Column charts. The range is 0
-    /// <= gap <= 500 and the default is 150.
+    /// - `gap`: Gap percentage of columns in Bar/Column charts. The range is 0
+    ///   <= gap <= 500 and the default is 150.
     ///
-    /// See the example for [`series.set_overlap()`](ChartSeries::set_overlap)
-    /// above.
+    /// See the example for [`ChartSeries::set_overlap()`] above.
     ///
     pub fn set_gap(&mut self, gap: u16) -> &mut ChartSeries {
         if gap <= 500 {
@@ -7170,7 +8035,7 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. The default depends on the chart
+    /// - `enable`: Turn the property on/off. The default depends on the chart
     ///   type.
     ///
     pub fn set_smooth(&mut self, enable: bool) -> &mut ChartSeries {
@@ -7185,8 +8050,7 @@ impl ChartSeries {
     ///
     /// The negative values are shown as a white solid fill with a black border.
     /// To set the color of the negative part of the bar/column see
-    /// [`set_invert_if_negative_color()`](ChartSeries::set_invert_if_negative_color)
-    /// below.
+    /// [`ChartSeries::set_invert_if_negative_color()`] below.
     ///
     /// # Examples
     ///
@@ -7244,9 +8108,7 @@ impl ChartSeries {
     /// Set the inverted color for negative values in a column/bar chart series.
     ///
     /// Bar and Column charts in Excel offer a series property called "Invert if
-    /// negative" (see
-    /// [`set_invert_if_negative()`](ChartSeries::set_invert_if_negative)
-    /// above).
+    /// negative" (see [`ChartSeries::set_invert_if_negative()`] above).
     ///
     /// The negative values are usually shown as a white solid fill with a black
     /// border but the `set_invert_if_negative_color()` method can be use to set
@@ -7255,14 +8117,13 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `color` - The inverse color property defined by a [`Color`] enum
-    ///   value.
+    /// - `color`: The inverse color property defined by a [`Color`] enum value.
     ///
     /// # Examples
     ///
-    /// A chart example demonstrating setting the "Invert if negative" property and
-    /// associated color for a chart series. This also requires that you set a solid
-    /// fill color for the series.
+    /// A chart example demonstrating setting the "Invert if negative" property
+    /// and associated color for a chart series. This also requires that you set
+    /// a solid fill color for the series.
     ///
     /// ```
     /// # // This code is available in examples/doc_chart_series_set_invert_if_negative_color.rs
@@ -7305,13 +8166,11 @@ impl ChartSeries {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/chart_series_set_invert_if_negative_color.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_series_set_invert_if_negative_color.png">
     ///
-    pub fn set_invert_if_negative_color<T>(&mut self, color: T) -> &mut ChartSeries
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_invert_if_negative_color(&mut self, color: impl Into<Color>) -> &mut ChartSeries {
+        let color = color.into();
         if color.is_valid() {
             self.invert_if_negative = true;
             self.inverted_color = color;
@@ -7333,7 +8192,7 @@ impl ChartSeries {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -7477,7 +8336,6 @@ impl ChartRange {
     ///
     /// The following example demonstrates creating a new chart range.
     ///
-    ///
     /// ```
     /// # // This code is available in examples/doc_chartrange_new_from_string.rs
     /// #
@@ -7490,40 +8348,68 @@ impl ChartRange {
     /// ```
     ///
     pub fn new_from_string(range_string: &str) -> ChartRange {
-        lazy_static! {
-            static ref CHART_CELL: Regex = Regex::new(r"^=?([^!]+)'?!\$?(\w+)\$?(\d+)").unwrap();
-            static ref CHART_RANGE: Regex =
-                Regex::new(r"^=?([^!]+)'?!\$?(\w+)\$?(\d+):\$?(\w+)\$?(\d+)").unwrap();
-        }
-
+        // Default values. If the string parsing fails these values will remain
+        // the same and it will flag an invalid result.
         let mut sheet_name = "";
         let mut first_row = 0;
         let mut first_col = 0;
         let mut last_row = 0;
         let mut last_col = 0;
 
-        if let Some(caps) = CHART_RANGE.captures(range_string) {
-            sheet_name = caps.get(1).unwrap().as_str();
-            first_row = caps.get(3).unwrap().as_str().parse::<u32>().unwrap() - 1;
-            last_row = caps.get(5).unwrap().as_str().parse::<u32>().unwrap() - 1;
-            first_col = utility::column_name_to_number(caps.get(2).unwrap().as_str());
-            last_col = utility::column_name_to_number(caps.get(4).unwrap().as_str());
-        } else if let Some(caps) = CHART_CELL.captures(range_string) {
-            sheet_name = caps.get(1).unwrap().as_str();
-            first_row = caps.get(3).unwrap().as_str().parse::<u32>().unwrap() - 1;
-            first_col = utility::column_name_to_number(caps.get(2).unwrap().as_str());
-            last_row = first_row;
-            last_col = first_col;
+        // Parse the chart range string into the worksheet name and range parts.
+        if let Some(position) = range_string.find('!') {
+            let range = &range_string[position + 1..].replace('$', "");
+
+            if utility::is_valid_range(range) {
+                sheet_name = &range_string[..position];
+                match range.find(':') {
+                    // Multi-cell range like A1:A5.
+                    Some(position) => {
+                        let first_cell = &range[..position];
+                        let last_cell = &range[position + 1..];
+
+                        let (first_col_string, first_row_string) =
+                            utility::split_cell_reference(first_cell);
+                        let (last_col_string, last_row_string) =
+                            utility::split_cell_reference(last_cell);
+
+                        first_row = first_row_string.parse::<u32>().unwrap_or_default();
+                        first_row = first_row.saturating_sub(1);
+
+                        last_row = last_row_string.parse::<u32>().unwrap_or_default();
+                        last_row = last_row.saturating_sub(1);
+
+                        first_col = utility::column_name_to_number(&first_col_string);
+                        last_col = utility::column_name_to_number(&last_col_string);
+                    }
+                    None => {
+                        // Single-cell range like A1.
+                        let (first_col_string, first_row_string) =
+                            utility::split_cell_reference(range);
+
+                        first_row = first_row_string.parse::<u32>().unwrap_or_default();
+                        first_row = first_row.saturating_sub(1);
+
+                        first_col = utility::column_name_to_number(&first_col_string);
+                        last_row = first_row;
+                        last_col = first_col;
+                    }
+                }
+            }
         }
 
-        let sheet_name: String = if sheet_name.starts_with('\'') && sheet_name.ends_with('\'') {
-            sheet_name[1..sheet_name.len() - 1].to_string()
-        } else {
-            sheet_name.to_string()
-        };
+        // Clean up the sheet name.
+        if sheet_name.starts_with('=') {
+            sheet_name = &sheet_name[1..];
+        }
+
+        // Strip the quotes from quoted sheet names.
+        if sheet_name.starts_with('\'') && sheet_name.ends_with('\'') {
+            sheet_name = &sheet_name[1..sheet_name.len() - 1];
+        }
 
         ChartRange {
-            sheet_name,
+            sheet_name: sheet_name.to_string(),
             first_row,
             first_col,
             last_row,
@@ -7535,7 +8421,29 @@ impl ChartRange {
 
     // Convert the row/col range into a chart range string.
     pub(crate) fn formula(&self) -> String {
+        utility::chart_range(
+            &self.sheet_name,
+            self.first_row,
+            self.first_col,
+            self.last_row,
+            self.last_col,
+        )
+    }
+
+    // Convert the row/col range into an absolute chart range string.
+    pub(crate) fn formula_abs(&self) -> String {
         utility::chart_range_abs(
+            &self.sheet_name,
+            self.first_row,
+            self.first_col,
+            self.last_row,
+            self.last_col,
+        )
+    }
+
+    // Convert the row/col range into a range error string.
+    pub(crate) fn error_range(&self) -> String {
+        utility::chart_error_range(
             &self.sheet_name,
             self.first_row,
             self.first_col,
@@ -7560,7 +8468,7 @@ impl ChartRange {
         !self.sheet_name.is_empty()
     }
 
-    // Get the number of data points in the range.
+    // Get the number of X or Y data points in the range.
     pub(crate) fn number_of_points(&self) -> usize {
         let row_range = (self.last_row - self.first_row + 1) as usize;
         let col_range = (self.last_col - self.first_col + 1) as usize;
@@ -7568,49 +8476,88 @@ impl ChartRange {
         std::cmp::max(row_range, col_range)
     }
 
+    // Get the number of X and Y data points in the range.
+    pub(crate) fn number_of_range_points(&self) -> (usize, usize) {
+        let row_range = (self.last_row - self.first_row + 1) as usize;
+        let col_range = (self.last_col - self.first_col + 1) as usize;
+
+        (row_range, col_range)
+    }
+
+    // Set the start point in a 2D range. This is used to start incremental
+    // ranges, see below.
+    pub(crate) fn set_baseline(&mut self, row_order: bool) {
+        if row_order {
+            self.last_row = self.first_row;
+        } else {
+            self.last_col = self.first_col;
+        }
+    }
+
+    // Increment a 1D slice in a 2D range. Used to generate sequential cell
+    // ranges.
+    pub(crate) fn increment(&mut self, row_order: bool) {
+        if row_order {
+            self.first_row += 1;
+            self.last_row = self.first_row;
+        } else {
+            self.first_col += 1;
+            self.last_col = self.first_col;
+        }
+    }
+
     // Check that the row/column values in the range are valid.
     pub(crate) fn validate(&self) -> Result<(), XlsxError> {
-        let range = self.formula();
+        let range = self.error_range();
 
-        let error_message = format!("Sheet name in chart series range: {range}");
+        let error_message = format!("Sheet name error for range: '{range}'");
         utility::validate_sheetname(&self.sheet_name, &error_message)?;
 
         if self.first_row > self.last_row {
             return Err(XlsxError::ChartError(format!(
-                "Chart series range '{range}' has a first row greater than the last row"
+                "Range '{range}' has a first row '{}' greater than the last row '{}'",
+                self.first_row, self.last_row
             )));
         }
 
         if self.first_col > self.last_col {
             return Err(XlsxError::ChartError(format!(
-                "Chart series range '{range}' has a first column greater than the last column"
+                "Range '{range}' has a first column '{}' greater than the last column '{}'",
+                self.first_col, self.last_col
             )));
         }
 
         if self.first_row >= ROW_MAX || self.last_row >= ROW_MAX {
             return Err(XlsxError::ChartError(format!(
-                "Chart series range '{range}' has a first row greater than Excel limit of 1048576"
+                "Range '{range}' has a row '{}/{}' greater than Excel limit of 1048576",
+                self.first_row, self.last_row
             )));
         }
 
         if self.first_col >= COL_MAX || self.last_col >= COL_MAX {
-            return Err(XlsxError::ChartError(
-                format!("Chart series range '{range}' has a first column greater than Excel limit of XFD/16384"),
-            ));
+            return Err(XlsxError::ChartError(format!(
+                "Range '{range}' has a column '{}/{}' greater than Excel limit of XFD/16384",
+                self.first_col, self.last_col
+            )));
         }
 
         Ok(())
     }
 
+    // Check that the range is 1D.
+    pub(crate) fn is_1d(&self) -> bool {
+        self.last_row - self.first_row == 0 || self.last_col - self.first_col == 0
+    }
+
     /// Add data to the `ChartRange` cache.
     ///
     /// This method is only used to populate the chart data caches in test code.
-    /// The library reads and populates the cache automatically.
+    /// Outside of tests the library reads and populates the cache automatically.
     ///
     /// # Parameters
     ///
-    /// * `data` - Array of string data to populate the chart cache.
-    /// * `is_numeric` - The chart cache date is numeric.
+    /// - `data`: Array of string data to populate the chart cache.
+    /// - `is_numeric`: The chart cache date is numeric.
     ///
     #[allow(dead_code)] // This is only used for internal testing.
     pub(crate) fn set_cache(
@@ -7810,6 +8757,8 @@ pub struct ChartTitle {
     hidden: bool,
     is_horizontal: bool,
     ignore_rich_para: bool,
+    layout: ChartLayout,
+    has_overlay: bool,
 }
 
 impl ChartTitle {
@@ -7822,6 +8771,8 @@ impl ChartTitle {
             hidden: false,
             is_horizontal: false,
             ignore_rich_para: false,
+            layout: ChartLayout::default(),
+            has_overlay: false,
         }
     }
 
@@ -7835,7 +8786,7 @@ impl ChartTitle {
     ///
     /// # Parameters
     ///
-    /// * `range` - The range property which can be one of the following generic
+    /// - `range`: The range property which can be one of the following generic
     ///   types:
     ///    - A simple string title.
     ///    - A string with an Excel like range formula such as `"Sheet1!$A$1"`.
@@ -7891,10 +8842,10 @@ impl ChartTitle {
     {
         self.range = name.new_chart_range();
 
-        // If the name didn't convert to a populated range then it probably just
-        // a simple string title.
+        // If the name didn't convert to a populated range then it is probably
+        // just a simple string title.
         if !self.range.has_data() {
-            self.name = self.range.range_string.clone();
+            self.name.clone_from(&self.range.range_string);
         }
 
         self
@@ -8067,6 +9018,34 @@ impl ChartTitle {
         }
 
         self.font = font;
+        self
+    }
+
+    /// Set the manual position of the chart title.
+    ///
+    /// This method is used to simulate manual positioning of a chart title. See
+    /// [`ChartLayout`] for more details.
+    ///
+    /// Note, to position the title over the plot area of the chart you will
+    /// also need to set the [`ChartTitle::set_overlay()`] property.
+    ///
+    /// # Parameters
+    ///
+    /// - `layout`: A [`ChartLayout`] struct reference.
+    ///
+    pub fn set_layout(&mut self, layout: &ChartLayout) -> &mut ChartTitle {
+        self.layout = layout.clone();
+        self
+    }
+
+    /// Set the chart title as overlaid on the chart.
+    ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is off by default.
+    ///
+    pub fn set_overlay(&mut self, enable: bool) -> &mut ChartTitle {
+        self.has_overlay = enable;
         self
     }
 }
@@ -8956,7 +9935,7 @@ impl ChartDataLabel {
     ///
     /// # Parameters
     ///
-    /// * `num_format` - The number format property.
+    /// - `num_format`: The number format property.
     ///
     ///
     /// # Examples
@@ -9028,10 +10007,9 @@ impl ChartDataLabel {
 
     /// Display the point Y value on the data label.
     ///
-    /// This is the same as [`show_value()`](ChartDataLabel::show_value) except
-    /// it is named differently in Excel for Scatter charts. The methods are
-    /// equivalent
-    /// and either one can be used for any chart type.
+    /// This is the same as [`ChartDataLabel::show_value()`] except it is named
+    /// differently in Excel for Scatter charts. The methods are equivalent and
+    /// either one can be used for any chart type.
     ///
     pub fn show_y_value(&mut self) -> &mut ChartDataLabel {
         self.show_value()
@@ -9039,8 +10017,7 @@ impl ChartDataLabel {
 
     /// Display the point X value on the data label.
     ///
-    /// This is the same as
-    /// [`show_category_name()`](ChartDataLabel::show_category_name) except it
+    /// This is the same as [`ChartDataLabel::show_category_name()`] except it
     /// is named differently in Excel for Scatter charts. The methods are
     /// equivalent and either one can be used for any chart type.
     ///
@@ -9051,12 +10028,12 @@ impl ChartDataLabel {
     /// Set the value for a custom data label.
     ///
     /// This method sets the value of a custom data label used with the
-    /// [`set_custom_data_labels()`](ChartSeries::set_custom_data_labels)
-    /// method. It is ignored if used with a series [`ChartDataLabel`].
+    /// [`ChartSeries::set_custom_data_labels()`] method. It is ignored if used
+    /// with a series [`ChartDataLabel`].
     ///
     /// # Parameters
     ///
-    /// * `value` - A [`IntoChartRange`] property which can be one of the
+    /// - `value`: A [`IntoChartRange`] property which can be one of the
     ///   following generic types:
     ///    - A simple string title.
     ///    - A string with an Excel like range formula such as `"Sheet1!$A$1"`.
@@ -9204,8 +10181,8 @@ impl ChartDataLabel {
     /// Set a custom data label as hidden.
     ///
     /// This method hides a custom data label used with the
-    /// [`set_custom_data_labels()`](ChartSeries::set_custom_data_labels)
-    /// method. It is ignored if used with a series [`ChartDataLabel`].
+    /// [`ChartSeries::set_custom_data_labels()`] method. It is ignored if used
+    /// with a series [`ChartDataLabel`].
     ///
     /// # Examples
     ///
@@ -9278,8 +10255,7 @@ impl ChartDataLabel {
     ///
     /// Converts a `&ChartDataLabel` reference into a [`ChartDataLabel`] so that
     /// it can be used as a custom data label with the
-    /// [`set_custom_data_labels()`](ChartSeries::set_custom_data_labels)
-    /// method.
+    /// [`ChartSeries::set_custom_data_labels()`] method.
     ///
     /// This is a syntactic shortcut for a simple `clone()`.
     ///
@@ -9289,14 +10265,14 @@ impl ChartDataLabel {
 
     // Check if the data label is in the default/unmodified condition.
     pub(crate) fn is_default(&self) -> bool {
-        lazy_static! {
-            static ref DEFAULT_STATE: ChartDataLabel = ChartDataLabel::default();
-        };
-        self == &*DEFAULT_STATE
+        static DEFAULT_STATE: OnceLock<ChartDataLabel> = OnceLock::new();
+        let default_state = DEFAULT_STATE.get_or_init(ChartDataLabel::default);
+
+        self == default_state
     }
 }
 
-/// The `ChartMarkerType` enum defines the [`Chart`] data label positions.
+/// The `ChartDataLabelPosition` enum defines the [`Chart`] data label positions.
 ///
 /// In Excel the available data label positions vary for different chart
 /// types. The available, and default, positions are:
@@ -9630,7 +10606,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `range` - The range property which can be one of the following generic
+    /// - `range`: The range property which can be one of the following generic
     ///   types:
     ///    - A simple string title.
     ///    - A string with an Excel like range formula such as `"Sheet1!$A$1"`.
@@ -9703,9 +10679,9 @@ impl ChartAxis {
     /// See [`ChartFont`] for full details.
     ///
     ///
-    /// The name font property for an axis represents the font for
-    /// the axis title. To set the font for the category or value numbers use
-    /// the [`set_font()`](ChartAxis::set_font) method.
+    /// The name font property for an axis represents the font for the axis
+    /// title. To set the font for the category or value numbers use the
+    /// [`ChartAxis::set_font()`] method.
     ///
     /// # Parameters
     ///
@@ -9761,7 +10737,8 @@ impl ChartAxis {
     ///
     /// Output file:
     ///
-    /// <img src="https://rustxlsxwriter.github.io/images/chart_axis_set_name_font.png">
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_axis_set_name_font.png">
     ///
     pub fn set_name_font(&mut self, font: &ChartFont) -> &mut ChartAxis {
         self.title.set_font(font);
@@ -9814,7 +10791,7 @@ impl ChartAxis {
     ///
     /// The font property for an axis represents the font for the category or
     /// value names or numbers. To set the font for the axis name/title use the
-    /// [`set_name_font()`](ChartAxis::set_name_font) method.
+    /// [`ChartAxis::set_name_font()`] method.
     ///
     /// # Parameters
     ///
@@ -9906,7 +10883,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `num_format` - The number format property.
+    /// - `num_format`: The number format property.
     ///
     /// # Examples
     ///
@@ -9981,7 +10958,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -10026,7 +11003,7 @@ impl ChartAxis {
     ///
     ///     // Add the chart to the worksheet.
     ///     worksheet.insert_chart(0, 3, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -10056,7 +11033,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_text_axis(&mut self, enable: bool) -> &mut ChartAxis {
         self.set_automatic_axis(enable);
@@ -10067,7 +11044,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_automatic_axis(&mut self, enable: bool) -> &mut ChartAxis {
         self.automatic = enable;
@@ -10087,7 +11064,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `crossing` - A [`ChartAxisCrossing`] enum value.
+    /// - `crossing`: A [`ChartAxisCrossing`] enum value.
     ///
     /// # Examples
     ///
@@ -10137,7 +11114,7 @@ impl ChartAxis {
     ///
     ///     // Add the chart to the worksheet.
     ///     worksheet.insert_chart(0, 2, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -10372,7 +11349,7 @@ impl ChartAxis {
     ///
     ///     // Add the chart to the worksheet.
     ///     worksheet.insert_chart(0, 3, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -10523,7 +11500,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `unit` - A [`ChartAxisDateUnitType`] enum value.
+    /// - `unit`: A [`ChartAxisDateUnitType`] enum value.
     ///
     /// # Examples
     ///
@@ -10561,7 +11538,7 @@ impl ChartAxis {
     ///
     ///     // Add the chart to the worksheet.
     ///     worksheet.insert_chart(0, 2, &chart)?;
-    ///
+    /// #
     /// #     // Save the file.
     /// #     workbook.save("chart.xlsx")?;
     /// #
@@ -10583,7 +11560,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off.
+    /// - `enable`: Turn the property on/off.
     ///
     pub fn set_display_units_visible(&mut self, enable: bool) -> &mut ChartAxis {
         self.display_units_visible = enable;
@@ -10594,7 +11571,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `unit` - A [`ChartAxisDateUnitType`] enum value.
+    /// - `unit`: A [`ChartAxisDateUnitType`] enum value.
     ///
     pub fn set_major_unit_date_type(&mut self, unit_type: ChartAxisDateUnitType) -> &mut ChartAxis {
         self.major_unit_date_type = Some(unit_type);
@@ -10605,7 +11582,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `unit` - A [`ChartAxisDateUnitType`] enum value.
+    /// - `unit`: A [`ChartAxisDateUnitType`] enum value.
     ///
     pub fn set_minor_unit_date_type(&mut self, unit_type: ChartAxisDateUnitType) -> &mut ChartAxis {
         self.minor_unit_date_type = Some(unit_type);
@@ -10616,7 +11593,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `unit` - A [`ChartAxisDateUnitType`] enum value.
+    /// - `unit`: A [`ChartAxisDateUnitType`] enum value.
     ///
     pub fn set_label_alignment(&mut self, alignment: ChartAxisLabelAlignment) -> &mut ChartAxis {
         self.label_alignment = alignment;
@@ -10630,7 +11607,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default for X axes.
+    /// - `enable`: Turn the property on/off. It is off by default for X axes.
     ///
     /// # Examples
     ///
@@ -10691,7 +11668,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -10752,7 +11729,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `line` - A [`ChartLine`] struct reference.
+    /// - `line`: A [`ChartLine`] struct reference.
     ///
     /// # Examples
     ///
@@ -10815,7 +11792,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `line` - A [`ChartLine`] struct reference.
+    /// - `line`: A [`ChartLine`] struct reference.
     ///
     /// # Examples
     ///
@@ -10878,7 +11855,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `position` - A [`ChartAxisLabelPosition`] enum value.
+    /// - `position`: A [`ChartAxisLabelPosition`] enum value.
     ///
     /// # Examples
     ///
@@ -10950,7 +11927,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. Its default value depends on the
+    /// - `enable`: Turn the property on/off. Its default value depends on the
     ///   chart type.
     ///
     /// # Examples
@@ -11019,7 +11996,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `interval` - The interval for the category labels. The default is 1.
+    /// - `interval`: The interval for the category labels. The default is 1.
     ///
     /// # Examples
     ///
@@ -11084,7 +12061,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `interval` - The interval for the category ticks. The default is 1.
+    /// - `interval`: The interval for the category ticks. The default is 1.
     ///
     /// # Examples
     ///
@@ -11148,7 +12125,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `tick_type` - a [`ChartAxisTickType`] enum value.
+    /// - `tick_type`: a [`ChartAxisTickType`] enum value.
     ///
     /// # Examples
     ///
@@ -11209,12 +12186,12 @@ impl ChartAxis {
 
     /// Set the type of minor tick for the axis.
     ///
-    /// See [`set_major_tick_type()`](ChartAxis::set_major_tick_type) above for
-    /// an explanation and example.
+    /// See [`ChartAxis::set_major_tick_type()`] above for an explanation and
+    /// example.
     ///
     /// # Parameters
     ///
-    /// * `tick_type` - a [`ChartAxisTickType`] enum value.
+    /// - `tick_type`: a [`ChartAxisTickType`] enum value.
     ///
     pub fn set_minor_tick_type(&mut self, tick_type: ChartAxisTickType) -> &mut ChartAxis {
         self.minor_tick_type = Some(tick_type);
@@ -11232,7 +12209,7 @@ impl ChartAxis {
     ///
     /// # Parameters
     ///
-    /// * `base` - The logarithm base. Should be >= 2.
+    /// - `base`: The logarithm base. Should be >= 2.
     ///
     /// # Examples
     ///
@@ -11292,6 +12269,10 @@ impl ChartAxis {
     ///
     /// Hide the number or label section of the chart axis.
     ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off.
+    ///
     /// # Examples
     ///
     /// A chart example demonstrating hiding the chart axes.
@@ -11319,8 +12300,8 @@ impl ChartAxis {
     ///     chart.add_series().set_values("Sheet1!$A$1:$A$5");
     ///
     ///     // Hide both axes.
-    ///     chart.x_axis().set_hidden();
-    ///     chart.y_axis().set_hidden();
+    ///     chart.x_axis().set_hidden(true);
+    ///     chart.y_axis().set_hidden(true);
     ///
     ///     // Hide legend for clarity.
     ///     chart.legend().set_hidden();
@@ -11339,8 +12320,22 @@ impl ChartAxis {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/chart_axis_set_hidden.png">
     ///
-    pub fn set_hidden(&mut self) -> &mut ChartAxis {
-        self.is_hidden = true;
+    pub fn set_hidden(&mut self, enable: bool) -> &mut ChartAxis {
+        self.is_hidden = enable;
+        self
+    }
+
+    /// Set the manual position of the chart axis label.
+    ///
+    /// This method is used to simulate manual positioning of a chart axis
+    /// label. See [`ChartLayout`] for more details.
+    ///
+    /// # Parameters
+    ///
+    /// - `layout`: A [`ChartLayout`] struct reference.
+    ///
+    pub fn set_label_layout(&mut self, layout: &ChartLayout) -> &mut ChartAxis {
+        self.title.layout = layout.clone();
         self
     }
 }
@@ -11474,9 +12469,8 @@ impl fmt::Display for ChartAxisLabelPosition {
 /// - Outside only
 /// - Cross - inside and outside
 ///
-/// Used in conjunction with
-/// [`set_major_tick_type()`](ChartAxis::set_major_tick_type) and
-/// [`set_minor_tick_type()`](ChartAxis::set_minor_tick_type).
+/// Used in conjunction with [`ChartAxis::set_major_tick_type()`] and
+/// [`ChartAxis::set_minor_tick_type()`].
 ///
 /// # Examples
 ///
@@ -11669,7 +12663,7 @@ impl fmt::Display for ChartAxisDisplayUnitType {
 /// of the series in the chart.
 ///
 /// `ChartLegend` can be used to configure properties of the chart legend and is
-/// usually obtained via the [`chart.legend()`][Chart::legend] method.
+/// usually obtained via the [`Chart::legend()`][Chart::legend] method.
 ///
 /// It is used in conjunction with the [`Chart`] struct.
 ///
@@ -11727,6 +12721,7 @@ pub struct ChartLegend {
     pub(crate) format: ChartFormat,
     pub(crate) font: Option<ChartFont>,
     deleted_entries: Vec<usize>,
+    layout: ChartLayout,
 }
 
 impl ChartLegend {
@@ -11738,6 +12733,7 @@ impl ChartLegend {
             format: ChartFormat::default(),
             font: None,
             deleted_entries: vec![],
+            layout: ChartLayout::default(),
         }
     }
 
@@ -11866,6 +12862,10 @@ impl ChartLegend {
     ///
     /// This can be turned off using the `set_overlay()` method.
     ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is off by default.
+    ///
     /// # Examples
     ///
     /// An example of overlaying the chart legend on the plot area.
@@ -11894,7 +12894,7 @@ impl ChartLegend {
     /// #     chart.legend().set_position(ChartLegendPosition::Top);
     /// #
     /// #     // Overlay the chart legend on the plot area.
-    /// #     chart.legend().set_overlay();
+    /// #     chart.legend().set_overlay(true);
     /// #
     /// #     // Add the chart to the worksheet.
     /// #     worksheet.insert_chart(0, 2, &chart)?;
@@ -11910,8 +12910,29 @@ impl ChartLegend {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/chart_legend_set_overlay.png">
     ///
-    pub fn set_overlay(&mut self) -> &mut ChartLegend {
-        self.has_overlay = true;
+    pub fn set_overlay(&mut self, enable: bool) -> &mut ChartLegend {
+        self.has_overlay = enable;
+        self
+    }
+
+    /// Set the manual position of the chart axis legend.
+    ///
+    /// This method is used to simulate manual positioning of a chart legend.
+    /// See [`ChartLayout`] for more details.
+    ///
+    /// Note, to position the title over the plot area of the chart you will
+    /// also need to set the [`ChartLegend::set_overlay()`] property.
+    ///
+    /// # Parameters
+    ///
+    /// - `layout`: A [`ChartLayout`] struct reference.
+    ///
+    pub fn set_layout(&mut self, layout: &ChartLayout) -> &mut ChartLegend {
+        let mut layout = layout.clone();
+        layout.has_dimensions = true;
+
+        self.layout = layout;
+
         self
     }
 
@@ -12034,7 +13055,7 @@ impl ChartLegend {
     ///
     /// # Parameters
     ///
-    /// * `entries` - A slice ref of [`usize`] zero-indexed indices of the
+    /// - `entries`: A slice ref of [`usize`] zero-indexed indices of the
     ///   series names to be hidden.
     ///
     /// # Examples
@@ -12108,9 +13129,8 @@ impl ChartLegend {
 ///
 /// <img src="https://rustxlsxwriter.github.io/images/legend_position.png">
 ///
-/// These positions can be set using the
-/// [`chart.legend().set_position()`](ChartLegend::set_position) method and the
-/// `ChartLegendPosition` enum values.
+/// These positions can be set using the [`ChartLegend::set_position()`] method
+/// and the `ChartLegendPosition` enum values.
 ///
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ChartLegendPosition {
@@ -12147,8 +13167,7 @@ impl fmt::Display for ChartLegendPosition {
 /// This enum defines the Excel chart options for handling empty cell in the
 /// chart data ranges.
 ///
-/// These options can be set using the
-/// [`chart.show_empty_cells_as()`](Chart::show_empty_cells_as) method.
+/// These options can be set using the [`Chart::show_empty_cells_as()`] method.
 ///
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ChartEmptyCells {
@@ -12322,7 +13341,7 @@ impl ChartFormat {
     ///
     /// # Parameters
     ///
-    /// * `line` - A [`ChartLine`] struct reference.
+    /// - `line`: A [`ChartLine`] struct reference.
     ///
     pub fn set_line(&mut self, line: &ChartLine) -> &mut ChartFormat {
         self.line = Some(line.clone());
@@ -12338,7 +13357,7 @@ impl ChartFormat {
     ///
     /// # Parameters
     ///
-    /// * `line` - A [`ChartLine`] struct reference.
+    /// - `line`: A [`ChartLine`] struct reference.
     ///
     /// # Examples
     ///
@@ -12579,7 +13598,7 @@ impl ChartFormat {
     ///
     /// # Parameters
     ///
-    /// * `fill` - A [`ChartSolidFill`] struct reference.
+    /// - `fill`: A [`ChartSolidFill`] struct reference.
     ///
     /// # Examples
     ///
@@ -12643,7 +13662,7 @@ impl ChartFormat {
     ///
     /// # Parameters
     ///
-    /// * `fill` - A [`ChartPatternFill`] struct reference.
+    /// - `fill`: A [`ChartPatternFill`] struct reference.
     ///
     /// # Examples
     ///
@@ -12711,7 +13730,7 @@ impl ChartFormat {
     ///
     /// # Parameters
     ///
-    /// * `fill` - A [`ChartGradientFill`] struct reference.
+    /// - `fill`: A [`ChartGradientFill`] struct reference.
     ///
     /// # Examples
     ///
@@ -12879,8 +13898,8 @@ impl ChartLine {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or
+    ///   a type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -12926,11 +13945,8 @@ impl ChartLine {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/chart_line_set_color.png">
     ///
-    pub fn set_color<T>(&mut self, color: T) -> &mut ChartLine
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_color(&mut self, color: impl Into<Color>) -> &mut ChartLine {
+        let color = color.into();
         if color.is_valid() {
             self.color = color;
         }
@@ -12942,9 +13958,9 @@ impl ChartLine {
     ///
     /// # Parameters
     ///
-    /// * `width` - The width should be specified in increments of 0.25 of a
-    /// point as in Excel. The width can be an number type that convert [`Into`]
-    /// [`f64`].
+    /// - `width`: The width should be specified in increments of 0.25 of a
+    ///   point as in Excel. The width can be an number type that convert
+    ///   [`Into`] [`f64`].
     ///
     /// # Examples
     ///
@@ -13007,7 +14023,7 @@ impl ChartLine {
     ///
     /// # Parameters
     ///
-    /// * `dash_type` - A [`ChartLineDashType`] enum value.
+    /// - `dash_type`: A [`ChartLineDashType`] enum value.
     ///
     /// # Examples
     ///
@@ -13071,7 +14087,7 @@ impl ChartLine {
     ///
     /// # Parameters
     ///
-    /// * `transparency` - The color transparency in the range 0 <= transparency
+    /// - `transparency`: The color transparency in the range 0 <= transparency
     ///   <= 100. The default value is 0.
     ///
     /// # Examples
@@ -13136,7 +14152,7 @@ impl ChartLine {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off (not hidden) by
+    /// - `enable`: Turn the property on/off. It is off (not hidden) by
     ///   default.
     ///
     pub fn set_hidden(&mut self, enable: bool) -> &mut ChartLine {
@@ -13299,8 +14315,8 @@ impl ChartSolidFill {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or
+    ///   a type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -13346,11 +14362,8 @@ impl ChartSolidFill {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/chart_solid_fill_set_color.png">
     ///
-    pub fn set_color<T>(&mut self, color: T) -> &mut ChartSolidFill
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_color(&mut self, color: impl Into<Color>) -> &mut ChartSolidFill {
+        let color = color.into();
         if color.is_valid() {
             self.color = color;
         }
@@ -13361,11 +14374,11 @@ impl ChartSolidFill {
     /// Set the transparency of a solid fill.
     ///
     /// Set the transparency of a solid fill color for a Chart element. You must
-    /// also specify a line color in order for the transparency to be applied.
+    /// also specify a fill color in order for the transparency to be applied.
     ///
     /// # Parameters
     ///
-    /// * `transparency` - The color transparency in the range 0 <= transparency
+    /// - `transparency`: The color transparency in the range 0 <= transparency
     ///   <= 100. The default value is 0.
     ///
     /// # Examples
@@ -13517,7 +14530,7 @@ impl ChartPatternFill {
     ///
     /// # Parameters
     ///
-    /// * `pattern` - The pattern property defined by a [`ChartPatternFillType`] enum value.
+    /// - `pattern`: The pattern property defined by a [`ChartPatternFillType`] enum value.
     ///
     ///
     /// # Examples
@@ -13579,8 +14592,8 @@ impl ChartPatternFill {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or
+    ///   a type that can convert [`Into`] a [`Color`].
     ///
     /// # Examples
     ///
@@ -13636,11 +14649,8 @@ impl ChartPatternFill {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/chart_pattern_fill.png">
     ///
-    pub fn set_background_color<T>(&mut self, color: T) -> &mut ChartPatternFill
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_background_color(&mut self, color: impl Into<Color>) -> &mut ChartPatternFill {
+        let color = color.into();
         if color.is_valid() {
             self.background_color = color;
         }
@@ -13654,14 +14664,11 @@ impl ChartPatternFill {
     ///
     /// # Parameters
     ///
-    /// * `color` - The color property defined by a [`Color`] enum value or
-    ///   a type that implements the [`IntoColor`] trait.
+    /// - `color`: The color property defined by a [`Color`] enum value or
+    ///   a type that can convert [`Into`] a [`Color`].
     ///
-    pub fn set_foreground_color<T>(&mut self, color: T) -> &mut ChartPatternFill
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_foreground_color(&mut self, color: impl Into<Color>) -> &mut ChartPatternFill {
+        let color = color.into();
         if color.is_valid() {
             self.foreground_color = color;
         }
@@ -14257,7 +15264,7 @@ impl ChartFont {
     ///
     /// # Parameters
     ///
-    /// * `color` - The font color property defined by a [`Color`] enum
+    /// - `color`: The font color property defined by a [`Color`] enum
     ///   value.
     ///
     /// # Examples
@@ -14307,11 +15314,8 @@ impl ChartFont {
     ///
     /// <img src="https://rustxlsxwriter.github.io/images/chart_font_set_color.png">
     ///
-    pub fn set_color<T>(&mut self, color: T) -> &mut ChartFont
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn set_color(&mut self, color: impl Into<Color>) -> &mut ChartFont {
+        let color = color.into();
         if color.is_valid() {
             self.color = color;
         }
@@ -14325,7 +15329,7 @@ impl ChartFont {
     ///
     /// # Parameters
     ///
-    /// * `font_name` - The font name property.
+    /// - `font_name`: The font name property.
     ///
     ///
     /// # Examples
@@ -14386,7 +15390,7 @@ impl ChartFont {
     ///
     /// # Parameters
     ///
-    /// * `font_size` - The font size property.
+    /// - `font_size`: The font size property.
     ///
     /// # Examples
     ///
@@ -14451,7 +15455,7 @@ impl ChartFont {
     ///
     /// # Parameters
     ///
-    /// * `rotation` - The rotation angle in the range `-90 <= rotation <= 90`.
+    /// - `rotation`: The rotation angle in the range `-90 <= rotation <= 90`.
     ///   Two special case values are supported:
     ///   - `270`: Stacked text, where the text runs from top to bottom.
     ///   - `271`: A special variant of stacked text for East Asian fonts.
@@ -14548,7 +15552,7 @@ impl ChartFont {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn set_right_to_left(&mut self, enable: bool) -> &mut ChartFont {
         self.right_to_left = Some(enable);
@@ -14562,7 +15566,7 @@ impl ChartFont {
     ///
     /// # Parameters
     ///
-    /// * `family` - The font family property.
+    /// - `family`: The font family property.
     ///
     pub fn set_pitch_family(&mut self, family: u8) -> &mut ChartFont {
         self.pitch_family = family;
@@ -14576,10 +15580,25 @@ impl ChartFont {
     ///
     /// # Parameters
     ///
-    /// * `character_set` - The font character set property.
+    /// - `character_set`: The font character set property.
     ///
     pub fn set_character_set(&mut self, character_set: u8) -> &mut ChartFont {
         self.character_set = character_set;
+        self
+    }
+
+    #[doc(hidden)]
+    /// Set the default bold property for the font.
+    ///
+    /// The is mainly only required for testing to ensure strict compliance with
+    /// Excel's output.
+    ///
+    /// # Parameters
+    ///
+    /// - `enable`: Turn the property on/off. It is off by default.
+    ///
+    pub fn set_default_bold(&mut self, enable: bool) -> &mut ChartFont {
+        self.has_default_bold = enable;
         self
     }
 
@@ -14698,7 +15717,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `trend` - A [`ChartTrendlineType`] enum reference.
+    /// - `trend`: A [`ChartTrendlineType`] enum reference.
     ///
     /// # Examples
     ///
@@ -14850,8 +15869,8 @@ impl ChartTrendline {
     /// Set the formatting properties for a chart trendline label via a
     /// [`ChartFormat`] object or a sub struct that implements
     /// [`IntoChartFormat`]. The label is displayed when you use the
-    /// [`display_equation()`](ChartTrendline::display_equation) or
-    /// [`display_r_squared()`](ChartTrendline::display_equation) methods.
+    /// [`ChartTrendline::display_equation()`] or
+    /// [`ChartTrendline::display_r_squared()`] methods.
     ///
     /// The formatting that can be applied via a [`ChartFormat`] object are:
     ///
@@ -14943,8 +15962,8 @@ impl ChartTrendline {
     ///
     /// Set the font properties of a chart trendline label using a [`ChartFont`]
     /// reference. The label is displayed when you use the
-    /// [`display_equation()`](ChartTrendline::display_equation) or
-    /// [`display_r_squared()`](ChartTrendline::display_equation) methods.
+    /// [`ChartTrendline::display_equation()`] or
+    /// [`ChartTrendline::display_r_squared()`] methods.
     ///
     /// Example font properties that can be set are:
     ///
@@ -14975,7 +15994,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `name` - The custom string to name the trendline in the chart legend.
+    /// - `name`: The custom string to name the trendline in the chart legend.
     ///
     /// # Examples
     ///
@@ -15040,7 +16059,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `period` - The forward period value.
+    /// - `period`: The forward period value.
     ///
     pub fn set_forward_period(&mut self, period: impl Into<f64>) -> &mut ChartTrendline {
         self.forward_period = period.into();
@@ -15053,7 +16072,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `period` - The backward period value.
+    /// - `period`: The backward period value.
     ///
     pub fn set_backward_period(&mut self, period: impl Into<f64>) -> &mut ChartTrendline {
         self.backward_period = period.into();
@@ -15067,7 +16086,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn display_equation(&mut self, enable: bool) -> &mut ChartTrendline {
         self.display_equation = enable;
@@ -15088,7 +16107,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn display_r_squared(&mut self, enable: bool) -> &mut ChartTrendline {
         self.display_r_squared = enable;
@@ -15101,7 +16120,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `intercept` - The intercept with the Y-axis.
+    /// - `intercept`: The intercept with the Y-axis.
     ///
     pub fn set_intercept(&mut self, intercept: impl Into<f64>) -> &mut ChartTrendline {
         self.intercept = Some(intercept.into());
@@ -15120,7 +16139,7 @@ impl ChartTrendline {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     /// # Examples
     ///
@@ -15542,7 +16561,7 @@ impl ChartGradientFill {
     ///
     /// # Parameters
     ///
-    /// * `angle` - The angle of the linear gradient fill in the range `0 <=
+    /// - `angle`: The angle of the linear gradient fill in the range `0 <=
     ///   angle < 360`. The default angle is 90 degrees.
     ///
     pub fn set_angle(&mut self, angle: u16) -> &mut ChartGradientFill {
@@ -15636,9 +16655,9 @@ impl ChartGradientStop {
     ///
     /// # Parameters
     ///
-    /// * `color` - The gradient stop color property defined by a [`Color`] enum
+    /// - `color`: The gradient stop color property defined by a [`Color`] enum
     ///   value.
-    /// * `position` - The gradient stop position in the range 0-100.
+    /// - `position`: The gradient stop position in the range 0-100.
     ///
     /// # Examples
     ///
@@ -15658,11 +16677,8 @@ impl ChartGradientStop {
     ///     ];
     /// # }
     /// ```
-    pub fn new<T>(color: T, position: u8) -> ChartGradientStop
-    where
-        T: IntoColor,
-    {
-        let color = color.new_color();
+    pub fn new(color: impl Into<Color>, position: u8) -> ChartGradientStop {
+        let color = color.into();
 
         // Check and warn but don't raise error since this is too deeply nested.
         // It will be rechecked and rejected at use.
@@ -15816,7 +16832,7 @@ impl ChartErrorBars {
     ///
     /// # Parameters
     ///
-    /// * `error_type` - A [`ChartErrorBarsType`] enum reference.
+    /// - `error_type`: A [`ChartErrorBarsType`] enum reference.
     ///
     pub fn set_type(&mut self, error_type: ChartErrorBarsType) -> &mut ChartErrorBars {
         match &error_type {
@@ -15859,7 +16875,7 @@ impl ChartErrorBars {
     ///
     /// # Parameters
     ///
-    /// * `direction` - A [`ChartErrorBarsDirection`] enum reference.
+    /// - `direction`: A [`ChartErrorBarsDirection`] enum reference.
     ///
     pub fn set_direction(&mut self, direction: ChartErrorBarsDirection) -> &mut ChartErrorBars {
         self.direction = direction;
@@ -15870,7 +16886,7 @@ impl ChartErrorBars {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     pub fn set_end_cap(&mut self, enable: bool) -> &mut ChartErrorBars {
         self.has_end_cap = enable;
@@ -16073,7 +17089,7 @@ impl ChartDataTable {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     pub fn show_horizontal_borders(mut self, enable: bool) -> ChartDataTable {
         self.show_horizontal_borders = enable;
@@ -16084,7 +17100,7 @@ impl ChartDataTable {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     pub fn show_vertical_borders(mut self, enable: bool) -> ChartDataTable {
         self.show_vertical_borders = enable;
@@ -16095,7 +17111,7 @@ impl ChartDataTable {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is on by default.
+    /// - `enable`: Turn the property on/off. It is on by default.
     ///
     pub fn show_outline_borders(mut self, enable: bool) -> ChartDataTable {
         self.show_outline_borders = enable;
@@ -16106,7 +17122,7 @@ impl ChartDataTable {
     ///
     /// # Parameters
     ///
-    /// * `enable` - Turn the property on/off. It is off by default.
+    /// - `enable`: Turn the property on/off. It is off by default.
     ///
     pub fn show_legend_keys(mut self, enable: bool) -> ChartDataTable {
         self.show_legend_keys = enable;
@@ -16151,9 +17167,13 @@ impl ChartDataTable {
     ///
     /// - [`ChartFont::set_bold()`]
     /// - [`ChartFont::set_italic()`]
+    /// - [`ChartFont::set_color()`]
     /// - [`ChartFont::set_name()`]
     /// - [`ChartFont::set_size()`]
     /// - [`ChartFont::set_rotation()`]
+    /// - [`ChartFont::set_underline()`]
+    /// - [`ChartFont::set_strikethrough()`]
+    /// - [`ChartFont::set_right_to_left()`]
     ///
     /// See [`ChartFont`] for full details.
     ///
@@ -16319,5 +17339,654 @@ impl fmt::Display for ChartAxisLabelAlignment {
             Self::Right => write!(f, "r"),
             Self::Center => write!(f, "ctr"),
         }
+    }
+}
+
+// -----------------------------------------------------------------------
+// ChartArea
+// -----------------------------------------------------------------------
+
+/// The `ChartArea` struct is a representation of the background area object of
+/// an Excel chart.
+///
+/// <img src="https://rustxlsxwriter.github.io/images/chart_area_dialog.png">
+///
+/// The `ChartArea` struct can be used to configure properties of the chart area
+/// such as the formatting and is usually obtained via the
+/// [`Chart::chart_area()`][Chart::chart_area] method.
+///
+/// It is used in conjunction with the [`Chart`] struct.
+///
+/// # Examples
+///
+/// An example of formatting the chart area of a chart.
+///
+/// ```
+/// # // This code is available in examples/doc_chart_set_chart_area_format.rs
+/// #
+/// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
+/// #
+/// # fn main() -> Result<(), XlsxError> {
+/// #     let mut workbook = Workbook::new();
+/// #     let worksheet = workbook.add_worksheet();
+/// #
+/// #     // Add some data for the chart.
+/// #     worksheet.write(0, 0, 10)?;
+/// #     worksheet.write(1, 0, 40)?;
+/// #     worksheet.write(2, 0, 50)?;
+/// #     worksheet.write(3, 0, 20)?;
+/// #     worksheet.write(4, 0, 10)?;
+/// #     worksheet.write(5, 0, 50)?;
+/// #
+/// #     // Create a new chart.
+/// #     let mut chart = Chart::new(ChartType::Column);
+/// #
+/// #     // Add a data series with formatting.
+/// #     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+/// #
+///         chart.chart_area()
+///             .set_format(
+///                 ChartFormat::new().set_solid_fill(
+///                     ChartSolidFill::new().set_color("#FFFFB3")
+///                 ),
+///         );
+/// #
+/// #     // Add the chart to the worksheet.
+/// #     worksheet.insert_chart(0, 2, &chart)?;
+/// #
+/// #     // Save the file.
+/// #     workbook.save("chart.xlsx")?;
+/// #
+/// #     Ok(())
+/// # }
+/// ```
+///
+/// Output file:
+///
+/// <img
+/// src="https://rustxlsxwriter.github.io/images/chart_set_chart_area_format.png">
+///
+#[derive(Clone, PartialEq)]
+pub struct ChartArea {
+    pub(crate) format: ChartFormat,
+}
+
+impl Default for ChartArea {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ChartArea {
+    /// Create a new `ChartArea` object to represent the background area object
+    /// of an Excel chart.
+    ///
+    pub fn new() -> ChartArea {
+        ChartArea {
+            format: ChartFormat::default(),
+        }
+    }
+
+    /// Set the formatting properties for the chart area.
+    ///
+    /// Set the formatting properties for a chart area via a [`ChartFormat`]
+    /// object or a sub struct that implements [`IntoChartFormat`]. In Excel the
+    /// chart area is the background area behind the chart.
+    ///
+    /// The formatting that can be applied via a [`ChartFormat`] object are:
+    ///
+    /// - [`ChartFormat::set_solid_fill()`]: Set the [`ChartSolidFill`] properties.
+    /// - [`ChartFormat::set_pattern_fill()`]: Set the [`ChartPatternFill`] properties.
+    /// - [`ChartFormat::set_gradient_fill()`]: Set the [`ChartGradientFill`] properties.
+    /// - [`ChartFormat::set_no_fill()`]: Turn off the fill for the chart object.
+    /// - [`ChartFormat::set_line()`]: Set the [`ChartLine`] properties.
+    /// - [`ChartFormat::set_border()`]: Set the [`ChartBorder`] properties.
+    ///   A synonym for [`ChartLine`] depending on context.
+    /// - [`ChartFormat::set_no_line()`]: Turn off the line for the chart object.
+    /// - [`ChartFormat::set_no_border()`]: Turn off the border for the chart object.
+    ///
+    /// # Parameters
+    ///
+    /// `format`: A [`ChartFormat`] struct reference or a sub struct that will
+    /// convert into a `ChartFormat` instance. See the docs for
+    /// [`IntoChartFormat`] for details.
+    ///
+    /// # Examples
+    ///
+    /// An example of formatting the chart "area" of a chart. In Excel the chart
+    /// area is the background area behind the chart.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_set_chart_area_format.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add some data for the chart.
+    /// #     worksheet.write(0, 0, 10)?;
+    /// #     worksheet.write(1, 0, 40)?;
+    /// #     worksheet.write(2, 0, 50)?;
+    /// #     worksheet.write(3, 0, 20)?;
+    /// #     worksheet.write(4, 0, 10)?;
+    /// #     worksheet.write(5, 0, 50)?;
+    /// #
+    /// #     // Create a new chart.
+    ///     let mut chart = Chart::new(ChartType::Column);
+    ///
+    ///     // Add a data series with formatting.
+    ///     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+    ///
+    ///         chart.chart_area()
+    ///             .set_format(
+    ///                 ChartFormat::new().set_solid_fill(
+    ///                     ChartSolidFill::new().set_color("#FFFFB3")
+    ///                 ),
+    ///         );
+    ///
+    ///     // Add the chart to the worksheet.
+    ///     worksheet.insert_chart(0, 2, &chart)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("chart.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_set_chart_area_format.png">
+    ///
+    pub fn set_format<T>(&mut self, format: T) -> &mut ChartArea
+    where
+        T: IntoChartFormat,
+    {
+        self.format = format.new_chart_format();
+        self
+    }
+}
+
+// -----------------------------------------------------------------------
+// ChartPlotArea
+// -----------------------------------------------------------------------
+
+/// The `ChartPlotArea` struct is a representation of the plotting area an Excel
+/// chart.
+///
+/// <img src="https://rustxlsxwriter.github.io/images/plot_area_dialog.png">
+///
+/// The `ChartPlotArea` struct can be used to configure properties of the chart
+/// plot area such as the formatting and layout and is usually obtained via the
+/// [`Chart::plot_area()`][Chart::plot_area] method.
+///
+/// It is used in conjunction with the [`Chart`] struct.
+///
+/// # Examples
+///
+/// An example of formatting the chart plot area of a chart.
+///
+/// ```
+/// # // This code is available in examples/doc_chart_set_plot_area_format.rs
+/// #
+/// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
+/// #
+/// # fn main() -> Result<(), XlsxError> {
+/// #     let mut workbook = Workbook::new();
+/// #     let worksheet = workbook.add_worksheet();
+/// #
+/// #     // Add some data for the chart.
+/// #     worksheet.write(0, 0, 10)?;
+/// #     worksheet.write(1, 0, 40)?;
+/// #     worksheet.write(2, 0, 50)?;
+/// #     worksheet.write(3, 0, 20)?;
+/// #     worksheet.write(4, 0, 10)?;
+/// #     worksheet.write(5, 0, 50)?;
+/// #
+/// #     // Create a new chart.
+/// #     let mut chart = Chart::new(ChartType::Column);
+/// #
+/// #     // Add a data series with formatting.
+/// #     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+/// #
+///         chart.plot_area()
+///             .set_format(
+///                 ChartFormat::new().set_solid_fill(
+///                     ChartSolidFill::new()
+///                         .set_color("#FFFFB3")
+///                 ),
+///         );
+/// #
+/// #     // Add the chart to the worksheet.
+/// #     worksheet.insert_chart(0, 2, &chart)?;
+/// #
+/// #     // Save the file.
+/// #     workbook.save("chart.xlsx")?;
+/// #
+/// #     Ok(())
+/// # }
+/// ```
+///
+/// Output file:
+///
+/// <img
+/// src="https://rustxlsxwriter.github.io/images/chart_set_plot_area_format.png">
+///
+///
+#[derive(Clone, PartialEq)]
+pub struct ChartPlotArea {
+    pub(crate) format: ChartFormat,
+    pub(crate) layout: ChartLayout,
+}
+
+impl Default for ChartPlotArea {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ChartPlotArea {
+    /// Create a new `ChartPlotArea` object to represent the plotting area
+    /// object of an Excel chart.
+    ///
+    pub fn new() -> ChartPlotArea {
+        ChartPlotArea {
+            format: ChartFormat::default(),
+            layout: ChartLayout::default(),
+        }
+    }
+
+    /// Set the formatting properties for the plot area.
+    ///
+    /// Set the formatting properties for a chart plot area via a
+    /// [`ChartFormat`] object. In Excel the plot area is the area between the
+    /// axes on which the chart series are plotted.
+    ///
+    /// The formatting that can be applied via a [`ChartFormat`] object are:
+    ///
+    /// - [`ChartFormat::set_solid_fill()`]: Set the [`ChartSolidFill`] properties.
+    /// - [`ChartFormat::set_pattern_fill()`]: Set the [`ChartPatternFill`] properties.
+    /// - [`ChartFormat::set_gradient_fill()`]: Set the [`ChartGradientFill`] properties.
+    /// - [`ChartFormat::set_no_fill()`]: Turn off the fill for the chart object.
+    /// - [`ChartFormat::set_line()`]: Set the [`ChartLine`] properties.
+    /// - [`ChartFormat::set_border()`]: Set the [`ChartBorder`] properties.
+    ///   A synonym for [`ChartLine`] depending on context.
+    /// - [`ChartFormat::set_no_line()`]: Turn off the line for the chart object.
+    /// - [`ChartFormat::set_no_border()`]: Turn off the border for the chart object.
+    ///
+    /// # Parameters
+    ///
+    /// - `format`: A [`ChartFormat`] struct reference or a sub struct that will
+    ///    convert into a `ChartFormat` instance. See the docs for
+    ///    [`IntoChartFormat`] for details.
+    ///
+    /// # Examples
+    ///
+    /// An example of formatting the chart plot area of a chart. In Excel the plot
+    /// area is the area between the axes on which the chart series are plotted.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_set_plot_area_format.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartFormat, ChartSolidFill, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add some data for the chart.
+    /// #     worksheet.write(0, 0, 10)?;
+    /// #     worksheet.write(1, 0, 40)?;
+    /// #     worksheet.write(2, 0, 50)?;
+    /// #     worksheet.write(3, 0, 20)?;
+    /// #     worksheet.write(4, 0, 10)?;
+    /// #     worksheet.write(5, 0, 50)?;
+    /// #
+    /// #     // Create a new chart.
+    ///     let mut chart = Chart::new(ChartType::Column);
+    ///
+    ///     // Add a data series with formatting.
+    ///     chart.add_series().set_values("Sheet1!$A$1:$A$6");
+    ///
+    ///         chart.plot_area()
+    ///             .set_format(
+    ///                 ChartFormat::new().set_solid_fill(
+    ///                     ChartSolidFill::new()
+    ///                         .set_color("#FFFFB3")
+    ///                 ),
+    ///         );
+    ///
+    ///     // Add the chart to the worksheet.
+    ///     worksheet.insert_chart(0, 2, &chart)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("chart.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_set_plot_area_format.png">
+    ///
+    ///
+    pub fn set_format<T>(&mut self, format: T) -> &mut ChartPlotArea
+    where
+        T: IntoChartFormat,
+    {
+        self.format = format.new_chart_format();
+        self
+    }
+
+    /// Set the manual position of the plot area.
+    ///
+    /// This method is used to simulate manual positioning of a chart plot area.
+    /// See [`ChartLayout`] for more details.
+    ///
+    /// # Parameters
+    ///
+    /// - `layout`: A [`ChartLayout`] struct reference.
+    ///
+    /// # Examples
+    ///
+    /// An example of setting the layout of a chart element, in this case the
+    /// chart plot area.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_chart_plot_area_set_layout.rs
+    /// #
+    /// # use rust_xlsxwriter::{Chart, ChartLayout, ChartType, Workbook, XlsxError};
+    /// #
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Add some data for the chart.
+    /// #     worksheet.write(0, 0, 10)?;
+    /// #     worksheet.write(1, 0, 40)?;
+    /// #     worksheet.write(2, 0, 50)?;
+    /// #     worksheet.write(3, 0, 20)?;
+    /// #     worksheet.write(4, 0, 10)?;
+    /// #     worksheet.write(5, 0, 50)?;
+    /// #
+    /// #     // Create a new chart.
+    ///     let mut chart = Chart::new(ChartType::Column);
+    ///     chart.add_series().set_values(("Sheet1", 0, 0, 5, 0));
+    ///
+    ///     // Set a chart title and turn off legend for clarity.
+    ///     chart.title().set_name("Standard layout");
+    ///     chart.legend().set_hidden();
+    ///
+    ///     // Add the stand chart to the worksheet.
+    ///     worksheet.insert_chart(0, 2, &chart)?;
+    ///
+    ///     // Create a new layout.
+    ///     let layout = ChartLayout::new()
+    ///         .set_offset(0.20, 0.30)
+    ///         .set_dimensions(0.70, 0.50);
+    ///
+    ///     // Apply the layout to the chart plot area.
+    ///     chart.plot_area().set_layout(&layout);
+    ///
+    ///     // Set a chart title and turn off legend for clarity.
+    ///     chart.title().set_name("Modified layout");
+    ///     chart.legend().set_hidden();
+    ///
+    ///     // Add the modified chart to the worksheet.
+    ///     worksheet.insert_chart(16, 2, &chart)?;
+    /// #
+    /// #     // Save the file.
+    /// #     workbook.save("chart.xlsx")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img
+    /// src="https://rustxlsxwriter.github.io/images/chart_plot_area_set_layout.png">
+    ///
+    pub fn set_layout(&mut self, layout: &ChartLayout) -> &mut ChartPlotArea {
+        let mut layout = layout.clone();
+        layout.has_inner = true;
+        layout.has_dimensions = true;
+
+        self.layout = layout;
+        self
+    }
+}
+
+// -----------------------------------------------------------------------
+// ChartLayout
+// -----------------------------------------------------------------------
+
+/// The `ChartLayout` struct represents the dimensions required to position some
+/// chart objects.
+///
+/// Excel allows the user to positions chart objects like axis labels or the
+/// legend is two ways.
+///
+/// The first method is via standard positions such as top, bottom, left and
+/// right. The `rust_xlsxwriter` library replicates this via enums such as
+/// [`ChartAxisLabelPosition`] and [`ChartLegendPosition`] and the associated
+/// methods that use them.
+///
+/// The second method Excel supports is manual positioning of elements such as
+/// the chart axis labels, the chart legend, the chart plot area and the chart
+/// title. The `rust_xlsxwriter` library replicates this type of positing via
+/// the `ChartLayout` struct.
+///
+/// The layout units used by Excel are relative units expressed as a percentage
+/// of the chart dimensions and are `f64` values in the range `0.0 < x <= 1.0`.
+/// The process Excel uses to calculate these dimensions is shown below:
+///
+/// <img src="https://rustxlsxwriter.github.io/images/chart_layout.png">
+///
+/// With reference to the above figure the layout units are calculated as
+/// follows:
+///
+/// ```text
+///     x = a / W
+///     y = b / H
+/// ```
+///
+/// These units are cumbersome and can vary depending on other elements in the
+/// chart such as text lengths. However, these are the units that are required
+/// by Excel to allow relative positioning. Some trial and error is generally
+/// required.
+///
+/// For [`ChartPlotArea`] and [`ChartLegend`] you can also set the width and
+/// height based on the following calculation.
+///
+/// ```text
+///     width  = w / W
+///     height = h / H
+/// ```
+///
+/// For other text based objects the width and height are changed by the font
+/// dimensions.
+///
+/// The [`Chart`] objects and methods that support `ChartLayout` are:
+///
+/// - [`ChartTitle::set_layout()`]
+/// - [`ChartLegend::set_layout()`]
+/// - [`ChartPlotArea::set_layout()`]
+/// - [`ChartAxis::set_label_layout()`]
+///
+///
+/// # Examples
+///
+/// An example of setting the layout of a chart element, in this case the chart
+/// plot area.
+///
+/// ```
+/// # // This code is available in examples/doc_chart_plot_area_set_layout.rs
+/// #
+/// # use rust_xlsxwriter::{Chart, ChartLayout, ChartType, Workbook, XlsxError};
+/// #
+/// # fn main() -> Result<(), XlsxError> {
+/// #     let mut workbook = Workbook::new();
+/// #     let worksheet = workbook.add_worksheet();
+/// #
+/// #     // Add some data for the chart.
+/// #     worksheet.write(0, 0, 10)?;
+/// #     worksheet.write(1, 0, 40)?;
+/// #     worksheet.write(2, 0, 50)?;
+/// #     worksheet.write(3, 0, 20)?;
+/// #     worksheet.write(4, 0, 10)?;
+/// #     worksheet.write(5, 0, 50)?;
+/// #
+/// #     // Create a new chart.
+///     let mut chart = Chart::new(ChartType::Column);
+///     chart.add_series().set_values(("Sheet1", 0, 0, 5, 0));
+///
+///     // Set a chart title and turn off legend for clarity.
+///     chart.title().set_name("Standard layout");
+///     chart.legend().set_hidden();
+///
+///     // Add the stand chart to the worksheet.
+///     worksheet.insert_chart(0, 2, &chart)?;
+///
+///     // Create a new layout.
+///     let layout = ChartLayout::new()
+///         .set_offset(0.20, 0.30)
+///         .set_dimensions(0.70, 0.50);
+///
+///     // Apply the layout to the chart plot area.
+///     chart.plot_area().set_layout(&layout);
+///
+///     // Set a chart title and turn off legend for clarity.
+///     chart.title().set_name("Modified layout");
+///     chart.legend().set_hidden();
+///
+///     // Add the modified chart to the worksheet.
+///     worksheet.insert_chart(16, 2, &chart)?;
+///
+/// #     // Save the file.
+/// #     workbook.save("chart.xlsx")?;
+/// #
+/// #     Ok(())
+/// # }
+/// ```
+///
+/// Output file:
+///
+/// <img
+/// src="https://rustxlsxwriter.github.io/images/chart_plot_area_set_layout.png">
+///
+#[derive(Clone, PartialEq)]
+pub struct ChartLayout {
+    pub(crate) x_offset: Option<f64>,
+    pub(crate) y_offset: Option<f64>,
+    pub(crate) width: Option<f64>,
+    pub(crate) height: Option<f64>,
+    pub(crate) has_inner: bool,
+    pub(crate) has_dimensions: bool,
+}
+
+impl Default for ChartLayout {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ChartLayout {
+    /// Create a new `ChartLayout` object to represent the layout dimensions for
+    /// a chart object.
+    ///
+    pub fn new() -> ChartLayout {
+        ChartLayout {
+            x_offset: None,
+            y_offset: None,
+            width: None,
+            height: None,
+            has_inner: false,
+            has_dimensions: false,
+        }
+    }
+
+    /// Set the offset for a layout.
+    ///
+    /// With reference to the figure below the layout units are calculated as
+    /// follows:
+    ///
+    /// ```text
+    ///     x = a / W
+    ///     y = b / H
+    /// ```
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/chart_layout.png">
+    ///
+    /// See [`ChartLayout`] above for an explanation of chart layouts and the
+    /// units used.
+    ///
+    /// # Parameters
+    ///
+    /// - `x_offset`: A `f64` value in the range `0.0 < x <= 1.0`.
+    /// - `y_offset`: A `f64` value in the range `0.0 < y <= 1.0`.
+    ///
+    pub fn set_offset(mut self, x_offset: f64, y_offset: f64) -> ChartLayout {
+        if !(0.0..=1.0).contains(&x_offset) {
+            eprintln!("X offset '{x_offset}' outside Excel range: 0.0 < x <= 1.0.");
+            return self;
+        }
+        if !(0.0..=1.0).contains(&y_offset) {
+            eprintln!("Y offset '{y_offset}' outside Excel range: 0.0 < y <= 1.0.");
+            return self;
+        }
+
+        self.x_offset = Some(x_offset);
+        self.y_offset = Some(y_offset);
+        self
+    }
+
+    /// Set the dimensions for a layout.
+    ///
+    /// With reference to the figure above the dimension units are calculated as
+    /// follows:
+    ///
+    /// ```text
+    ///     width  = w / W
+    ///     height = h / H
+    /// ```
+    ///
+    /// The dimensions are only used for [`ChartPlotArea`] and [`ChartLegend`].
+    /// For other text based objects the width and height are changed by the
+    /// font dimensions.
+    ///
+    /// See [`ChartLayout`] above for an explanation of chart layouts and the
+    /// units used.
+    ///
+    /// # Parameters
+    ///
+    /// - `width`: A `f64` value in the range `0.0 < width <= 1.0`.
+    /// - `height`: A `f64` value in the range `0.0 < height <= 1.0`.
+    ///
+    pub fn set_dimensions(mut self, width: f64, height: f64) -> ChartLayout {
+        if !(0.0..=1.0).contains(&width) {
+            eprintln!("Width '{width}' outside Excel range: 0.0 < width <= 1.0.");
+            return self;
+        }
+        if !(0.0..=1.0).contains(&height) {
+            eprintln!("Height '{height}' outside Excel range: 0.0 < height <= 1.0.");
+            return self;
+        }
+
+        self.width = Some(width);
+        self.height = Some(height);
+        self
+    }
+
+    pub(crate) fn is_not_default(&self) -> bool {
+        self.x_offset.is_some()
+            || self.y_offset.is_some()
+            || self.width.is_some()
+            || self.height.is_some()
     }
 }

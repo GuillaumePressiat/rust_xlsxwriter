@@ -8,8 +8,7 @@
 
 mod tests;
 
-use regex::Regex;
-use std::borrow::Cow;
+use std::{collections::HashMap, sync::OnceLock};
 
 /// The `Formula` struct is used to define a worksheet formula.
 ///
@@ -17,8 +16,8 @@ use std::borrow::Cow;
 /// worksheet formulas.
 ///
 /// In general you would use the
-/// [`worksheet.write_formula()`](crate::Worksheet::write_formula) with a string
-/// representation of the formula, like this:
+/// [`Worksheet::write_formula()`](crate::Worksheet::write_formula) with a
+/// string representation of the formula, like this:
 ///
 /// ```
 /// # // This code is available in examples/doc_working_with_formulas_intro.rs
@@ -70,7 +69,7 @@ use std::borrow::Cow;
 /// ```
 ///
 /// Using a `Formula` struct also allows you to write a formula using the
-/// generic [`worksheet.write()`](crate::Worksheet::write) method:
+/// generic [`Worksheet::write()`](crate::Worksheet::write) method:
 ///
 /// ```
 /// # // This code is available in examples/doc_working_with_formulas_intro3.rs
@@ -110,8 +109,8 @@ use std::borrow::Cow;
 /// viewers, PDF converters, and some mobile device applications.
 ///
 /// If required, it is also possible to specify the calculated result of the
-/// formula using the [`worksheet.set_formula_result()`] method or the
-/// [`formula.set_result()`](Formula::set_result) method:
+/// formula using the [`Worksheet::set_formula_result()`] method or the
+/// [`Formula::set_result()`](Formula::set_result) method:
 ///
 /// ```
 /// # // This code is available in examples/doc_worksheet_set_formula_result.rs
@@ -145,7 +144,7 @@ use std::borrow::Cow;
 /// One common spreadsheet application where the formula recalculation doesn't
 /// work is `LibreOffice` (see the following [issue report]). If you wish to
 /// force recalculation in `LibreOffice` you can use the
-/// [`worksheet.set_formula_result_default()`] method to set the default result
+/// [`Worksheet::set_formula_result_default()`] method to set the default result
 /// to an empty string:
 ///
 /// ```
@@ -168,8 +167,8 @@ use std::borrow::Cow;
 /// # }
 /// ```
 ///
-/// [`worksheet.set_formula_result()`]: crate::Worksheet::set_formula_result
-/// [`worksheet.set_formula_result_default()`]:
+/// [`Worksheet::set_formula_result()`]: crate::Worksheet::set_formula_result
+/// [`Worksheet::set_formula_result_default()`]:
 ///     crate::Worksheet::set_formula_result_default
 /// [issue report]: https://bugs.documentfoundation.org/show_bug.cgi?id=144819
 ///
@@ -250,9 +249,9 @@ use std::borrow::Cow;
 /// The following special case functions were also added with Dynamic Arrays:
 ///
 /// - `SINGLE`: Explained below in [The Implicit Intersection Operator
-///   "@"](#the-implicit-intersection-operator-)
+///   `@`](#the-implicit-intersection-operator-)
 /// - `ANCHORARRAY`:  Explained below in [The Spilled Range Operator
-///   "#"](#the-spilled-range-operator-)
+///   `#`](#the-spilled-range-operator-)
 ///
 ///
 /// ## Dynamic Arrays - An introduction
@@ -286,15 +285,15 @@ use std::borrow::Cow;
 /// Microsoft documentation on [Dynamic array formulas vs. legacy CSE array
 /// formulas].
 ///
-/// In `rust_xlsxwriter` you can use the [`worksheet.write_array_formula()`]
+/// In `rust_xlsxwriter` you can use the [`Worksheet::write_array_formula()`]
 /// function to get a static/CSE range and
-/// [`worksheet.write_dynamic_array_formula()`] or
-/// [`worksheet.write_dynamic_formula()`] to get a dynamic range.
+/// [`Worksheet::write_dynamic_array_formula()`] or
+/// [`Worksheet::write_dynamic_formula()`] to get a dynamic range.
 ///
-/// [`worksheet.write_array_formula()`]: crate::Worksheet::write_array_formula
-/// [`worksheet.write_dynamic_formula()`]:
+/// [`Worksheet::write_array_formula()`]: crate::Worksheet::write_array_formula
+/// [`Worksheet::write_dynamic_formula()`]:
 ///     crate::Worksheet::write_dynamic_formula
-/// [`worksheet.write_dynamic_array_formula()`]:
+/// [`Worksheet::write_dynamic_array_formula()`]:
 ///     crate::Worksheet::write_dynamic_array_formula
 ///
 /// [Dynamic array formulas in Excel]:
@@ -348,7 +347,7 @@ use std::borrow::Cow;
 /// contains a "@" operator to show that it is implicitly using a single value
 /// from the given range.
 ///
-/// In Excel 365, and with [`worksheet.write_dynamic_formula()`] in
+/// In Excel 365, and with [`Worksheet::write_dynamic_formula()`] in
 /// `rust_xlsxwriter`, it would operate on the entire range and return an array
 /// of values:
 ///
@@ -359,8 +358,8 @@ use std::borrow::Cow;
 /// `rust_xlsxwriter` putting @s in my formulas". In practical terms if you
 /// encounter this operator, and you don't intend it to be there, then you
 /// should probably write the formula as a CSE or dynamic array function using
-/// [`worksheet.write_array_formula()`] or
-/// [`worksheet.write_dynamic_array_formula()`]
+/// [`Worksheet::write_array_formula()`] or
+/// [`Worksheet::write_dynamic_array_formula()`]
 ///
 ///
 /// A full explanation of this operator is given in the Microsoft documentation
@@ -407,7 +406,7 @@ use std::borrow::Cow;
 ///     worksheet.write_dynamic_formula(1, 9, "=COUNTA(ANCHORARRAY(F2))")?;
 /// ```
 ///
-/// ## The Excel 365 LAMBDA() function
+/// ## The Excel 365 `LAMBDA()` function
 ///
 /// Recent versions of Excel 365 have introduced a powerful new function/feature
 /// called `LAMBDA()`. This is similar to closure expressions in Rust or [lambda
@@ -499,62 +498,22 @@ use std::borrow::Cow;
 /// "Future Functions". Examples of these functions are `ACOT`, `CHISQ.DIST.RT`
 /// , `CONFIDENCE.NORM`, `STDEV.P`, `STDEV.S` and `WORKDAY.INTL`.
 ///
-/// When written using [`worksheet.write_formula()`] these functions need to be
-/// fully qualified with a prefix such as `_xlfn.`, as shown the table in the
-/// next section below.
+/// Although these formulas are displayed as normal in Excel they are stored
+/// with a prefix. For example `STDEV.S(B1:B5)` is stored in the Excel file as
+/// `xlfn.STDEV.S(B1:B5)`. The `rust_xlsxwriter` crate makes these changes
+/// automatically so in general you don't have to worry about this unless you
+/// are dealing with features such as Lambda functions, see above. However, if
+/// required you can manually prefix any required function with the `_xlfn.`
+/// prefix.
 ///
-/// [`worksheet.write_formula()`]: crate::Worksheet::method.write_formula
-///
-/// If the prefix isn't included you will get an Excel function name error. For
-/// example:
-///
-/// ```text
-///     worksheet.write_formula(0, 0, "=STDEV.S(B1:B5)")?;
-/// ```
-///
-/// <img
-/// src="https://rustxlsxwriter.github.io/images/working_with_formulas3.png">
-///
-/// If the `_xlfn.` prefix is included you will get the correct result:
-///
-/// ```text
-///     worksheet.write_formula(0, 0, "=_xlfn.STDEV.S(B1:B5)")?;
-/// ```
-///
-/// <img
-/// src="https://rustxlsxwriter.github.io/images/working_with_formulas2.png">
-///
-/// Note that the function is displayed by Excel without the prefix.
-///
-/// Alternatively you can use the [`worksheet.use_future_functions()`] function
-/// to have `rust_xlsxwriter` automatically handle future functions for you:
-///
-/// [`worksheet.use_future_functions()`]: crate::Worksheet::use_future_functions
-///
-/// ```text
-///    worksheet.use_future_functions(true);
-///    worksheet.write_formula(0, 0, "=STDEV.S(B1:B5)")?;
-/// ```
-///
-/// Or if you are using a [`Formula`] struct you can use the
-/// [`Formula::use_future_functions()`] method:
-///
-/// ```text
-///     worksheet.write_formula(0, 0, Formula::new("=STDEV.S(B1:B5)").use_future_functions())?;
-/// ```
-///
-/// This will give the same correct result as the image above.
-///
-///
-/// ## List of Future Functions
-///
-/// The following list is taken from [MS XLSX extensions documentation on future
-/// functions].
+/// For completeness the following is a list of future functions taken from [MS
+/// XLSX extensions documentation on future functions].
 ///
 /// [MS XLSX extensions documentation on future functions]:
 ///     http://msdn.microsoft.com/en-us/library/dd907480%28v=office.12%29.aspx
 ///
-
+/// Note, the Python in Excel functions aren't simple functions and aren't
+/// supported.
 ///
 /// | Future Functions                 |
 /// | -------------------------------- |
@@ -602,6 +561,7 @@ use std::borrow::Cow;
 /// | `_xlfn.F.INV.RT`                 |
 /// | `_xlfn.F.INV`                    |
 /// | `_xlfn.F.TEST`                   |
+/// | `_xlfn.FIELDVALUE`               |
 /// | `_xlfn.FILTERXML`                |
 /// | `_xlfn.FLOOR.MATH`               |
 /// | `_xlfn.FLOOR.PRECISE`            |
@@ -619,7 +579,7 @@ use std::borrow::Cow;
 /// | `_xlfn.HYPGEOM.DIST`             |
 /// | `_xlfn.IFNA`                     |
 /// | `_xlfn.IFS`                      |
-/// | `_xlfn.IMAGE`                   |
+/// | `_xlfn.IMAGE`                    |
 /// | `_xlfn.IMCOSH`                   |
 /// | `_xlfn.IMCOT`                    |
 /// | `_xlfn.IMCSCH`                   |
@@ -629,6 +589,7 @@ use std::borrow::Cow;
 /// | `_xlfn.IMSINH`                   |
 /// | `_xlfn.IMTAN`                    |
 /// | `_xlfn.ISFORMULA`                |
+/// | `ISO.CEILING`                    |
 /// | `_xlfn.ISOMITTED`                |
 /// | `_xlfn.ISOWEEKNUM`               |
 /// | `_xlfn.LET`                      |
@@ -654,6 +615,10 @@ use std::borrow::Cow;
 /// | `_xlfn.PERMUTATIONA`             |
 /// | `_xlfn.PHI`                      |
 /// | `_xlfn.POISSON.DIST`             |
+/// | `_xlfn.PQSOURCE`                 |
+/// | `_xlfn.PYTHON_STR`               |
+/// | `_xlfn.PYTHON_TYPE`              |
+/// | `_xlfn.PYTHON_TYPENAME`          |
 /// | `_xlfn.QUARTILE.EXC`             |
 /// | `_xlfn.QUARTILE.INC`             |
 /// | `_xlfn.QUERYSTRING`              |
@@ -688,12 +653,8 @@ use std::borrow::Cow;
 /// | `_xlfn.XOR`                      |
 /// | `_xlfn.Z.TEST`                   |
 ///
-
 /// The dynamic array functions shown in the [Dynamic Array
-/// support](#dynamic-array-support) section are also future functions, however the
-/// `rust_xlsxwriter` library automatically adds the required prefixes on the
-/// fly so you don't have to add them explicitly.
-
+/// support](#dynamic-array-support) section are also future functions:
 ///
 /// | Dynamic Array Functions          |
 /// | -------------------------------- |
@@ -709,6 +670,7 @@ use std::borrow::Cow;
 /// | `_xlfn.LAMBDA`                   |
 /// | `_xlfn.MAKEARRAY`                |
 /// | `_xlfn.MAP`                      |
+/// | `_xlfn._xlws.PY`                 |
 /// | `_xlfn.RANDARRAY`                |
 /// | `_xlfn.REDUCE`                   |
 /// | `_xlfn.SCAN`                     |
@@ -727,7 +689,6 @@ use std::borrow::Cow;
 /// | `_xlfn.WRAPROWS`                 |
 /// | `_xlfn.XLOOKUP`                  |
 ///
-
 /// # Dealing with formula errors
 ///
 /// If there is an error in the syntax of a formula it is usually displayed in
@@ -753,8 +714,8 @@ use std::borrow::Cow;
 ///
 /// 5. If the function loads in Excel but appears with one or more `@` symbols
 ///    added then it is probably an array function and should be written using
-///    [`worksheet.write_array_formula()`] or
-///    [`worksheet.write_dynamic_array_formula()`] (see also [Dynamic Array
+///    [`Worksheet::write_array_formula()`] or
+///    [`Worksheet::write_dynamic_array_formula()`] (see also [Dynamic Array
 ///    support](#dynamic-array-support)).
 ///
 /// Finally if you have completed all the previous steps and still get a
@@ -774,10 +735,11 @@ use std::borrow::Cow;
 ///
 #[derive(Clone, PartialEq)]
 pub struct Formula {
-    formula_string: String,
+    pub(crate) formula_string: String,
+    pub(crate) has_dynamic_function: bool,
+    pub(crate) result: Box<str>,
     expand_future_functions: bool,
     expand_table_functions: bool,
-    pub(crate) result: Box<str>,
 }
 
 impl Formula {
@@ -787,12 +749,36 @@ impl Formula {
     ///
     /// `formula` - A string like type representing an Excel formula.
     ///
-    pub fn new(formula: impl Into<String>) -> Formula {
+    pub fn new(formula: impl AsRef<str>) -> Formula {
+        // Remove array formula braces and the leading = if they exist.
+        let mut formula = formula.as_ref();
+        if let Some(stripped) = formula.strip_prefix('{') {
+            formula = stripped;
+        }
+        if let Some(stripped) = formula.strip_prefix('=') {
+            formula = stripped;
+        }
+        if let Some(stripped) = formula.strip_suffix('}') {
+            formula = stripped;
+        }
+
+        // We need to escape future functions in a formula string. If the user
+        // has already done this we simply copy the string. In both cases we
+        // need to determine if it contains dynamic functions.
+        let (formula_string, has_dynamic_function) = if formula.contains("_xlfn.") {
+            // Already escaped.
+            Self::copy_escaped_formula(formula)
+        } else {
+            // Needs escaping.
+            Self::escape_formula(formula)
+        };
+
         Formula {
-            formula_string: formula.into(),
+            formula_string,
+            has_dynamic_function,
+            result: Box::from(""),
             expand_future_functions: false,
             expand_table_functions: false,
-            result: Box::from(""),
         }
     }
 
@@ -848,185 +834,349 @@ impl Formula {
         self
     }
 
-    /// Enable the use of newer Excel future functions in the formula.
-    ///
-    /// As explained above in [Formulas added in Excel 2010 and
-    /// later](#formulas-added-in-excel-2010-and-later), functions have been
-    /// added to Excel which weren't defined in the original file specification.
-    /// These functions are referred to by Microsoft as "Future Functions".
-    ///
-    /// When written using
-    /// [`write_formula()`](crate::Worksheet::write_formula()) these functions
-    /// need to be fully qualified with a prefix such as `_xlfn.`
-    ///
-    /// Alternatively you can use the
-    /// [`worksheet.use_future_functions()`](crate::Worksheet::use_future_functions)
-    /// function to have `rust_xlsxwriter` automatically handle future functions
-    /// for you, or use a [`Formula`] struct and the
-    /// [`Formula::use_future_functions()`] method, see below.
-    ///
-    /// # Examples
-    ///
-    /// The following example demonstrates different ways to handle writing
-    /// Future Functions to a worksheet.
-    ///
-    /// ```
-    /// # // This code is available in examples/doc_worksheet_use_future_functions.rs
-    /// #
-    /// # use rust_xlsxwriter::{Formula, Workbook, XlsxError};
-    /// #
-    /// # fn main() -> Result<(), XlsxError> {
-    /// #     let mut workbook = Workbook::new();
-    /// #
-    /// #     // Add a worksheet to the workbook.
-    /// #     let worksheet = workbook.add_worksheet();
-    /// #
-    ///     // The following is a "Future" function and will generate a "#NAME?" warning
-    ///     // in Excel.
-    ///     worksheet.write_formula(0, 0, "=ISFORMULA($B$1)")?;
-    ///
-    ///     // The following adds the required prefix. This will work without a warning.
-    ///     worksheet.write_formula(1, 0, "=_xlfn.ISFORMULA($B$1)")?;
-    ///
-    ///     // The following uses a Formula object and expands out any future functions.
-    ///     // This also works without a warning.
-    ///     worksheet.write_formula(2, 0, Formula::new("=ISFORMULA($B$1)").use_future_functions())?;
-    ///
-    ///     // The following expands out all future functions used in the worksheet from
-    ///     // this point forward. This also works without a warning.
-    ///     worksheet.use_future_functions(true);
-    ///     worksheet.write_formula(3, 0, "=ISFORMULA($B$1)")?;
-    /// #
-    /// #     workbook.save("worksheet.xlsx")?;
-    /// #
-    /// #     Ok(())
-    /// # }
-    /// ```
-    ///
-    /// Output file:
-    ///
-    /// <img
-    /// src="https://rustxlsxwriter.github.io/images/worksheet_use_future_functions.png">
-    ///
-    pub fn use_future_functions(mut self) -> Formula {
-        self.expand_future_functions = true;
+    // Prefix any "future" functions in a formula with "_xlfn.". We parse the
+    // string to avoid replacements in string literal within the formula.
+    fn escape_formula(formula: &str) -> (String, bool) {
+        let mut start_position = 0;
+        let mut in_function = false;
+        let mut in_string_literal = false;
+        let mut has_dynamic_function = false;
+        let mut escaped_formula = String::with_capacity(formula.len());
+
+        for (current_position, char) in formula.char_indices() {
+            // Match the start/end of string literals. We track these to avoid
+            // escaping function names in strings. In Excel a double quote in a
+            // string literal is doubled, so this will also match escapes.
+            if char == '"' {
+                in_string_literal = !in_string_literal;
+            }
+
+            // Copy the string literal.
+            if in_string_literal {
+                escaped_formula.push(char);
+                continue;
+            }
+
+            // Function names are comprised of "A-Z", "0-9" and ".".
+            let is_function_char =
+                char.is_ascii_uppercase() || char.is_ascii_digit() || char == '.';
+
+            // Simple state machine where we are either accumulating possible
+            // function names in a buffer for evaluation, or copying non-function
+            // name characters.
+            if in_function {
+                if !is_function_char {
+                    let token = &formula[start_position..current_position];
+
+                    // If the first non function char is an opening bracket then we
+                    // have found a function name.
+                    if char == '(' {
+                        // Check if function is an Excel "future" function.
+                        if let Some(function_type) = Self::future_functions(token) {
+                            // Add the future function prefix.
+                            escaped_formula.push_str("_xlfn.");
+
+                            // Some functions have an additional prefix.
+                            if *function_type == 2 {
+                                escaped_formula.push_str("_xlws.");
+                            }
+
+                            // Check if the function is "dynamic".
+                            has_dynamic_function |= *function_type > 0;
+                        }
+                    }
+
+                    // Copy the token, whether it is a function name or not.
+                    escaped_formula.push_str(token);
+                    escaped_formula.push(char);
+                    in_function = false;
+                }
+            } else if is_function_char {
+                // Match the start of a possible function name.
+                start_position = current_position;
+                in_function = true;
+            } else {
+                escaped_formula.push(char);
+            }
+        }
+
+        // Clean up any trailing buffer that wasn't a function.
+        if in_function {
+            escaped_formula.push_str(&formula[start_position..]);
+        }
+
+        (escaped_formula, has_dynamic_function)
+    }
+
+    // This is a version of the previous escape_formula() function that only
+    // checks to see if a user escaped string contains a dynamic function and
+    // returns a clone of the string.
+    fn copy_escaped_formula(formula: &str) -> (String, bool) {
+        let mut start_position = 0;
+        let mut in_function = false;
+        let mut in_string_literal = false;
+        let mut has_dynamic_function = false;
+
+        for (current_position, char) in formula.char_indices() {
+            // Match the start/end of string literals. We track these to avoid
+            // matching function names in strings. In Excel a double quote in a
+            // string literal is doubled, so this will also match escapes.
+            if char == '"' {
+                in_string_literal = !in_string_literal;
+            }
+
+            // Ignore the string literal.
+            if in_string_literal {
+                continue;
+            }
+
+            // Function names are comprised of "A-Z", "0-9" and ".".
+            let is_function_char =
+                char.is_ascii_uppercase() || char.is_ascii_digit() || char == '.';
+            let is_function_start_char = char.is_ascii_uppercase() || char.is_ascii_digit();
+
+            // Simple state machine where we accumulate possible function names
+            // in a buffer for evaluation.
+            if in_function {
+                if !is_function_char {
+                    let token = &formula[start_position..current_position];
+
+                    // If the first non function char is an opening bracket then we
+                    // have found a function name.
+                    if char == '(' {
+                        // Check if function is an Excel "future" function.
+                        if let Some(function_type) = Self::future_functions(token) {
+                            has_dynamic_function |= *function_type > 0;
+                        }
+                    }
+
+                    in_function = false;
+                }
+            } else if is_function_start_char {
+                // Match the start of a possible function name.
+                start_position = current_position;
+                in_function = true;
+            }
+        }
+
+        (formula.to_string(), has_dynamic_function)
+    }
+
+    // Escape/expand table functions. This mainly involves converting Excel 2010
+    // "@" table ref to 2007 "[#This Row],". We parse the string to avoid
+    // replacements in string literals within the formula.
+    pub(crate) fn escape_table_functions(mut self) -> Formula {
+        if !self.formula_string.contains('@') {
+            // No escaping required.
+            return self;
+        }
+
+        let mut in_string_literal = false;
+        let mut escaped_formula = String::with_capacity(self.formula_string.len());
+
+        for char in self.formula_string.chars() {
+            // Match the start/end of string literals to avoid escaping
+            // references in strings.
+            if char == '"' {
+                in_string_literal = !in_string_literal;
+            }
+
+            // Copy the string literal.
+            if in_string_literal {
+                escaped_formula.push(char);
+                continue;
+            }
+
+            // Replace table reference.
+            if char == '@' {
+                escaped_formula.push_str("[#This Row],");
+            } else {
+                escaped_formula.push(char);
+            }
+        }
+
+        self.formula_string = escaped_formula;
         self
     }
 
-    /// Enable backward compatible formulas in table.
-    ///
-    /// Worksheet tables in Excel (see [`Table`](crate::Table)) use "Structured
-    /// References" in formulas like this:
-    ///
-    /// ```text
-    ///    "SUM(Table1[@[Column1]:[Column3]])"
-    /// ```
-    ///
-    /// The `@` is a shorthand for the more explicit, but more verbose, `[#This
-    /// Row],` syntax. Excel automatically converts the structured row reference
-    /// to the shorter version if the table has more than one row. However, it
-    /// **stores** the formula in the longer `[#This Row],` syntax so
-    /// `rust_xlsxwriter` must also store it in that format.
-    ///
-    /// Setting the `use_table_functions()` property will ensure this conversion
-    /// is made automatically when writing the formula. In addition, the
-    /// conversion is done automatically if you add a column formula to a table
-    /// that is passed to
-    /// [`worksheet.add_table()`](crate::Worksheet::add_table()).
-    ///
-    pub fn use_table_functions(mut self) -> Formula {
-        self.expand_table_functions = true;
-        self
-    }
-
-    // Check of a dynamic function/formula.
-    pub(crate) fn is_dynamic_function(&self) -> bool {
-        lazy_static! {
-            static ref DYNAMIC_FUNCTION: Regex = Regex::new(
-                r"\b(ANCHORARRAY|BYCOL|BYROW|CHOOSECOLS|CHOOSEROWS|DROP|EXPAND|FILTER|HSTACK|LAMBDA|MAKEARRAY|MAP|RANDARRAY|REDUCE|SCAN|SEQUENCE|SINGLE|SORT|SORTBY|SWITCH|TAKE|TEXTSPLIT|TOCOL|TOROW|UNIQUE|VSTACK|WRAPCOLS|WRAPROWS|XLOOKUP)\("
-            )
-            .unwrap();
-        }
-        DYNAMIC_FUNCTION.is_match(&self.formula_string)
-    }
-
-    // Utility method to optionally strip equal sign and array braces from a
-    // formula and also expand out future and dynamic array formulas.
-    pub(crate) fn expand_formula(&self, global_expand_future_functions: bool) -> Box<str> {
-        let mut formula = self.formula_string.as_str();
-
-        // Remove array formula braces and the leading = if they exist.
-        if let Some(stripped) = formula.strip_prefix('{') {
-            formula = stripped;
-        }
-        if let Some(stripped) = formula.strip_prefix('=') {
-            formula = stripped;
-        }
-        if let Some(stripped) = formula.strip_suffix('}') {
-            formula = stripped;
-        }
-
-        // Exit if formula is already expanded by the user.
-        if formula.contains("_xlfn.") {
-            return Box::from(formula);
-        }
-
-        // Expand dynamic formulas.
-        let escaped_formula = Self::escape_dynamic_formulas1(formula);
-        let escaped_formula = Self::escape_dynamic_formulas2(&escaped_formula);
-
-        let formula = if self.expand_future_functions || global_expand_future_functions {
-            Self::escape_future_functions(&escaped_formula)
-        } else {
-            escaped_formula
-        };
-
-        let formula = if self.expand_table_functions {
-            Self::escape_table_functions(&formula)
-        } else {
-            formula
-        };
-
-        Box::from(formula)
-    }
-
-    // Escape/expand the dynamic formula _xlfn functions.
-    fn escape_dynamic_formulas1(formula: &str) -> Cow<str> {
-        lazy_static! {
-            static ref XLFN: Regex = Regex::new(
-                r"\b(ANCHORARRAY|BYCOL|BYROW|CHOOSECOLS|CHOOSEROWS|DROP|EXPAND|HSTACK|LAMBDA|MAKEARRAY|MAP|RANDARRAY|REDUCE|SCAN|SEQUENCE|SINGLE|SORTBY|SWITCH|TAKE|TEXTSPLIT|TOCOL|TOROW|UNIQUE|VSTACK|WRAPCOLS|WRAPROWS|XLOOKUP)\("
-            )
-            .unwrap();
-        }
-        XLFN.replace_all(formula, "_xlfn.$1(")
-    }
-
-    // Escape/expand the dynamic formula _xlfn._xlws. functions.
-    fn escape_dynamic_formulas2(formula: &str) -> Cow<str> {
-        lazy_static! {
-            static ref XLWS: Regex = Regex::new(r"\b(FILTER|SORT)\(").unwrap();
-        }
-        XLWS.replace_all(formula, "_xlfn._xlws.$1(")
-    }
-
-    // Escape/expand future/_xlfn functions.
-    fn escape_future_functions(formula: &str) -> Cow<str> {
-        lazy_static! {
-            static ref FUTURE: Regex = Regex::new(
-                r"\b(ACOTH|ACOT|AGGREGATE|ARABIC|ARRAYTOTEXT|BASE|BETA.DIST|BETA.INV|BINOM.DIST.RANGE|BINOM.DIST|BINOM.INV|BITAND|BITLSHIFT|BITOR|BITRSHIFT|BITXOR|CEILING.MATH|CEILING.PRECISE|CHISQ.DIST.RT|CHISQ.DIST|CHISQ.INV.RT|CHISQ.INV|CHISQ.TEST|COMBINA|CONCAT|CONFIDENCE.NORM|CONFIDENCE.T|COTH|COT|COVARIANCE.P|COVARIANCE.S|CSCH|CSC|DAYS|DECIMAL|ERF.PRECISE|ERFC.PRECISE|EXPON.DIST|F.DIST.RT|F.DIST|F.INV.RT|F.INV|F.TEST|FILTERXML|FLOOR.MATH|FLOOR.PRECISE|FORECAST.ETS.CONFINT|FORECAST.ETS.SEASONALITY|FORECAST.ETS.STAT|FORECAST.ETS|FORECAST.LINEAR|FORMULATEXT|GAMMA.DIST|GAMMA.INV|GAMMALN.PRECISE|GAMMA|GAUSS|HYPGEOM.DIST|IFNA|IFS|IMAGE|IMCOSH|IMCOT|IMCSCH|IMCSC|IMSECH|IMSEC|IMSINH|IMTAN|ISFORMULA|ISOMITTED|ISOWEEKNUM|LET|LOGNORM.DIST|LOGNORM.INV|MAXIFS|MINIFS|MODE.MULT|MODE.SNGL|MUNIT|NEGBINOM.DIST|NORM.DIST|NORM.INV|NORM.S.DIST|NORM.S.INV|NUMBERVALUE|PDURATION|PERCENTILE.EXC|PERCENTILE.INC|PERCENTRANK.EXC|PERCENTRANK.INC|PERMUTATIONA|PHI|POISSON.DIST|QUARTILE.EXC|QUARTILE.INC|QUERYSTRING|RANK.AVG|RANK.EQ|RRI|SECH|SEC|SHEETS|SHEET|SKEW.P|STDEV.P|STDEV.S|T.DIST.2T|T.DIST.RT|T.DIST|T.INV.2T|T.INV|T.TEST|TEXTAFTER|TEXTBEFORE|TEXTJOIN|UNICHAR|UNICODE|VALUETOTEXT|VAR.P|VAR.S|WEBSERVICE|WEIBULL.DIST|XMATCH|XOR|Z.TEST)\("
-            )
-            .unwrap();
-        }
-        FUTURE.replace_all(formula, "_xlfn.$1(")
-    }
-
-    // Escape/expand table functions.
-    fn escape_table_functions(formula: &str) -> Cow<str> {
-        // Convert Excel 2010 "@" table ref to 2007 "#This Row".
-        lazy_static! {
-            static ref TABLE: Regex = Regex::new(r"@").unwrap();
-        }
-        TABLE.replace_all(formula, "[#This Row],")
+    // This is a lookup table to match Excel "future" functions that require a
+    // prefix. The types are:
+    //     0 = Standard future functions.
+    //     1 = Future functions that are also dynamic functions.
+    //     2 = Dynamic function that require an additional prefix.
+    #[allow(clippy::too_many_lines)]
+    fn future_functions(function: &str) -> Option<&u8> {
+        static FUTURE_FUNCTIONS: OnceLock<HashMap<&str, u8>> = OnceLock::new();
+        FUTURE_FUNCTIONS
+            .get_or_init(|| {
+                HashMap::from([
+                    // Future functions.
+                    ("ACOTH", 0),
+                    ("ACOT", 0),
+                    ("AGGREGATE", 0),
+                    ("ARABIC", 0),
+                    ("ARRAYTOTEXT", 0),
+                    ("BASE", 0),
+                    ("BETA.DIST", 0),
+                    ("BETA.INV", 0),
+                    ("BINOM.DIST.RANGE", 0),
+                    ("BINOM.DIST", 0),
+                    ("BINOM.INV", 0),
+                    ("BITAND", 0),
+                    ("BITLSHIFT", 0),
+                    ("BITOR", 0),
+                    ("BITRSHIFT", 0),
+                    ("BITXOR", 0),
+                    ("CEILING.MATH", 0),
+                    ("CEILING.PRECISE", 0),
+                    ("CHISQ.DIST.RT", 0),
+                    ("CHISQ.DIST", 0),
+                    ("CHISQ.INV.RT", 0),
+                    ("CHISQ.INV", 0),
+                    ("CHISQ.TEST", 0),
+                    ("COMBINA", 0),
+                    ("CONCAT", 0),
+                    ("CONFIDENCE.NORM", 0),
+                    ("CONFIDENCE.T", 0),
+                    ("COTH", 0),
+                    ("COT", 0),
+                    ("COVARIANCE.P", 0),
+                    ("COVARIANCE.S", 0),
+                    ("CSCH", 0),
+                    ("CSC", 0),
+                    ("DAYS", 0),
+                    ("DECIMAL", 0),
+                    ("ERF.PRECISE", 0),
+                    ("ERFC.PRECISE", 0),
+                    ("EXPON.DIST", 0),
+                    ("F.DIST.RT", 0),
+                    ("F.DIST", 0),
+                    ("F.INV.RT", 0),
+                    ("F.INV", 0),
+                    ("F.TEST", 0),
+                    ("FIELDVALUE", 0),
+                    ("FILTERXML", 0),
+                    ("FLOOR.MATH", 0),
+                    ("FLOOR.PRECISE", 0),
+                    ("FORECAST.ETS.CONFINT", 0),
+                    ("FORECAST.ETS.SEASONALITY", 0),
+                    ("FORECAST.ETS.STAT", 0),
+                    ("FORECAST.ETS", 0),
+                    ("FORECAST.LINEAR", 0),
+                    ("FORMULATEXT", 0),
+                    ("GAMMA.DIST", 0),
+                    ("GAMMA.INV", 0),
+                    ("GAMMALN.PRECISE", 0),
+                    ("GAMMA", 0),
+                    ("GAUSS", 0),
+                    ("HYPGEOM.DIST", 0),
+                    ("IFNA", 0),
+                    ("IFS", 0),
+                    ("IMAGE", 0),
+                    ("IMCOSH", 0),
+                    ("IMCOT", 0),
+                    ("IMCSCH", 0),
+                    ("IMCSC", 0),
+                    ("IMSECH", 0),
+                    ("IMSEC", 0),
+                    ("IMSINH", 0),
+                    ("IMTAN", 0),
+                    ("ISFORMULA", 0),
+                    ("ISOMITTED", 0),
+                    ("ISOWEEKNUM", 0),
+                    ("LET", 0),
+                    ("LOGNORM.DIST", 0),
+                    ("LOGNORM.INV", 0),
+                    ("MAXIFS", 0),
+                    ("MINIFS", 0),
+                    ("MODE.MULT", 0),
+                    ("MODE.SNGL", 0),
+                    ("MUNIT", 0),
+                    ("NEGBINOM.DIST", 0),
+                    ("NORM.DIST", 0),
+                    ("NORM.INV", 0),
+                    ("NORM.S.DIST", 0),
+                    ("NORM.S.INV", 0),
+                    ("NUMBERVALUE", 0),
+                    ("PDURATION", 0),
+                    ("PERCENTILE.EXC", 0),
+                    ("PERCENTILE.INC", 0),
+                    ("PERCENTRANK.EXC", 0),
+                    ("PERCENTRANK.INC", 0),
+                    ("PERMUTATIONA", 0),
+                    ("PHI", 0),
+                    ("POISSON.DIST", 0),
+                    ("PQSOURCE", 0),
+                    ("PYTHON_STR", 0),
+                    ("PYTHON_TYPE", 0),
+                    ("PYTHON_TYPENAME", 0),
+                    ("QUARTILE.EXC", 0),
+                    ("QUARTILE.INC", 0),
+                    ("QUERYSTRING", 0),
+                    ("RANK.AVG", 0),
+                    ("RANK.EQ", 0),
+                    ("RRI", 0),
+                    ("SECH", 0),
+                    ("SEC", 0),
+                    ("SHEETS", 0),
+                    ("SHEET", 0),
+                    ("SKEW.P", 0),
+                    ("STDEV.P", 0),
+                    ("STDEV.S", 0),
+                    ("T.DIST.2T", 0),
+                    ("T.DIST.RT", 0),
+                    ("T.DIST", 0),
+                    ("T.INV.2T", 0),
+                    ("T.INV", 0),
+                    ("T.TEST", 0),
+                    ("TEXTAFTER", 0),
+                    ("TEXTBEFORE", 0),
+                    ("TEXTJOIN", 0),
+                    ("UNICHAR", 0),
+                    ("UNICODE", 0),
+                    ("VALUETOTEXT", 0),
+                    ("VAR.P", 0),
+                    ("VAR.S", 0),
+                    ("WEBSERVICE", 0),
+                    ("WEIBULL.DIST", 0),
+                    ("XMATCH", 0),
+                    ("XOR", 0),
+                    ("Z.TEST", 0),
+                    // Dynamic functions.
+                    ("ANCHORARRAY", 1),
+                    ("BYCOL", 1),
+                    ("BYROW", 1),
+                    ("CHOOSECOLS", 1),
+                    ("CHOOSEROWS", 1),
+                    ("DROP", 1),
+                    ("EXPAND", 1),
+                    ("HSTACK", 1),
+                    ("LAMBDA", 1),
+                    ("MAKEARRAY", 1),
+                    ("MAP", 1),
+                    ("RANDARRAY", 1),
+                    ("REDUCE", 1),
+                    ("SCAN", 1),
+                    ("SEQUENCE", 1),
+                    ("SINGLE", 1),
+                    ("SORTBY", 1),
+                    ("SWITCH", 1),
+                    ("TAKE", 1),
+                    ("TEXTSPLIT", 1),
+                    ("TOCOL", 1),
+                    ("TOROW", 1),
+                    ("UNIQUE", 1),
+                    ("VSTACK", 1),
+                    ("WRAPCOLS", 1),
+                    ("WRAPROWS", 1),
+                    ("XLOOKUP", 1),
+                    // Special case dynamic functions.
+                    ("FILTER", 2),
+                    ("SORT", 2),
+                    ("PY", 2),
+                ])
+            })
+            .get(function)
     }
 }
 

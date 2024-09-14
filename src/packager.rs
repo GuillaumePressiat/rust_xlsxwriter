@@ -46,7 +46,7 @@ use std::io::{Seek, Write};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread;
 
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::{DateTime, ZipWriter};
 
 use crate::app::App;
@@ -56,6 +56,10 @@ use crate::custom::Custom;
 use crate::error::XlsxError;
 use crate::metadata::Metadata;
 use crate::relationship::Relationship;
+use crate::rich_value::RichValue;
+use crate::rich_value_rel::RichValueRel;
+use crate::rich_value_structure::RichValueStructure;
+use crate::rich_value_types::RichValueTypes;
 use crate::shared_strings::SharedStrings;
 use crate::shared_strings_table::SharedStringsTable;
 use crate::styles::Styles;
@@ -63,13 +67,13 @@ use crate::theme::Theme;
 use crate::vml::Vml;
 use crate::workbook::Workbook;
 use crate::worksheet::Worksheet;
-use crate::{DocProperties, NUM_IMAGE_FORMATS};
+use crate::{Comment, DocProperties, NUM_IMAGE_FORMATS};
 
 // Packager struct to assembler the xlsx file.
 pub struct Packager<W: Write + Seek> {
     zip: ZipWriter<W>,
-    zip_options: FileOptions,
-    zip_options_for_binary_files: FileOptions,
+    zip_options: SimpleFileOptions,
+    zip_options_for_binary_files: SimpleFileOptions,
 }
 
 impl<W: Write + Seek + Send> Packager<W> {
@@ -81,7 +85,7 @@ impl<W: Write + Seek + Send> Packager<W> {
     pub(crate) fn new(writer: W) -> Packager<W> {
         let zip = zip::ZipWriter::new(writer);
 
-        let zip_options = FileOptions::default()
+        let zip_options = SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated)
             .unix_permissions(0o600)
             .last_modified_time(DateTime::default())
@@ -99,7 +103,7 @@ impl<W: Write + Seek + Send> Packager<W> {
 
     // Write the xml files that make up the xlsx OPC package.
     pub(crate) fn assemble_file(
-        &mut self,
+        mut self,
         workbook: &mut Workbook,
         options: &PackagerOptions,
     ) -> Result<(), XlsxError> {
@@ -153,26 +157,28 @@ impl<W: Write + Seek + Send> Packager<W> {
 
         self.write_drawing_files(workbook)?;
         self.write_vml_files(workbook)?;
+        self.write_comment_files(workbook)?;
         self.write_image_files(workbook)?;
         self.write_chart_files(workbook)?;
         self.write_table_files(workbook)?;
+        self.write_vba_project(workbook)?;
 
         let mut image_index = 1;
-        let mut vml_index = 1;
 
         for worksheet in &mut workbook.worksheets {
             if !worksheet.drawing_relationships.is_empty() {
                 self.write_drawing_rels_file(&worksheet.drawing_relationships, image_index)?;
                 image_index += 1;
             }
-            if !worksheet.vml_drawing_relationships.is_empty() {
-                self.write_vml_drawing_rels_file(&worksheet.vml_drawing_relationships, vml_index)?;
-                vml_index += 1;
-            }
         }
 
-        if options.has_dynamic_arrays {
-            self.write_metadata_file()?;
+        if options.has_metadata {
+            self.write_metadata_file(options)?;
+        }
+
+        if options.has_embedded_images {
+            self.write_rich_value_rels_file(workbook)?;
+            self.write_rich_value_files(workbook, options)?;
         }
 
         // Close the zip file.
@@ -188,6 +194,27 @@ impl<W: Write + Seek + Send> Packager<W> {
     // Write the [ContentTypes].xml file.
     fn write_content_types_file(&mut self, options: &PackagerOptions) -> Result<(), XlsxError> {
         let mut content_types = ContentTypes::new();
+
+        // Change the workbook application types based on whether it is an xlsx
+        // or xlsm file.
+        if options.is_xlsm_file {
+            content_types.add_override(
+                "/xl/workbook.xml",
+                "application/vnd.ms-excel.sheet.macroEnabled.main+xml",
+            );
+
+            if options.has_vba_signature {
+                content_types.add_override(
+                    "/xl/vbaProjectSignature.bin",
+                    "application/vnd.ms-office.vbaProjectSignature",
+                );
+            }
+        } else {
+            content_types.add_override(
+                "/xl/workbook.xml",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+            );
+        }
 
         for i in 0..options.num_worksheets {
             content_types.add_worksheet_name(i + 1);
@@ -205,12 +232,20 @@ impl<W: Write + Seek + Send> Packager<W> {
             content_types.add_table_name(i + 1);
         }
 
+        for i in 0..options.num_comments {
+            content_types.add_comments_name(i + 1);
+        }
+
         if options.has_sst_table {
             content_types.add_share_strings();
         }
 
-        if options.has_dynamic_arrays {
+        if options.has_metadata {
             content_types.add_metadata();
+        }
+
+        if options.has_embedded_images {
+            content_types.add_rich_value();
         }
 
         if options.has_vml {
@@ -236,6 +271,10 @@ impl<W: Write + Seek + Send> Packager<W> {
 
         if !options.properties.custom_properties.is_empty() {
             content_types.add_custom_properties();
+        }
+
+        if options.is_xlsm_file {
+            content_types.add_default("bin", "application/vnd.ms-office.vbaProject");
         }
 
         self.zip
@@ -286,8 +325,37 @@ impl<W: Write + Seek + Send> Packager<W> {
             rels.add_document_relationship("sharedStrings", "sharedStrings.xml", "");
         }
 
-        if options.has_dynamic_arrays {
+        if options.has_metadata {
             rels.add_document_relationship("sheetMetadata", "metadata.xml", "");
+        }
+
+        if options.is_xlsm_file {
+            rels.add_office_relationship("2006", "vbaProject", "vbaProject.bin", "");
+        }
+
+        if options.has_embedded_images {
+            rels.add_office_relationship(
+                "2022/10",
+                "richValueRel",
+                "richData/richValueRel.xml",
+                "",
+            );
+
+            rels.add_office_relationship("2017/06", "rdRichValue", "richData/rdrichvalue.xml", "");
+
+            rels.add_office_relationship(
+                "2017/06",
+                "rdRichValueStructure",
+                "richData/rdrichvaluestructure.xml",
+                "",
+            );
+
+            rels.add_office_relationship(
+                "2017/06",
+                "rdRichValueTypes",
+                "richData/rdRichValueTypes.xml",
+                "",
+            );
         }
 
         self.zip
@@ -332,6 +400,10 @@ impl<W: Write + Seek + Send> Packager<W> {
             rels.add_document_relationship(&relationship.0, &relationship.1, &relationship.2);
         }
 
+        for relationship in &worksheet.comment_relationships {
+            rels.add_document_relationship(&relationship.0, &relationship.1, &relationship.2);
+        }
+
         let filename = format!("xl/worksheets/_rels/sheet{index}.xml.rels");
 
         self.zip.start_file(filename, self.zip_options)?;
@@ -368,7 +440,7 @@ impl<W: Write + Seek + Send> Packager<W> {
     pub(crate) fn write_vml_drawing_rels_file(
         &mut self,
         relationships: &[(String, String, String)],
-        index: usize,
+        index: u32,
     ) -> Result<(), XlsxError> {
         let mut rels = Relationship::new();
 
@@ -377,6 +449,46 @@ impl<W: Write + Seek + Send> Packager<W> {
         }
 
         let filename = format!("xl/drawings/_rels/vmlDrawing{index}.vml.rels");
+
+        self.zip.start_file(filename, self.zip_options)?;
+
+        rels.assemble_xml_file();
+        self.zip.write_all(rels.writer.xmlfile.get_ref())?;
+
+        Ok(())
+    }
+
+    // Write a richValueRel.xml.rels file.
+    pub(crate) fn write_rich_value_rels_file(
+        &mut self,
+        workbook: &mut Workbook,
+    ) -> Result<(), XlsxError> {
+        let mut rels = Relationship::new();
+
+        let mut index = 1;
+        for image in &workbook.embedded_images {
+            let target = format!("../media/image{index}.{}", image.image_type.extension());
+            rels.add_document_relationship("image", &target, "");
+            index += 1;
+        }
+
+        let filename = "xl/richData/_rels/richValueRel.xml.rels";
+
+        self.zip.start_file(filename, self.zip_options)?;
+
+        rels.assemble_xml_file();
+        self.zip.write_all(rels.writer.xmlfile.get_ref())?;
+
+        Ok(())
+    }
+
+    // Write a vbaProject.bin.rels file.
+    pub(crate) fn write_vba_project_rels_file(&mut self) -> Result<(), XlsxError> {
+        let mut rels = Relationship::new();
+
+        rels.add_office_relationship("2006", "vbaProjectSignature", "vbaProjectSignature.bin", "");
+
+        let filename = "xl/_rels/vbaProject.bin.rels";
 
         self.zip.start_file(filename, self.zip_options)?;
 
@@ -423,6 +535,7 @@ impl<W: Write + Seek + Send> Packager<W> {
             workbook.border_count,
             workbook.num_formats.clone(),
             workbook.has_hyperlink_style,
+            workbook.has_comments,
             false,
         );
 
@@ -513,13 +626,91 @@ impl<W: Write + Seek + Send> Packager<W> {
     }
 
     // Write the metadata.xml file.
-    fn write_metadata_file(&mut self) -> Result<(), XlsxError> {
+    fn write_metadata_file(&mut self, options: &PackagerOptions) -> Result<(), XlsxError> {
         let mut metadata = Metadata::new();
+        metadata.has_dynamic_functions = options.has_dynamic_functions;
+        metadata.has_embedded_images = options.has_embedded_images;
+        metadata.num_embedded_images = options.num_embedded_images;
 
         self.zip.start_file("xl/metadata.xml", self.zip_options)?;
 
         metadata.assemble_xml_file();
         self.zip.write_all(metadata.writer.xmlfile.get_ref())?;
+
+        Ok(())
+    }
+
+    // Write the various RichValue files.
+    fn write_rich_value_files(
+        &mut self,
+        workbook: &Workbook,
+        options: &PackagerOptions,
+    ) -> Result<(), XlsxError> {
+        self.write_rich_value_file(workbook)?;
+        self.write_rich_value_types_file()?;
+        self.write_rich_value_structure_file(options)?;
+        self.write_rich_value_rel_file(options)?;
+
+        Ok(())
+    }
+
+    // Write the rdrichvalue.xml file.
+    fn write_rich_value_file(&mut self, workbook: &Workbook) -> Result<(), XlsxError> {
+        let mut rich_value = RichValue::new(&workbook.embedded_images);
+
+        self.zip
+            .start_file("xl/richData/rdrichvalue.xml", self.zip_options)?;
+
+        rich_value.assemble_xml_file();
+        self.zip.write_all(rich_value.writer.xmlfile.get_ref())?;
+
+        Ok(())
+    }
+
+    // Write the rdRichValueTypes.xml file.
+    fn write_rich_value_types_file(&mut self) -> Result<(), XlsxError> {
+        let mut rich_value_types = RichValueTypes::new();
+
+        self.zip
+            .start_file("xl/richData/rdRichValueTypes.xml", self.zip_options)?;
+
+        rich_value_types.assemble_xml_file();
+        self.zip
+            .write_all(rich_value_types.writer.xmlfile.get_ref())?;
+
+        Ok(())
+    }
+
+    // Write the rdrichvaluestructure.xml file.
+    fn write_rich_value_structure_file(
+        &mut self,
+        options: &PackagerOptions,
+    ) -> Result<(), XlsxError> {
+        let mut rich_value_structure = RichValueStructure::new();
+        rich_value_structure.has_embedded_image_descriptions =
+            options.has_embedded_image_descriptions;
+
+        self.zip
+            .start_file("xl/richData/rdrichvaluestructure.xml", self.zip_options)?;
+
+        rich_value_structure.assemble_xml_file();
+        self.zip
+            .write_all(rich_value_structure.writer.xmlfile.get_ref())?;
+
+        Ok(())
+    }
+
+    // Write the richValueRel.xml file.
+    fn write_rich_value_rel_file(&mut self, options: &PackagerOptions) -> Result<(), XlsxError> {
+        let mut rich_value_rel = RichValueRel::new();
+        rich_value_rel.num_embedded_images = options.num_embedded_images;
+
+        self.zip
+            .start_file("xl/richData/richValueRel.xml", self.zip_options)?;
+
+        rich_value_rel.assemble_xml_file();
+        self.zip
+            .write_all(rich_value_rel.writer.xmlfile.get_ref())?;
 
         Ok(())
     }
@@ -542,23 +733,72 @@ impl<W: Write + Seek + Send> Packager<W> {
         Ok(())
     }
 
+    // Write the comment files.
+    fn write_comment_files(&mut self, workbook: &mut Workbook) -> Result<(), XlsxError> {
+        let mut index = 1;
+        for worksheet in &mut workbook.worksheets {
+            if !worksheet.notes.is_empty() {
+                let filename = format!("xl/comments{index}.xml");
+                self.zip.start_file(filename, self.zip_options)?;
+
+                let mut comment = Comment::new();
+                comment.notes = worksheet.notes.clone();
+                comment.note_authors = worksheet.note_authors.keys().cloned().collect();
+
+                comment.assemble_xml_file();
+
+                self.zip.write_all(comment.writer.xmlfile.get_ref())?;
+                index += 1;
+            }
+        }
+
+        Ok(())
+    }
+
     // Write the vml files.
     fn write_vml_files(&mut self, workbook: &mut Workbook) -> Result<(), XlsxError> {
         let mut index = 1;
+        let mut header_data_id = 1;
         for worksheet in &mut workbook.worksheets {
-            if worksheet.has_header_footer_images() {
-                let filename = format!("xl/drawings/vmlDrawing{index}.vml");
-                self.zip.start_file(filename, self.zip_options)?;
+            if worksheet.has_header_footer_images() || worksheet.has_vml {
+                if worksheet.has_vml {
+                    let filename = format!("xl/drawings/vmlDrawing{index}.vml");
+                    self.zip.start_file(filename, self.zip_options)?;
 
-                let mut vml = Vml::new();
-                vml.header_images
-                    .append(&mut worksheet.header_footer_vml_info);
-                vml.data_id = index;
-                vml.shape_id = 1024 * index;
-                vml.assemble_xml_file();
+                    let mut vml = Vml::new();
+                    vml.buttons.append(&mut worksheet.buttons_vml_info);
+                    vml.comments.append(&mut worksheet.comments_vml_info);
 
-                self.zip.write_all(vml.writer.xmlfile.get_ref())?;
-                index += 1;
+                    vml.data_id.clone_from(&worksheet.vml_data_id);
+
+                    vml.shape_id = worksheet.vml_shape_id;
+                    vml.assemble_xml_file();
+
+                    self.zip.write_all(vml.writer.xmlfile.get_ref())?;
+                    index += 1;
+                }
+
+                if worksheet.has_header_footer_images() {
+                    let filename = format!("xl/drawings/vmlDrawing{index}.vml");
+                    self.zip.start_file(filename, self.zip_options)?;
+
+                    let mut vml = Vml::new();
+                    vml.header_images
+                        .append(&mut worksheet.header_footer_vml_info);
+
+                    vml.data_id = format!("{header_data_id}");
+                    vml.shape_id = 1024 * header_data_id;
+                    header_data_id += 1;
+
+                    vml.assemble_xml_file();
+
+                    self.zip.write_all(vml.writer.xmlfile.get_ref())?;
+
+                    // The rels file index must match the vmlDrawing file index.
+                    self.write_vml_drawing_rels_file(&worksheet.vml_drawing_relationships, index)?;
+
+                    index += 1;
+                }
             }
         }
 
@@ -571,6 +811,15 @@ impl<W: Write + Seek + Send> Packager<W> {
         let mut unique_worksheet_images = HashSet::new();
         let mut unique_header_footer_images = HashSet::new();
 
+        for image in &workbook.embedded_images {
+            let filename = format!("xl/media/image{index}.{}", image.image_type.extension());
+            self.zip
+                .start_file(filename, self.zip_options_for_binary_files)?;
+
+            self.zip.write_all(&image.data)?;
+            index += 1;
+        }
+
         for worksheet in &mut workbook.worksheets {
             for image in worksheet.images.values() {
                 if !unique_worksheet_images.contains(&image.hash) {
@@ -580,7 +829,7 @@ impl<W: Write + Seek + Send> Packager<W> {
                         .start_file(filename, self.zip_options_for_binary_files)?;
 
                     self.zip.write_all(&image.data)?;
-                    unique_worksheet_images.insert(image.hash);
+                    unique_worksheet_images.insert(image.hash.clone());
                     index += 1;
                 }
             }
@@ -635,22 +884,61 @@ impl<W: Write + Seek + Send> Packager<W> {
 
         Ok(())
     }
+
+    // Write the vba project file.
+    fn write_vba_project(&mut self, workbook: &mut Workbook) -> Result<(), XlsxError> {
+        if !workbook.is_xlsm_file {
+            return Ok(());
+        }
+
+        let filename = "xl/vbaProject.bin";
+        self.zip
+            .start_file(filename, self.zip_options_for_binary_files)?;
+        self.zip.write_all(&workbook.vba_project)?;
+
+        // Write the VBA signature file, if present.
+        self.write_vba_signature(workbook)
+    }
+
+    // Write the vba signature file.
+    fn write_vba_signature(&mut self, workbook: &mut Workbook) -> Result<(), XlsxError> {
+        if workbook.vba_signature.is_empty() {
+            return Ok(());
+        }
+
+        let filename = "xl/vbaProjectSignature.bin";
+        self.zip
+            .start_file(filename, self.zip_options_for_binary_files)?;
+        self.zip.write_all(&workbook.vba_signature)?;
+
+        // Write the associated .rels file.
+        self.write_vba_project_rels_file()?;
+
+        Ok(())
+    }
 }
 
 // Internal struct to pass options to the Packager struct.
 pub(crate) struct PackagerOptions {
     pub(crate) has_sst_table: bool,
-    pub(crate) has_dynamic_arrays: bool,
+    pub(crate) has_metadata: bool,
+    pub(crate) has_dynamic_functions: bool,
+    pub(crate) has_embedded_images: bool,
     pub(crate) has_vml: bool,
+    pub(crate) is_xlsm_file: bool,
+    pub(crate) has_vba_signature: bool,
     pub(crate) num_worksheets: u16,
     pub(crate) num_drawings: u16,
     pub(crate) num_charts: u16,
     pub(crate) num_tables: u16,
+    pub(crate) num_comments: u16,
     pub(crate) doc_security: u8,
     pub(crate) worksheet_names: Vec<String>,
     pub(crate) defined_names: Vec<String>,
     pub(crate) image_types: [bool; NUM_IMAGE_FORMATS],
     pub(crate) properties: DocProperties,
+    pub(crate) num_embedded_images: u32,
+    pub(crate) has_embedded_image_descriptions: bool,
 }
 
 impl PackagerOptions {
@@ -658,17 +946,24 @@ impl PackagerOptions {
     pub(crate) fn new() -> PackagerOptions {
         PackagerOptions {
             has_sst_table: false,
-            has_dynamic_arrays: false,
+            has_metadata: false,
+            has_dynamic_functions: false,
+            has_embedded_images: false,
             has_vml: false,
+            is_xlsm_file: false,
+            has_vba_signature: false,
             num_worksheets: 0,
             num_drawings: 0,
             num_charts: 0,
             num_tables: 0,
+            num_comments: 0,
             doc_security: 0,
             worksheet_names: vec![],
             defined_names: vec![],
             image_types: [false; NUM_IMAGE_FORMATS],
             properties: DocProperties::new(),
+            num_embedded_images: 0,
+            has_embedded_image_descriptions: false,
         }
     }
 }

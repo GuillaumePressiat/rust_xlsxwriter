@@ -4,14 +4,224 @@
 //
 // Copyright 2022-2024, John McNamara, jmcnamara@cpan.org
 
+//! # Working with Workbooks
+//!
+//! The [`Workbook`] struct represents an Excel file in it's entirety. It is the
+//! starting point for creating a new Excel xlsx file.
+//!
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_new.rs
+//! #
+//! use rust_xlsxwriter::{Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     let mut workbook = Workbook::new();
+//!
+//!     let _worksheet = workbook.add_worksheet();
+//!
+//!     workbook.save("workbook.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/workbook_new.png">
+//!
+//!
+//! For more details on the Worksheet APIs for see the [`Worksheet`]
+//! documentation and the sections below.
+//!
+//! # Contents
+//!
+//! - [Creating and saving an xlsx file](#creating-and-saving-an-xlsx-file)
+//! - [Checksum of a saved file](#checksum-of-a-saved-file)
+//!
+//!
+//! # Creating and saving an xlsx file
+//!
+//! Creating a  [`Workbook`] struct instance to represent an Excel xlsx file is
+//! done via the [`Workbook::new()`] method:
+//!
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_new.rs
+//! #
+//! # use rust_xlsxwriter::{Workbook, XlsxError};
+//! #
+//! # fn main() -> Result<(), XlsxError> {
+//!     let mut workbook = Workbook::new();
+//!
+//! #     let _worksheet = workbook.add_worksheet();
+//! #
+//! #     workbook.save("workbook.xlsx")?;
+//! #
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! Once you are finished writing data via a worksheet you can save it with the
+//! [`Workbook::save()`] method:
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_new.rs
+//! #
+//! use rust_xlsxwriter::{Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     let mut workbook = Workbook::new();
+//!
+//!     let _worksheet = workbook.add_worksheet();
+//!
+//!     workbook.save("workbook.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! This will you a simple output file like the following.
+//!
+//! <img src="https://rustxlsxwriter.github.io/images/workbook_new.png">
+//!
+//! The  `save()` method takes a [`std::path`] or path/filename string. You can
+//! also save the xlsx file data to a `Vec<u8>` buffer via the
+//! [`Workbook::save_to_buffer()`] method:
+//!
+//! ```
+//! # // This code is available in examples/doc_workbook_save_to_buffer.rs
+//! #
+//! use rust_xlsxwriter::{Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     let mut workbook = Workbook::new();
+//!
+//!     let worksheet = workbook.add_worksheet();
+//!     worksheet.write_string(0, 0, "Hello")?;
+//!
+//!     let buf = workbook.save_to_buffer()?;
+//!
+//!     println!("File size: {}", buf.len());
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! This can be useful if you intend to stream the data.
+//!
+//!
+//! # Checksum of a saved file
+//!
+//!
+//! A common issue that occurs with `rust_xlsxwriter`, but also with Excel, is
+//! that running the same program twice doesn't generate the same file, byte for
+//! byte. This can cause issues with applications that do checksumming for
+//! testing purposes.
+//!
+//! For example consider the following simple `rust_xlsxwriter` program:
+//!
+//! ```
+//! # // This code is available in examples/doc_properties_checksum1.rs
+//! #
+//! use rust_xlsxwriter::{Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     let mut workbook = Workbook::new();
+//!     let worksheet = workbook.add_worksheet();
+//!
+//!     worksheet.write_string(0, 0, "Hello")?;
+//!
+//!     workbook.save("properties.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! If we run this several times, with a small delay, we will get different
+//! checksums as shown below:
+//!
+//! ```bash
+//! $ cargo run --example doc_properties_checksum1
+//!
+//! $ sum properties.xlsx
+//! 62457 6 properties.xlsx
+//!
+//! $ sleep 2
+//!
+//! $ cargo run --example doc_properties_checksum1
+//!
+//! $ sum properties.xlsx
+//! 56692 6 properties.xlsx # Different to previous.
+//! ```
+//!
+//! This is due to a file creation datetime that is included in the file and
+//! which changes each time a new file is created.
+//!
+//! The relevant section of the `docProps/core.xml` sub-file in the xlsx format
+//! looks like this:
+//!
+//! ```xml
+//! <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+//! <cp:coreProperties>
+//!   <dc:creator/>
+//!   <cp:lastModifiedBy/>
+//!   <dcterms:created xsi:type="dcterms:W3CDTF">2023-01-08T00:23:58Z</dcterms:created>
+//!   <dcterms:modified xsi:type="dcterms:W3CDTF">2023-01-08T00:23:58Z</dcterms:modified>
+//! </cp:coreProperties>
+//! ```
+//!
+//! If required this can be avoided by setting a constant creation date in the
+//! document properties metadata:
+//!
+//!
+//! ```
+//! # // This code is available in examples/doc_properties_checksum2.rs
+//! #
+//! use rust_xlsxwriter::{DocProperties, ExcelDateTime, Workbook, XlsxError};
+//!
+//! fn main() -> Result<(), XlsxError> {
+//!     let mut workbook = Workbook::new();
+//!
+//!     // Create a file creation date for the file.
+//!     let date = ExcelDateTime::from_ymd(2023, 1, 1)?;
+//!
+//!     // Add it to the document metadata.
+//!     let properties = DocProperties::new().set_creation_datetime(&date);
+//!     workbook.set_properties(&properties);
+//!
+//!     let worksheet = workbook.add_worksheet();
+//!     worksheet.write_string(0, 0, "Hello")?;
+//!
+//!     workbook.save("properties.xlsx")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Then we will get the same checksum for the same output every time:
+//!
+//! ```bash
+//! $ cargo run --example doc_properties_checksum2
+//!
+//! $ sum properties.xlsx 8914 6 properties.xlsx
+//!
+//! $ sleep 2
+//!
+//! $ cargo run --example doc_properties_checksum2
+//!
+//! $ sum properties.xlsx 8914 6 properties.xlsx # Same as previous
+//! ```
+//!
+//! For more details see [`DocProperties`] and [`Workbook::set_properties()`].
+//!
 #![warn(missing_docs)]
 
 mod tests;
 
 use std::collections::{HashMap, HashSet};
-use std::io::{Cursor, Seek, Write};
+use std::fs::File;
+use std::io::{BufReader, Cursor, Read, Seek, Write};
 use std::mem;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::error::XlsxError;
 use crate::format::Format;
@@ -20,10 +230,10 @@ use crate::packager::PackagerOptions;
 use crate::worksheet::Worksheet;
 use crate::xmlwriter::XMLWriter;
 use crate::{
-    utility, Border, ChartRange, ChartRangeCacheData, ColNum, DefinedName, DefinedNameType,
-    DocProperties, Fill, Font, RowNum, Visible, NUM_IMAGE_FORMATS,
+    utility, Border, Chart, ChartRange, ChartRangeCacheData, ColNum, Color, DefinedName,
+    DefinedNameType, DocProperties, Fill, Font, FormatPattern, Image, RowNum, Visible,
+    NUM_IMAGE_FORMATS,
 };
-use crate::{Color, FormatPattern};
 
 /// The `Workbook` struct represents an Excel file in its entirety. It is the
 /// starting point for creating a new Excel xlsx file.
@@ -105,6 +315,13 @@ pub struct Workbook {
     pub(crate) border_count: u16,
     pub(crate) num_formats: Vec<String>,
     pub(crate) has_hyperlink_style: bool,
+    pub(crate) embedded_images: Vec<Image>,
+    pub(crate) vba_project: Vec<u8>,
+    pub(crate) vba_signature: Vec<u8>,
+    pub(crate) vba_codename: Option<String>,
+    pub(crate) is_xlsm_file: bool,
+    pub(crate) has_comments: bool,
+
     xf_indices: HashMap<Format, u32>,
     dxf_indices: HashMap<Format, u32>,
     active_tab: u16,
@@ -129,8 +346,8 @@ impl Workbook {
     ///
     /// The `Workbook::new()` constructor is used to create a new Excel workbook
     /// object. This is used to create worksheets and add data prior to saving
-    /// everything to an xlsx file with [`save()`](Workbook::save), or
-    /// [`save_to_buffer()`](Workbook::save_to_buffer).
+    /// everything to an xlsx file with [`Workbook::save()`], or
+    /// [`Workbook::save_to_buffer()`].
     ///
     /// **Note**: `rust_xlsxwriter` can only create new files. It cannot read or
     /// modify existing files.
@@ -181,6 +398,12 @@ impl Workbook {
             user_defined_names: vec![],
             xf_indices: HashMap::new(),
             dxf_indices: HashMap::new(),
+            embedded_images: vec![],
+            is_xlsm_file: false,
+            vba_project: vec![],
+            vba_signature: vec![],
+            vba_codename: None,
+            has_comments: false,
         };
 
         // Initialize the workbook with the same function used to reset it.
@@ -197,19 +420,19 @@ impl Workbook {
     /// The worksheets will be given standard Excel name like `Sheet1`,
     /// `Sheet2`, etc. Alternatively, the name can be set using
     /// `worksheet.set_name()`, see the example below and the docs for
-    /// [`worksheet.set_name()`](Worksheet::set_name).
+    /// [`Worksheet::set_name()`](Worksheet::set_name).
     ///
     /// The `add_worksheet()` method returns a borrowed mutable reference to a
     /// Worksheet instance owned by the Workbook so only one worksheet can be in
     /// existence at a time, see the example below. This limitation can be
     /// avoided, if necessary, by creating standalone Worksheet objects via
     /// [`Worksheet::new()`] and then later adding them to the workbook with
-    /// [`workbook.push_worksheet`](Workbook::push_worksheet).
+    /// [`Workbook::push_worksheet`].
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Creating worksheets]
-    /// and working with the borrow checker.
+    /// See also the documentation on [Creating worksheets] and working with the
+    /// borrow checker.
     ///
-    /// [Creating worksheets]: https://rustxlsxwriter.github.io/worksheet/create.html
+    /// [Creating worksheets]: ../worksheet/index.html#creating-worksheets
     ///
     /// # Examples
     ///
@@ -258,9 +481,8 @@ impl Workbook {
 
     /// Get a worksheet reference by index.
     ///
-    /// Get a reference to a worksheet created via
-    /// [`workbook.add_worksheet()`](Workbook::add_worksheet) using an index
-    /// based on the creation order.
+    /// Get a reference to a worksheet created via [`Workbook::add_worksheet()`]
+    /// using an index based on the creation order.
     ///
     /// Due to borrow checking rules you can only have one active reference to a
     /// worksheet object created by `add_worksheet()` since that method always
@@ -273,19 +495,18 @@ impl Workbook {
     /// apply so you will have to give up ownership of any other worksheet
     /// reference prior to calling this method. See the example below.
     ///
-    /// See also [`worksheet_from_name()`](Workbook::worksheet_from_name) and
-    /// the `rust_xlsxwriter` documentation on [Creating worksheets]
-    /// and working with the borrow checker.
+    /// See also [`Workbook::worksheet_from_name()`] and the documentation on
+    /// [Creating worksheets] and working with the borrow checker.
     ///
-    /// [Creating worksheets]: https://rustxlsxwriter.github.io/worksheet/create.html
+    /// [Creating worksheets]: ../worksheet/index.html#creating-worksheets
     ///
     /// # Parameters
     ///
-    /// * `index` - The index of the worksheet to get a reference to.
+    /// - `index`: The index of the worksheet to get a reference to.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::UnknownWorksheetNameOrIndex`] - Error when trying to
+    /// - [`XlsxError::UnknownWorksheetNameOrIndex`] - Error when trying to
     ///   retrieve a worksheet reference by index. This is usually an index out
     ///   of bounds error.
     ///
@@ -317,7 +538,7 @@ impl Workbook {
     ///     // Stop using worksheet1 and move back to worksheet2.
     ///     worksheet2 = workbook.worksheet_from_index(1)?;
     ///     worksheet2.write_string(1, 0, "Sheet2")?;
-    ///
+    /// #
     /// #     workbook.save("workbook.xlsx")?;
     /// #
     /// #     Ok(())
@@ -339,9 +560,8 @@ impl Workbook {
 
     /// Get a worksheet reference by name.
     ///
-    /// Get a reference to a worksheet created via
-    /// [`workbook.add_worksheet()`](Workbook::add_worksheet) using the sheet
-    /// name.
+    /// Get a reference to a worksheet created via [`Workbook::add_worksheet()`]
+    /// using the sheet name.
     ///
     /// Due to borrow checking rules you can only have one active reference to a
     /// worksheet object created by `add_worksheet()` since that method always
@@ -356,20 +576,21 @@ impl Workbook {
     ///
     /// Worksheet names are usually "Sheet1", "Sheet2", etc., or else a user
     /// define name that was set using
-    /// [`worksheet.set_name()`](Worksheet::set_name). You can also use the
-    /// [`worksheet.name()`](Worksheet::name) method to get the name.
+    /// [`Worksheet::set_name()`](Worksheet::set_name). You can also use the
+    /// [`Worksheet::name()`](Worksheet::name) method to get the name.
     ///
-    /// See also [`worksheet_from_index()`](Workbook::worksheet_from_index) and
-    /// the `rust_xlsxwriter` documentation on [Creating worksheets] and working
-    /// with the borrow checker.
+    /// See also [`Workbook::worksheet_from_index()`] and the documentation on
+    /// [Creating worksheets] and working with the borrow checker.
+    ///
+    /// [Creating worksheets]: ../worksheet/index.html#creating-worksheets
     ///
     /// # Parameters
     ///
-    /// * `name` - The name of the worksheet to get a reference to.
+    /// - `name`: The name of the worksheet to get a reference to.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::UnknownWorksheetNameOrIndex`] - Error when trying to
+    /// - [`XlsxError::UnknownWorksheetNameOrIndex`] - Error when trying to
     ///   retrieve a worksheet reference by index. This is usually an index out
     ///   of bounds error.
     ///
@@ -401,7 +622,7 @@ impl Workbook {
     ///     // Stop using worksheet1 and move back to worksheet2.
     ///     worksheet2 = workbook.worksheet_from_index(1)?;
     ///     worksheet2.write_string(1, 0, "Sheet2")?;
-    ///
+    /// #
     /// #     workbook.save("workbook.xlsx")?;
     /// #
     /// #     Ok(())
@@ -435,11 +656,10 @@ impl Workbook {
     /// If you are careful you can also use some of the standard [slice]
     /// operations on the vector reference, see below.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Creating worksheets]
-    /// and working with the borrow checker.
+    /// See also the documentation on [Creating worksheets] and working with the
+    /// borrow checker.
     ///
-    /// [Creating worksheets]:
-    ///     https://rustxlsxwriter.github.io/worksheet/create.html
+    /// [Creating worksheets]: ../worksheet/index.html#creating-worksheets
     ///
     /// # Examples
     ///
@@ -487,9 +707,8 @@ impl Workbook {
     /// Get a reference to the vector of worksheets.
     ///
     /// Get a reference to the vector of Worksheets used by the Workbook
-    /// instance. This is less useful than
-    /// [`worksheets_mut`](Workbook::worksheets_mut) version since a mutable
-    /// reference is required for most worksheet operations.
+    /// instance. This is less useful than [`Workbook::worksheets_mut`] version
+    /// since a mutable reference is required for most worksheet operations.
     ///
     /// # Examples
     ///
@@ -530,24 +749,24 @@ impl Workbook {
     /// Add a worksheet created directly using `Workbook::new()` to a workbook.
     ///
     /// There are two way of creating a worksheet object with `rust_xlsxwriter`:
-    /// via the [`workbook.add_worksheet()`](Workbook::add_worksheet) method and
-    /// via the [`Worksheet::new()`] constructor. The first method ties the
-    /// worksheet to the workbook object that will write it automatically when
-    /// the file is saved, whereas the second method creates a worksheet that is
-    /// independent of a workbook. This has certain advantages in keeping the
-    /// worksheet free of the workbook borrow checking until you wish to add it.
+    /// via the [`Workbook::add_worksheet()`] method and via the
+    /// [`Worksheet::new()`] constructor. The first method ties the worksheet to
+    /// the workbook object that will write it automatically when the file is
+    /// saved, whereas the second method creates a worksheet that is independent
+    /// of a workbook. This has certain advantages in keeping the worksheet free
+    /// of the workbook borrow checking until you wish to add it.
     ///
     /// When working with the independent worksheet object you can add it to a
     /// workbook using `push_worksheet()`, see the example below.
     ///
-    /// See also the `rust_xlsxwriter` documentation on [Creating worksheets]
-    /// and working with the borrow checker.
+    /// See also the documentation on [Creating worksheets] and working with the
+    /// borrow checker.
     ///
-    /// [Creating worksheets]: https://rustxlsxwriter.github.io/worksheet/create.html
+    /// [Creating worksheets]: ../worksheet/index.html#creating-worksheets
     ///
     /// # Parameters
     ///
-    /// * `worksheet` - The worksheet to add to the workbook.
+    /// - `worksheet`: The worksheet to add to the workbook.
     ///
     /// # Examples
     ///
@@ -604,18 +823,18 @@ impl Workbook {
     ///
     /// # Parameters
     ///
-    /// * `path` - The path of the new Excel file to create as a `&str` or as a
+    /// - `path`: The path of the new Excel file to create as a `&str` or as a
     ///   [`std::path`] `Path` or `PathBuf` instance.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::SheetnameReused`] - Worksheet name is already in use in
+    /// - [`XlsxError::SheetnameReused`] - Worksheet name is already in use in
     ///   the workbook.
-    /// * [`XlsxError::TableNameReused`] - Worksheet Table name is already in
+    /// - [`XlsxError::TableNameReused`] - Worksheet Table name is already in
     ///   use in the workbook.
-    /// * [`XlsxError::IoError`] - A wrapper for various IO errors when creating
+    /// - [`XlsxError::IoError`] - A wrapper for various IO errors when creating
     ///   the xlsx file, or its sub-files.
-    /// * [`XlsxError::ZipError`] - A wrapper for various zip errors when
+    /// - [`XlsxError::ZipError`] - A wrapper for various zip errors when
     ///   creating the xlsx file, or its sub-files.
     ///
     /// # Examples
@@ -675,16 +894,16 @@ impl Workbook {
     /// Save the Workbook as an xlsx file and return it as a byte vector.
     ///
     /// The workbook `save_to_buffer()` method is similar to the
-    /// [`save()`](Workbook::save) method except that it returns the xlsx file
-    /// as a `Vec<u8>` buffer suitable for streaming in a web application.
+    /// [`Workbook::save()`] method except that it returns the xlsx file as a
+    /// `Vec<u8>` buffer suitable for streaming in a web application.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::SheetnameReused`] - Worksheet name is already in use in
+    /// - [`XlsxError::SheetnameReused`] - Worksheet name is already in use in
     ///   the workbook.
-    /// * [`XlsxError::IoError`] - A wrapper for various IO errors when creating
+    /// - [`XlsxError::IoError`] - A wrapper for various IO errors when creating
     ///   the xlsx file, or its sub-files.
-    /// * [`XlsxError::ZipError`] - A wrapper for various zip errors when
+    /// - [`XlsxError::ZipError`] - A wrapper for various zip errors when
     ///   creating the xlsx file, or its sub-files.
     ///
     /// # Examples
@@ -721,17 +940,21 @@ impl Workbook {
     /// Save the Workbook as an xlsx file to a user supplied file/buffer.
     ///
     /// The workbook `save_to_writer()` method is similar to the
-    /// [`save()`](Workbook::save) method except that it writes the xlsx file to
-    /// types that implement the [`Write`] trait such as the [`std::fs::File`]
-    /// type or buffers.
+    /// [`Workbook::save()`] method except that it writes the xlsx file to types
+    /// that implement the [`Write`] trait such as the [`std::fs::File`] type or
+    /// buffers.
+    ///
+    /// # Parameters
+    ///
+    /// - `writer`: An object that implements the [`Write`] trait.
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::SheetnameReused`] - Worksheet name is already in use in
+    /// - [`XlsxError::SheetnameReused`] - Worksheet name is already in use in
     ///   the workbook.
-    /// * [`XlsxError::IoError`] - A wrapper for various IO errors when creating
+    /// - [`XlsxError::IoError`] - A wrapper for various IO errors when creating
     ///   the xlsx file, or its sub-files.
-    /// * [`XlsxError::ZipError`] - A wrapper for various zip errors when
+    /// - [`XlsxError::ZipError`] - A wrapper for various zip errors when
     ///   creating the xlsx file, or its sub-files.
     ///
     /// # Examples
@@ -826,12 +1049,12 @@ impl Workbook {
     ///
     /// # Parameters
     ///
-    /// * `name` - The variable name to define.
-    /// * `formula` - The formula, value or range that the name defines..
+    /// - `name`: The variable name to define.
+    /// - `formula`: The formula, value or range that the name defines..
     ///
     /// # Errors
     ///
-    /// * [`XlsxError::ParameterError`] - The following Excel error cases will
+    /// - [`XlsxError::ParameterError`] - The following Excel error cases will
     ///   raise a `ParameterError` error:
     ///   * If the name doesn't start with a letter or underscore.
     ///   * If the name contains `,/*[]:\"'` or `space`.
@@ -863,7 +1086,7 @@ impl Workbook {
     ///
     ///     // Define a local/worksheet name. Over-rides the "Sales" name above.
     ///     workbook.define_name("Sheet2!Sales", "=Sheet2!$G$1:$G$10")?;
-    ///
+    /// #
     /// #     // Write some text in the file and one of the defined names in a formula.
     /// #     for worksheet in workbook.worksheets_mut() {
     /// #         worksheet.set_column_width(0, 45)?;
@@ -949,11 +1172,12 @@ impl Workbook {
     /// Set the Excel document metadata properties.
     ///
     /// Set various Excel document metadata properties such as Author or
-    /// Creation Date. It is used in conjunction with the [`DocProperties`] struct.
+    /// Creation Date. It is used in conjunction with the [`DocProperties`]
+    /// struct.
     ///
     /// # Parameters
     ///
-    /// * `properties` - A reference to a [`DocProperties`] object.
+    /// - `properties`: A reference to a [`DocProperties`] object.
     ///
     /// # Examples
     ///
@@ -979,9 +1203,9 @@ impl Workbook {
     ///         .set_comment("Created with Rust and rust_xlsxwriter");
     ///
     ///     workbook.set_properties(&properties);
-    ///
+    /// #
     /// #     let worksheet = workbook.add_worksheet();
-    ///
+    /// #
     /// #     worksheet.set_column_width(0, 30)?;
     /// #     worksheet.write_string(0, 0, "See File -> Info -> Properties")?;
     /// #
@@ -998,8 +1222,8 @@ impl Workbook {
     ///
     ///
     /// The document properties can also be used to set a constant creation date
-    /// so that a file generated by a `rust_xlsxwriter` program will have the same
-    /// checksum no matter when it is created.
+    /// so that a file generated by a `rust_xlsxwriter` program will have the
+    /// same checksum no matter when it is created.
     ///
     ///
     /// ```
@@ -1026,14 +1250,249 @@ impl Workbook {
     /// }
     /// ```
     ///
-    ///  See also [Checksum of a saved file].
-    ///
-    /// [Checksum of a saved file]:
-    ///     https://rustxlsxwriter.github.io/workbook/checksum.html
+    ///  See also [Checksum of a saved
+    ///  file](../workbook/index.html#checksum-of-a-saved-file).
     ///
     pub fn set_properties(&mut self, properties: &DocProperties) -> &mut Workbook {
         self.properties = properties.clone();
         self
+    }
+
+    /// Add a vba macro file to the workbook.
+    ///
+    /// The `add_vba_project()` method can be used to add macros or functions to
+    /// a workbook using a binary VBA project file that has been extracted from
+    /// an existing Excel `xlsm` file.
+    ///
+    /// An Excel `xlsm` file is structurally the same as an `xlsx` file except
+    /// that it contains an additional `vbaProject.bin` binary file containing
+    /// VBA functions and/or macros.
+    ///
+    /// The `vbaProject.bin` in a `xlsm` file is a binary OLE COM container.
+    /// This was the format used in older `xls` versions of Excel prior to Excel
+    /// 2007. Unlike other components of an xlsx/xlsm file the data isn't stored
+    /// in XML format. Instead the functions and macros as stored as a
+    /// pre-parsed binary format. As such it wouldn't be feasible to
+    /// programmatically define macros and create a `vbaProject.bin` file from
+    /// scratch.
+    ///
+    /// Instead, as a workaround, the Rust
+    /// [`vba_extract`](https://crates.io/crates/vba_extract) utility is used to
+    /// extract `vbaProject.bin` files from existing xlsm files which you can
+    /// then add to `rust_xlsxwriter` files.
+    ///
+    /// The utility can be installed via `cargo`:
+    ///
+    /// ```bash
+    /// $ cargo install vba_extract
+    /// ```
+    ///
+    /// Once `vba_extract` is installed it can be used as follows:
+    ///
+    /// ```bash
+    /// $ vba_extract macro_file.xlsm
+    ///
+    /// Extracted: vbaProject.bin
+    /// ```
+    ///
+    /// If the VBA project is signed, `vba_extract` also extracts the
+    /// `vbaProjectSignature.bin` file from the xlsm file (see below).
+    ///
+    /// The process is explained in detail in [Working with VBA
+    /// macros](crate::macros).
+    ///
+    /// Only one `vbaProject.bin` file can be added per workbook. The name
+    /// doesn’t have to be `vbaProject.bin`. Any suitable path/name for an
+    /// existing VBA bin file will do.
+    ///
+    /// # Parameters
+    ///
+    /// - `project`: A path to a `vbaProject.bin` file.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::IoError`] - I/O errors if the path doesn't exist or is
+    ///   restricted.
+    ///
+    /// # Examples
+    ///
+    /// An example of adding macros to an `rust_xlsxwriter` file using a VBA
+    /// macros file extracted from an existing Excel xlsm file.
+    ///
+    /// ```
+    /// # // This code is available in examples/app_macros.rs
+    /// #
+    /// use rust_xlsxwriter::{Button, Workbook, XlsxError};
+    ///
+    /// fn main() -> Result<(), XlsxError> {
+    ///     // Create a new Excel file object.
+    ///     let mut workbook = Workbook::new();
+    ///
+    ///     // Add the VBA macro file.
+    ///     workbook.add_vba_project("examples/vbaProject.bin")?;
+    ///
+    ///     // Add a worksheet and some text.
+    ///     let worksheet = workbook.add_worksheet();
+    ///
+    ///     // Widen the first column for clarity.
+    ///     worksheet.set_column_width(0, 30)?;
+    ///
+    ///     worksheet.write(2, 0, "Press the button to say hello:")?;
+    ///
+    ///     // Add a button tied to a macro in the VBA project.
+    ///     let button = Button::new()
+    ///         .set_caption("Press Me")
+    ///         .set_macro("say_hello")
+    ///         .set_width(80)
+    ///         .set_height(30);
+    ///
+    ///     worksheet.insert_button(2, 1, &button)?;
+    ///
+    ///     // Save the file to disk. Note the `.xlsm` extension. This is required by
+    ///     // Excel or it raise a warning.
+    ///     workbook.save("macros.xlsm")?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// Output file:
+    ///
+    /// <img src="https://rustxlsxwriter.github.io/images/app_macros.png">
+    ///
+    pub fn add_vba_project<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Workbook, XlsxError> {
+        let mut path_buf = PathBuf::new();
+        path_buf.push(path);
+
+        let file = File::open(path_buf)?;
+        let mut reader = BufReader::new(file);
+        let mut data = vec![];
+        reader.read_to_end(&mut data)?;
+
+        self.vba_project = data;
+        self.is_xlsm_file = true;
+
+        if self.vba_codename.is_none() {
+            self.vba_codename = Some("ThisWorkbook".to_string());
+        }
+
+        Ok(self)
+    }
+
+    /// Add a signed vba macro file to the workbook.
+    ///
+    /// The `add_vba_project_with_signature()` method can be used to add signed
+    /// macros or functions to a workbook using a binary VBA project file that
+    /// has been extracted from an existing Excel `xlsm` file.
+    ///
+    /// VBA macros can be signed in Excel to allow for further control over
+    /// execution. The signature part is added to the `xlsm` file in a binary
+    /// called `vbaProjectSignature.bin` which must be used in conjunction with
+    /// `vbaProject.bin`, see above.
+    ///
+    /// The Rust [`vba_extract`](https://crates.io/crates/vba_extract) utility
+    /// will extract the `vbaProject.bin` and `vbaProjectSignature.bin` files
+    /// from an `xlsm` file with signed macros.
+    ///
+    ///
+    /// See [`Workbook::add_vba_project()`] above and [Working with VBA
+    /// macros](crate::macros) for more details.
+    ///
+    /// # Parameters
+    ///
+    /// - `project`: A path to a `vbaProject.bin` file.
+    /// - `signature`: A path to a `vbaProjectSignature.bin` file.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::IoError`] - I/O errors if the path doesn't exist or is
+    ///   restricted.
+    ///
+    /// # Examples
+    ///
+    /// The following example demonstrates a simple example of adding a vba
+    /// project to an xlsm file.
+    ///
+    /// ```
+    /// # // This code is available in examples/doc_macros_signed.rs
+    /// #
+    /// # use rust_xlsxwriter::{Workbook, XlsxError};
+    /// #
+    /// # #[allow(unused_variables)]
+    /// # fn main() -> Result<(), XlsxError> {
+    /// #     let mut workbook = Workbook::new();
+    /// #
+    ///     workbook.add_vba_project_with_signature(
+    ///         "examples/vbaProject.bin",
+    ///         "examples/vbaProjectSignature.bin",
+    ///     )?;
+    /// #
+    /// #     let worksheet = workbook.add_worksheet();
+    /// #
+    /// #     // Note the `.xlsm` extension.
+    /// #     workbook.save("macros.xlsm")?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    pub fn add_vba_project_with_signature<P: AsRef<Path>>(
+        &mut self,
+        project: P,
+        signature: P,
+    ) -> Result<&mut Workbook, XlsxError> {
+        // Add the project binary file.
+        self.add_vba_project(project)?;
+
+        // Add the signature binary file.
+        let mut path_buf = PathBuf::new();
+        path_buf.push(signature);
+
+        let file = File::open(path_buf)?;
+        let mut reader = BufReader::new(file);
+        let mut data = vec![];
+        reader.read_to_end(&mut data)?;
+
+        self.vba_signature = data;
+
+        Ok(self)
+    }
+
+    /// Set the workbook name used in VBA macros.
+    ///
+    /// This method can be used to set the VBA name for the workbook. This is
+    /// sometimes required when a VBA macro included via
+    /// [`Workbook::add_vba_project()`] makes reference to the workbook with a
+    /// name other than the default Excel VBA name of `ThisWorkbook`.
+    ///
+    /// See also the
+    /// [`Worksheet::set_vba_name()`](crate::Worksheet::set_vba_name()) method
+    /// for setting a worksheet VBA name.
+    ///
+    /// The name must be a valid Excel VBA object name as defined by the
+    /// following rules:
+    ///
+    /// - The name must be less than 32 characters.
+    /// - The name can only contain word characters: letters, numbers and
+    ///   underscores.
+    /// - The name must start with a letter.
+    /// - The name cannot be blank.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: The vba name. It must follow the Excel rules, shown above.
+    ///
+    /// # Errors
+    ///
+    /// - [`XlsxError::VbaNameError`] - The name doesn't meet one of Excel's
+    ///   criteria, shown above.
+    ///
+    pub fn set_vba_name(&mut self, name: impl Into<String>) -> Result<&mut Workbook, XlsxError> {
+        let name = name.into();
+        utility::validate_vba_name(&name)?;
+        self.vba_codename = Some(name);
+
+        Ok(self)
     }
 
     /// Add a recommendation to open the file in “read-only” mode.
@@ -1124,7 +1583,7 @@ impl Workbook {
             }
         }
 
-        // Check for duplicate sheet names, which aren't allowed by Excel
+        // Check for duplicate sheet names, which aren't allowed by Excel.
         let mut unique_worksheet_names = HashSet::new();
         for worksheet in &self.worksheets {
             let worksheet_name = worksheet.name.to_lowercase();
@@ -1184,10 +1643,26 @@ impl Workbook {
 
             // Set the index of the worksheets.
             worksheet.sheet_index = i;
+
+            // Set a default codename for the worksheet if the overall workbook
+            // is a xlsm file. Note that the VBA sheet naming scheme is based on
+            // SheetN and not on the actual sheet name.
+            if self.is_xlsm_file {
+                let codename = format!("Sheet{}", i + 1);
+                if worksheet.vba_codename.is_none() {
+                    worksheet.vba_codename = Some(codename);
+                }
+            }
         }
+
+        // Generate a global array of embedded images from the worksheets.
+        self.prepare_embedded_images();
 
         // Convert the images in the workbooks into drawing files and rel links.
         self.prepare_drawings();
+
+        // Prepare the worksheet VML elements such as buttons and header images.
+        self.prepare_vml();
 
         // Fill the chart data caches from worksheet data.
         self.prepare_chart_cache_data()?;
@@ -1203,7 +1678,7 @@ impl Workbook {
         package_options = self.set_package_options(package_options)?;
 
         // Create the Packager object that will assemble the zip/xlsx file.
-        let mut packager = Packager::new(writer);
+        let packager = Packager::new(writer);
         packager.assemble_file(self, &package_options)?;
 
         Ok(())
@@ -1226,27 +1701,107 @@ impl Workbook {
         self.active_tab = active_index as u16;
     }
 
+    // Prepare the worksheet VML elements such as buttons and header images.
+    fn prepare_vml(&mut self) {
+        let mut comment_id = 1;
+        let mut vml_drawing_id = 1;
+        let mut vml_data_id = 1;
+        let mut vml_shape_id = 1024;
+
+        for worksheet in &mut self.worksheets {
+            if worksheet.has_vml {
+                let note_count = worksheet.prepare_vml_objects(vml_data_id, vml_shape_id);
+                worksheet.add_vml_drawing_rel_link(vml_drawing_id);
+                vml_drawing_id += 1;
+
+                if !worksheet.notes.is_empty() {
+                    worksheet.add_comment_rel_link(comment_id);
+                    comment_id += 1;
+                    self.has_comments = true;
+                }
+
+                // Each VML should start with a shape id incremented by 1024.
+                vml_data_id += (1024 + note_count) / 1024;
+                vml_shape_id += 1024 * ((1024 + note_count) / 1024);
+            }
+
+            if worksheet.has_header_footer_images() {
+                worksheet.add_vml_drawing_rel_link(vml_drawing_id);
+                vml_drawing_id += 1;
+            }
+        }
+    }
+
+    // Convert any embedded images in the worksheets to a global reference. Each
+    // worksheet like have a local index to an embedded cell image. We need to
+    // map these local references to a worksheet/global id that takes into
+    // account duplicate images.
+    fn prepare_embedded_images(&mut self) {
+        let mut embedded_images = vec![];
+        let mut image_ids: HashMap<String, u32> = HashMap::new();
+        let mut global_image_id = 0;
+
+        for worksheet in &mut self.worksheets {
+            if worksheet.embedded_images.is_empty() {
+                continue;
+            }
+
+            let mut global_embedded_image_ids = vec![];
+            for image in &worksheet.embedded_images {
+                let image_id = match image_ids.get(&image.hash) {
+                    Some(image_id) => *image_id,
+                    None => {
+                        global_image_id += 1;
+                        embedded_images.push(image.clone());
+                        image_ids.insert(image.hash.clone(), global_image_id);
+                        global_image_id
+                    }
+                };
+
+                global_embedded_image_ids.push(image_id);
+            }
+
+            worksheet.global_embedded_image_indices = global_embedded_image_ids;
+        }
+
+        self.embedded_images = embedded_images;
+    }
+
     // Convert the images in the workbooks into drawing files and rel links.
     fn prepare_drawings(&mut self) {
         let mut chart_id = 1;
         let mut drawing_id = 1;
-        let mut vml_drawing_id = 1;
+        let mut shape_id = 1;
+        let mut image_id = self.embedded_images.len() as u32;
 
         // These are the image ids for each unique image file.
-        let mut worksheet_image_ids: HashMap<u64, u32> = HashMap::new();
-        let mut header_footer_image_ids: HashMap<u64, u32> = HashMap::new();
+        let mut worksheet_image_ids: HashMap<String, u32> = HashMap::new();
+        let mut header_footer_image_ids: HashMap<String, u32> = HashMap::new();
 
         for worksheet in &mut self.worksheets {
             if !worksheet.images.is_empty() {
-                worksheet.prepare_worksheet_images(&mut worksheet_image_ids, drawing_id);
+                worksheet.prepare_worksheet_images(
+                    &mut worksheet_image_ids,
+                    &mut image_id,
+                    drawing_id,
+                );
             }
 
             if !worksheet.charts.is_empty() {
-                chart_id = worksheet.prepare_worksheet_charts(chart_id, drawing_id);
+                worksheet.prepare_worksheet_charts(chart_id, drawing_id);
+                chart_id += worksheet.charts.len() as u32;
+            }
+
+            if !worksheet.shapes.is_empty() {
+                worksheet.prepare_worksheet_shapes(shape_id, drawing_id);
+                shape_id += worksheet.shapes.len() as u32;
             }
 
             // Increase the drawing number/id for image/chart file.
-            if !worksheet.images.is_empty() || !worksheet.charts.is_empty() {
+            if !worksheet.images.is_empty()
+                || !worksheet.charts.is_empty()
+                || !worksheet.shapes.is_empty()
+            {
                 drawing_id += 1;
             }
 
@@ -1254,12 +1809,7 @@ impl Workbook {
                 // The header/footer images are counted from the last worksheet id.
                 let base_image_id = worksheet_image_ids.len() as u32;
 
-                worksheet.prepare_header_footer_images(
-                    &mut header_footer_image_ids,
-                    base_image_id,
-                    vml_drawing_id,
-                );
-                vml_drawing_id += 1;
+                worksheet.prepare_header_footer_images(&mut header_footer_image_ids, base_image_id);
             }
         }
     }
@@ -1307,23 +1857,10 @@ impl Workbook {
         for worksheet in &self.worksheets {
             if !worksheet.charts.is_empty() {
                 for chart in worksheet.charts.values() {
-                    Self::insert_to_chart_cache(&chart.title.range, &mut chart_caches);
-                    Self::insert_to_chart_cache(&chart.x_axis.title.range, &mut chart_caches);
-                    Self::insert_to_chart_cache(&chart.y_axis.title.range, &mut chart_caches);
+                    Self::insert_chart_ranges_to_cache(chart, &mut chart_caches);
 
-                    for series in &chart.series {
-                        Self::insert_to_chart_cache(&series.title.range, &mut chart_caches);
-                        Self::insert_to_chart_cache(&series.value_range, &mut chart_caches);
-                        Self::insert_to_chart_cache(&series.category_range, &mut chart_caches);
-
-                        for data_label in &series.custom_data_labels {
-                            Self::insert_to_chart_cache(&data_label.title.range, &mut chart_caches);
-                        }
-
-                        if let Some(error_bars) = &series.y_error_bars {
-                            Self::insert_to_chart_cache(&error_bars.plus_range, &mut chart_caches);
-                            Self::insert_to_chart_cache(&error_bars.minus_range, &mut chart_caches);
-                        }
+                    if let Some(chart) = &chart.combined_chart {
+                        Self::insert_chart_ranges_to_cache(chart, &mut chart_caches);
                     }
                 }
             }
@@ -1347,42 +1884,78 @@ impl Workbook {
         for worksheet in &mut self.worksheets {
             if !worksheet.charts.is_empty() {
                 for chart in worksheet.charts.values_mut() {
-                    Self::update_range_cache(&mut chart.title.range, &mut chart_caches);
-                    Self::update_range_cache(&mut chart.x_axis.title.range, &mut chart_caches);
-                    Self::update_range_cache(&mut chart.y_axis.title.range, &mut chart_caches);
+                    Self::update_chart_ranges_from_cache(chart, &mut chart_caches);
 
-                    for series in &mut chart.series {
-                        Self::update_range_cache(&mut series.title.range, &mut chart_caches);
-                        Self::update_range_cache(&mut series.value_range, &mut chart_caches);
-                        Self::update_range_cache(&mut series.category_range, &mut chart_caches);
-
-                        for data_label in &mut series.custom_data_labels {
-                            if let Some(cache) = chart_caches.get(&data_label.title.range.key()) {
-                                data_label.title.range.cache = cache.clone();
-                            }
-                        }
-
-                        if let Some(error_bars) = &mut series.y_error_bars {
-                            Self::update_range_cache(&mut error_bars.plus_range, &mut chart_caches);
-                            Self::update_range_cache(
-                                &mut error_bars.minus_range,
-                                &mut chart_caches,
-                            );
-                        }
-
-                        if let Some(error_bars) = &mut series.x_error_bars {
-                            Self::update_range_cache(&mut error_bars.plus_range, &mut chart_caches);
-                            Self::update_range_cache(
-                                &mut error_bars.minus_range,
-                                &mut chart_caches,
-                            );
-                        }
+                    if let Some(chart) = &mut chart.combined_chart {
+                        Self::update_chart_ranges_from_cache(chart, &mut chart_caches);
                     }
                 }
             }
         }
 
         Ok(())
+    }
+
+    // Insert all the various chart ranges into the lookup range cache.
+    fn insert_chart_ranges_to_cache(
+        chart: &Chart,
+        chart_caches: &mut HashMap<(String, RowNum, ColNum, RowNum, ColNum), ChartRangeCacheData>,
+    ) {
+        Self::insert_to_chart_cache(&chart.title.range, chart_caches);
+        Self::insert_to_chart_cache(&chart.x_axis.title.range, chart_caches);
+        Self::insert_to_chart_cache(&chart.y_axis.title.range, chart_caches);
+
+        for series in &chart.series {
+            Self::insert_to_chart_cache(&series.title.range, chart_caches);
+            Self::insert_to_chart_cache(&series.value_range, chart_caches);
+            Self::insert_to_chart_cache(&series.category_range, chart_caches);
+
+            for data_label in &series.custom_data_labels {
+                Self::insert_to_chart_cache(&data_label.title.range, chart_caches);
+            }
+
+            if let Some(error_bars) = &series.y_error_bars {
+                Self::insert_to_chart_cache(&error_bars.plus_range, chart_caches);
+                Self::insert_to_chart_cache(&error_bars.minus_range, chart_caches);
+            }
+
+            if let Some(error_bars) = &series.x_error_bars {
+                Self::insert_to_chart_cache(&error_bars.plus_range, chart_caches);
+                Self::insert_to_chart_cache(&error_bars.minus_range, chart_caches);
+            }
+        }
+    }
+
+    // Update all the various chart ranges from the lookup range cache.
+    fn update_chart_ranges_from_cache(
+        chart: &mut Chart,
+        chart_caches: &mut HashMap<(String, RowNum, ColNum, RowNum, ColNum), ChartRangeCacheData>,
+    ) {
+        Self::update_range_cache(&mut chart.title.range, chart_caches);
+        Self::update_range_cache(&mut chart.x_axis.title.range, chart_caches);
+        Self::update_range_cache(&mut chart.y_axis.title.range, chart_caches);
+
+        for series in &mut chart.series {
+            Self::update_range_cache(&mut series.title.range, chart_caches);
+            Self::update_range_cache(&mut series.value_range, chart_caches);
+            Self::update_range_cache(&mut series.category_range, chart_caches);
+
+            for data_label in &mut series.custom_data_labels {
+                if let Some(cache) = chart_caches.get(&data_label.title.range.key()) {
+                    data_label.title.range.cache = cache.clone();
+                }
+            }
+
+            if let Some(error_bars) = &mut series.y_error_bars {
+                Self::update_range_cache(&mut error_bars.plus_range, chart_caches);
+                Self::update_range_cache(&mut error_bars.minus_range, chart_caches);
+            }
+
+            if let Some(error_bars) = &mut series.x_error_bars {
+                Self::update_range_cache(&mut error_bars.plus_range, chart_caches);
+                Self::update_range_cache(&mut error_bars.minus_range, chart_caches);
+            }
+        }
     }
 
     // Insert a chart range (expressed as a hash/key value) into the chart cache
@@ -1605,9 +2178,13 @@ impl Workbook {
     ) -> Result<PackagerOptions, XlsxError> {
         package_options.num_worksheets = self.worksheets.len() as u16;
         package_options.doc_security = self.read_only_mode;
+        package_options.num_embedded_images = self.embedded_images.len() as u32;
 
         let mut defined_names = self.user_defined_names.clone();
         let mut sheet_names: HashMap<String, u16> = HashMap::new();
+
+        package_options.is_xlsm_file = self.is_xlsm_file;
+        package_options.has_vba_signature = !self.vba_signature.is_empty();
 
         // Iterate over the worksheets to capture workbook and update the
         // package options metadata.
@@ -1629,10 +2206,19 @@ impl Workbook {
             }
 
             if worksheet.has_dynamic_arrays {
-                package_options.has_dynamic_arrays = true;
+                package_options.has_metadata = true;
+                package_options.has_dynamic_functions = true;
             }
 
-            if worksheet.has_header_footer_images() {
+            if !worksheet.embedded_images.is_empty() {
+                package_options.has_metadata = true;
+                package_options.has_embedded_images = true;
+                if worksheet.has_embedded_image_descriptions {
+                    package_options.has_embedded_image_descriptions = true;
+                }
+            }
+
+            if worksheet.has_vml || worksheet.has_header_footer_images() {
                 package_options.has_vml = true;
             }
 
@@ -1646,6 +2232,10 @@ impl Workbook {
 
             if !worksheet.tables.is_empty() {
                 package_options.num_tables += worksheet.tables.len() as u16;
+            }
+
+            if !worksheet.notes.is_empty() {
+                package_options.num_comments += 1;
             }
 
             // Store the autofilter areas which are a category of defined name.
@@ -1681,7 +2271,7 @@ impl Workbook {
         // Map the sheet name and associated index so that we can map a sheet
         // reference in a Local/Sheet defined name to a worksheet index.
         for defined_name in &mut defined_names {
-            let sheet_name = defined_name.unquoted_sheet_name();
+            let sheet_name = utility::unquote_sheetname(&defined_name.quoted_sheet_name);
 
             if !sheet_name.is_empty() {
                 match sheet_names.get(&sheet_name) {
@@ -1765,12 +2355,16 @@ impl Workbook {
 
     // Write the <fileVersion> element.
     fn write_file_version(&mut self) {
-        let attributes = [
+        let mut attributes = vec![
             ("appName", "xl"),
             ("lastEdited", "4"),
             ("lowestEdited", "4"),
             ("rupBuild", "4505"),
         ];
+
+        if self.is_xlsm_file {
+            attributes.push(("codeName", "{37E998C4-C9E5-D4B9-71C8-EB1FF731991C}"));
+        }
 
         self.writer.xml_empty_tag("fileVersion", &attributes);
     }
@@ -1784,7 +2378,13 @@ impl Workbook {
 
     // Write the <workbookPr> element.
     fn write_workbook_pr(&mut self) {
-        let attributes = [("defaultThemeVersion", "124226")];
+        let mut attributes = vec![];
+
+        if let Some(codename) = &self.vba_codename {
+            attributes.push(("codeName", codename.clone()));
+        }
+
+        attributes.push(("defaultThemeVersion", "124226".to_string()));
 
         self.writer.xml_empty_tag("workbookPr", &attributes);
     }
@@ -1842,7 +2442,7 @@ impl Workbook {
     // Write the <sheet> element.
     fn write_sheet(&mut self, name: &str, visible: Visible, index: u16) {
         let sheet_id = format!("{index}");
-        let ref_id = format!("rId{index}");
+        let rel_id = format!("rId{index}");
 
         let mut attributes = vec![("name", name.to_string()), ("sheetId", sheet_id)];
 
@@ -1852,7 +2452,7 @@ impl Workbook {
             Visible::VeryHidden => attributes.push(("state", "veryHidden".to_string())),
         }
 
-        attributes.push(("r:id", ref_id));
+        attributes.push(("r:id", rel_id));
 
         self.writer.xml_empty_tag("sheet", &attributes);
     }
